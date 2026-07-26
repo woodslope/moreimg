@@ -1691,71 +1691,75 @@ function App() {
     _useState6 = _slicedToArray(_useState5, 2),
     isConfigOpen = _useState6[0],
     setIsConfigOpen = _useState6[1];
-  var _useState7 = useState([]),
+  var _useState7 = useState(false),
     _useState8 = _slicedToArray(_useState7, 2),
-    history = _useState8[0],
-    setHistory = _useState8[1];
-  var _useState9 = useState(null),
+    isHistoryOpen = _useState8[0],
+    setIsHistoryOpen = _useState8[1];
+  var _useState9 = useState([]),
     _useState0 = _slicedToArray(_useState9, 2),
-    activeHistoryId = _useState0[0],
-    setActiveHistoryId = _useState0[1];
-  var _useState1 = useState(''),
+    history = _useState0[0],
+    setHistory = _useState0[1];
+  var _useState1 = useState(null),
     _useState10 = _slicedToArray(_useState1, 2),
-    inputText = _useState10[0],
-    setInputText = _useState10[1];
-  var _useState11 = useState(false),
+    activeHistoryId = _useState10[0],
+    setActiveHistoryId = _useState10[1];
+  var _useState11 = useState(''),
     _useState12 = _slicedToArray(_useState11, 2),
-    isProcessing = _useState12[0],
-    setIsProcessing = _useState12[1];
+    inputText = _useState12[0],
+    setInputText = _useState12[1];
   var _useState13 = useState(false),
     _useState14 = _slicedToArray(_useState13, 2),
-    showResults = _useState14[0],
-    setShowResults = _useState14[1];
-  var _useState15 = useState(0),
+    isProcessing = _useState14[0],
+    setIsProcessing = _useState14[1];
+  var _useState15 = useState(false),
     _useState16 = _slicedToArray(_useState15, 2),
-    internalStage = _useState16[0],
-    setInternalStage = _useState16[1];
-  var _useState17 = useState('step1'),
+    showResults = _useState16[0],
+    setShowResults = _useState16[1];
+  var _useState17 = useState(0),
     _useState18 = _slicedToArray(_useState17, 2),
-    activeStageTab = _useState18[0],
-    setActiveStageTab = _useState18[1];
-  var _useState19 = useState(''),
+    internalStage = _useState18[0],
+    setInternalStage = _useState18[1];
+  var _useState19 = useState('step1'),
     _useState20 = _slicedToArray(_useState19, 2),
-    activeVisualPage = _useState20[0],
-    setActiveVisualPage = _useState20[1];
-  var _useState21 = useState(null),
+    activeStageTab = _useState20[0],
+    setActiveStageTab = _useState20[1];
+  var _useState21 = useState(''),
     _useState22 = _slicedToArray(_useState21, 2),
-    toast = _useState22[0],
-    setToast = _useState22[1];
-  var _useState23 = useState({}),
+    activeVisualPage = _useState22[0],
+    setActiveVisualPage = _useState22[1];
+  var _useState23 = useState(null),
     _useState24 = _slicedToArray(_useState23, 2),
-    imageResults = _useState24[0],
-    setImageResults = _useState24[1];
-  var _useState25 = useState(loadLastImageDiagnostic),
+    toast = _useState24[0],
+    setToast = _useState24[1];
+  var _useState25 = useState({}),
     _useState26 = _slicedToArray(_useState25, 2),
-    lastImageDiagnostic = _useState26[0],
-    setLastImageDiagnostic = _useState26[1];
-  var _useState27 = useState({
+    imageResults = _useState26[0],
+    setImageResults = _useState26[1];
+  var _useState27 = useState(loadLastImageDiagnostic),
+    _useState28 = _slicedToArray(_useState27, 2),
+    lastImageDiagnostic = _useState28[0],
+    setLastImageDiagnostic = _useState28[1];
+  var _useState29 = useState({
       cardId: '',
       status: 'idle',
       error: ''
     }),
-    _useState28 = _slicedToArray(_useState27, 2),
-    htmlExportState = _useState28[0],
-    setHtmlExportState = _useState28[1];
-  var _useState29 = useState({}),
     _useState30 = _slicedToArray(_useState29, 2),
-    hiddenFullImages = _useState30[0],
-    setHiddenFullImages = _useState30[1];
-  var _useState31 = useState([]),
+    htmlExportState = _useState30[0],
+    setHtmlExportState = _useState30[1];
+  var _useState31 = useState({}),
     _useState32 = _slicedToArray(_useState31, 2),
-    textModels = _useState32[0],
-    setTextModels = _useState32[1];
+    hiddenFullImages = _useState32[0],
+    setHiddenFullImages = _useState32[1];
   var _useState33 = useState([]),
     _useState34 = _slicedToArray(_useState33, 2),
-    imageModels = _useState34[0],
-    setImageModels = _useState34[1];
-  var _useState35 = useState({
+    textModels = _useState34[0],
+    setTextModels = _useState34[1];
+  var _useState35 = useState([]),
+    _useState36 = _slicedToArray(_useState35, 2),
+    imageModels = _useState36[0],
+    setImageModels = _useState36[1];
+  var _useState37 = useState({
       textModels: {
         status: 'idle',
         message: ''
@@ -1769,14 +1773,14 @@ function App() {
         message: ''
       }
     }),
-    _useState36 = _slicedToArray(_useState35, 2),
-    configTools = _useState36[0],
-    setConfigTools = _useState36[1];
-  var _useState37 = useState(false),
     _useState38 = _slicedToArray(_useState37, 2),
-    isInputFocused = _useState38[0],
-    setIsInputFocused = _useState38[1];
-  var _useState39 = useState({
+    configTools = _useState38[0],
+    setConfigTools = _useState38[1];
+  var _useState39 = useState(false),
+    _useState40 = _slicedToArray(_useState39, 2),
+    isInputFocused = _useState40[0],
+    setIsInputFocused = _useState40[1];
+  var _useState41 = useState({
       rawText: '',
       packageData: null,
       stages: {
@@ -1791,9 +1795,9 @@ function App() {
       stopReason: '',
       warning: ''
     }),
-    _useState40 = _slicedToArray(_useState39, 2),
-    currentSession = _useState40[0],
-    setCurrentSession = _useState40[1];
+    _useState42 = _slicedToArray(_useState41, 2),
+    currentSession = _useState42[0],
+    setCurrentSession = _useState42[1];
   var messagesEndRef = useRef(null);
   var processingAbortRef = useRef(null);
   var imageObjectUrlsRef = useRef([]);
@@ -3551,6 +3555,69 @@ function App() {
     }, currentSession.warning))), renderStageContent());
   }, [showResults, currentSession, activeStageTab, activeVisualPage, imageResults, hiddenFullImages, apiConfig, htmlExportState]);
   var isButtonDisabled = !isProcessing && (!apiConfig.apiKey || !inputText.trim());
+  var renderHistoryItems = function renderHistoryItems() {
+    var _ref1 = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : {},
+      _ref1$closeAfterOpen = _ref1.closeAfterOpen,
+      closeAfterOpen = _ref1$closeAfterOpen === void 0 ? false : _ref1$closeAfterOpen,
+      _ref1$mobile = _ref1.mobile,
+      mobile = _ref1$mobile === void 0 ? false : _ref1$mobile;
+    return React.createElement(React.Fragment, null, history.length === 0 && (mobile ? React.createElement("div", {
+      className: "mobile-history-empty"
+    }, React.createElement(Icon, {
+      name: "History",
+      className: "h-8 w-8 text-slate-300"
+    }), React.createElement("span", {
+      className: "text-[13px]"
+    }, "\u6682\u65E0\u5386\u53F2\u8BB0\u5F55")) : React.createElement("div", {
+      className: "mt-6 text-center text-[13px] italic text-slate-400"
+    }, "\u6682\u65E0\u5386\u53F2\u8BB0\u5F55")), history.map(function (item) {
+      return React.createElement("div", {
+        key: item.id,
+        className: "mi-surface mi-surface-list history-item relative group backdrop-blur-sm shrink-0\n                ".concat(isProcessing ? 'mi-surface-disabled' : '', "\n                ").concat(activeHistoryId === item.id && showResults ? 'mi-surface-selected' : '')
+      }, React.createElement("button", {
+        type: "button",
+        className: "history-item-main pr-16",
+        onClick: function onClick() {
+          if (isProcessing) return;
+          if (closeAfterOpen) setIsHistoryOpen(false);
+          loadHistoryItem(item.id);
+        },
+        disabled: isProcessing,
+        "aria-current": activeHistoryId === item.id && showResults ? 'true' : undefined,
+        "aria-label": "\u6253\u5F00\u5386\u53F2\u8BB0\u5F55\uFF1A".concat(item.title || '未命名')
+      }, React.createElement("div", {
+        className: "text-[13px] font-bold truncate flex items-center ".concat(activeHistoryId === item.id && showResults ? 'text-indigo-600' : 'text-slate-700')
+      }, item.title || '未命名'), React.createElement("div", {
+        className: "mt-1.5 font-mono text-[11px] text-slate-400"
+      }, item.date)), !isProcessing && React.createElement("div", {
+        className: "history-item-actions absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-all"
+      }, React.createElement("button", {
+        type: "button",
+        onClick: function onClick(event) {
+          event.stopPropagation();
+          if (closeAfterOpen) setIsHistoryOpen(false);
+          retryHistoryItem(item.id);
+        },
+        className: "mi-icon-button mi-icon-button-compact history-item-action bg-indigo-50/80 text-indigo-500 hover:bg-indigo-100 hover:text-indigo-600 shadow-sm border border-indigo-100/50",
+        "aria-label": "\u518D\u6B21\u751F\u6210\uFF1A".concat(item.title || '未命名'),
+        title: "\u518D\u6B21\u751F\u6210"
+      }, React.createElement(Icon, {
+        name: "RefreshCw",
+        className: "w-3.5 h-3.5"
+      })), React.createElement("button", {
+        type: "button",
+        onClick: function onClick(event) {
+          return deleteHistoryItem(item.id, event);
+        },
+        className: "mi-icon-button mi-icon-button-compact history-item-action bg-red-50/80 text-red-500 hover:bg-red-100 hover:text-red-600 shadow-sm border border-red-100/50",
+        "aria-label": "\u5220\u9664\u8BB0\u5F55\uFF1A".concat(item.title || '未命名'),
+        title: "\u5220\u9664\u8BB0\u5F55"
+      }, React.createElement(Icon, {
+        name: "Trash2",
+        className: "w-3.5 h-3.5"
+      }))));
+    }));
+  };
   return React.createElement("div", {
     className: "moreimg-app-shell flex flex-col md:flex-row h-screen overflow-hidden font-sans text-slate-800 relative bg-transparent"
   }, toast && React.createElement(Toast, {
@@ -3571,7 +3638,24 @@ function App() {
     name: "Sparkles",
     className: "w-5 h-5 text-white",
     strokeWidth: 2
-  })), "\u4E00\u6587\u591A\u56FE"), React.createElement("button", {
+  })), "\u4E00\u6587\u591A\u56FE"), React.createElement("div", {
+    className: "sidebar-header-actions"
+  }, React.createElement("button", {
+    type: "button",
+    onClick: function onClick() {
+      return setIsHistoryOpen(true);
+    },
+    disabled: isProcessing,
+    className: "mi-button mi-button-standard mobile-history-trigger",
+    "aria-label": "\u6253\u5F00\u5386\u53F2\u8BB0\u5F55\uFF0C\u5171 ".concat(history.length, " \u6761"),
+    title: "\u5386\u53F2\u8BB0\u5F55"
+  }, React.createElement(Icon, {
+    name: "History",
+    className: "h-4 w-4"
+  }), React.createElement("span", null, "\u5386\u53F2"), history.length > 0 && React.createElement("span", {
+    className: "mobile-history-count",
+    "aria-hidden": "true"
+  }, history.length)), React.createElement("button", {
     type: "button",
     onClick: function onClick() {
       return setIsConfigOpen(true);
@@ -3583,7 +3667,7 @@ function App() {
     name: "Settings",
     className: "w-5 h-5",
     strokeWidth: 2
-  }))), React.createElement("div", {
+  })))), React.createElement("div", {
     className: "sidebar-input-shell"
   }, React.createElement("div", {
     className: "sidebar-input-clip"
@@ -3614,52 +3698,7 @@ function App() {
     className: "flex items-center text-[12px] font-bold text-slate-400 mb-4 tracking-wide uppercase shrink-0"
   }, "\u5386\u53F2\u8BB0\u5F55"), React.createElement("div", {
     className: "space-y-3 overflow-y-auto custom-scrollbar flex-1 pb-4 pr-1"
-  }, history.length === 0 && React.createElement("div", {
-    className: "text-[13px] text-slate-400 italic text-center mt-6"
-  }, "\u6682\u65E0\u5386\u53F2\u8BB0\u5F55"), history.map(function (item) {
-    return React.createElement("div", {
-      key: item.id,
-      className: "mi-surface mi-surface-list history-item relative group backdrop-blur-sm shrink-0\n                      ".concat(isProcessing ? 'mi-surface-disabled' : '', "\n                      ").concat(activeHistoryId === item.id && showResults ? 'mi-surface-selected' : '')
-    }, React.createElement("button", {
-      type: "button",
-      className: "history-item-main pr-16",
-      onClick: function onClick() {
-        return !isProcessing && loadHistoryItem(item.id);
-      },
-      disabled: isProcessing,
-      "aria-current": activeHistoryId === item.id && showResults ? 'true' : undefined,
-      "aria-label": "\u6253\u5F00\u5386\u53F2\u8BB0\u5F55\uFF1A".concat(item.title || '未命名')
-    }, React.createElement("div", {
-      className: "text-[13px] font-bold truncate flex items-center ".concat(activeHistoryId === item.id && showResults ? 'text-indigo-600' : 'text-slate-700')
-    }, item.title || '未命名'), React.createElement("div", {
-      className: "text-[11px] text-slate-400 mt-1.5 font-mono"
-    }, item.date)), !isProcessing && React.createElement("div", {
-      className: "history-item-actions absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-all"
-    }, React.createElement("button", {
-      type: "button",
-      onClick: function onClick(e) {
-        e.stopPropagation();
-        retryHistoryItem(item.id);
-      },
-      className: "mi-icon-button mi-icon-button-compact history-item-action bg-indigo-50/80 text-indigo-500 hover:bg-indigo-100 hover:text-indigo-600 shadow-sm border border-indigo-100/50",
-      "aria-label": "\u518D\u6B21\u751F\u6210\uFF1A".concat(item.title || '未命名'),
-      title: "\u518D\u6B21\u751F\u6210"
-    }, React.createElement(Icon, {
-      name: "RefreshCw",
-      className: "w-3.5 h-3.5"
-    })), React.createElement("button", {
-      type: "button",
-      onClick: function onClick(e) {
-        return deleteHistoryItem(item.id, e);
-      },
-      className: "mi-icon-button mi-icon-button-compact history-item-action bg-red-50/80 text-red-500 hover:bg-red-100 hover:text-red-600 shadow-sm border border-red-100/50",
-      "aria-label": "\u5220\u9664\u8BB0\u5F55\uFF1A".concat(item.title || '未命名'),
-      title: "\u5220\u9664\u8BB0\u5F55"
-    }, React.createElement(Icon, {
-      name: "Trash2",
-      className: "w-3.5 h-3.5"
-    }))));
-  }))), React.createElement("div", {
+  }, renderHistoryItems())), React.createElement("div", {
     className: "moreimg-brand brand-attribution hidden md:block",
     "aria-label": "\u9879\u76EE\u5F52\u5C5E\u4E0E\u7248\u6743"
   }, React.createElement("div", {
@@ -3784,7 +3823,48 @@ function App() {
     content: resultContent
   }), React.createElement("div", {
     ref: messagesEndRef
-  })))), isConfigOpen && React.createElement("div", {
+  })))), isHistoryOpen && React.createElement("div", {
+    className: "mobile-history-overlay animate-fade-in",
+    onClick: function onClick() {
+      return setIsHistoryOpen(false);
+    }
+  }, React.createElement("section", {
+    className: "mobile-history-dialog flex flex-col animate-fade-in-down",
+    role: "dialog",
+    "aria-modal": "true",
+    "aria-labelledby": "mobile-history-title",
+    onClick: function onClick(event) {
+      return event.stopPropagation();
+    }
+  }, React.createElement("div", {
+    className: "mobile-history-dialog-header"
+  }, React.createElement("div", null, React.createElement("h2", {
+    id: "mobile-history-title",
+    className: "flex items-center text-[16px] font-extrabold text-slate-800"
+  }, React.createElement(Icon, {
+    name: "History",
+    className: "mr-2 h-5 w-5 text-indigo-600"
+  }), " \u5386\u53F2\u8BB0\u5F55"), React.createElement("p", {
+    className: "mt-1 text-[11px] text-slate-500"
+  }, "\u6062\u590D\u3001\u518D\u6B21\u751F\u6210\u6216\u5220\u9664\u672C\u673A\u8BB0\u5F55")), React.createElement("button", {
+    type: "button",
+    onClick: function onClick() {
+      return setIsHistoryOpen(false);
+    },
+    className: "mi-icon-button mi-icon-button-standard sidebar-icon-button",
+    "aria-label": "\u5173\u95ED\u5386\u53F2\u8BB0\u5F55",
+    title: "\u5173\u95ED\u5386\u53F2\u8BB0\u5F55"
+  }, React.createElement(Icon, {
+    name: "X",
+    className: "h-5 w-5"
+  }))), React.createElement("div", {
+    className: "mobile-history-dialog-body custom-scrollbar"
+  }, React.createElement("div", {
+    className: "space-y-3"
+  }, renderHistoryItems({
+    closeAfterOpen: true,
+    mobile: true
+  }))))), isConfigOpen && React.createElement("div", {
     className: "fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 animate-fade-in"
   }, React.createElement("div", {
     className: "config-dialog flex flex-col animate-fade-in-down"
@@ -4159,10 +4239,10 @@ function App() {
     className: "mi-surface mi-surface-card image-diagnostic"
   }, React.createElement("summary", null, "\u6700\u8FD1\u4E00\u6B21\u751F\u56FE\u8BCA\u65AD", React.createElement("span", null, lastImageDiagnostic !== null && lastImageDiagnostic !== void 0 && lastImageDiagnostic.updatedAt ? new Date(lastImageDiagnostic.updatedAt).toLocaleString() : '暂无记录')), lastImageDiagnostic ? React.createElement("dl", {
     className: "image-diagnostic-grid"
-  }, [['请求方式', lastImageDiagnostic.requestMode], ['请求接口', lastImageDiagnostic.endpointPath], ['请求格式', lastImageDiagnostic.requestedFormat], ['实际返回', lastImageDiagnostic.actualFormat], ['图片来源', lastImageDiagnostic.imageHost], ['保存方式', lastImageDiagnostic.storageBackend], ['保存结果', lastImageDiagnostic.storageStatus], ['刷新恢复', lastImageDiagnostic.restoreStatus], ['失败原因', lastImageDiagnostic.failureReason || '无']].map(function (_ref1) {
-    var _ref10 = _slicedToArray(_ref1, 2),
-      label = _ref10[0],
-      value = _ref10[1];
+  }, [['请求方式', lastImageDiagnostic.requestMode], ['请求接口', lastImageDiagnostic.endpointPath], ['请求格式', lastImageDiagnostic.requestedFormat], ['实际返回', lastImageDiagnostic.actualFormat], ['图片来源', lastImageDiagnostic.imageHost], ['保存方式', lastImageDiagnostic.storageBackend], ['保存结果', lastImageDiagnostic.storageStatus], ['刷新恢复', lastImageDiagnostic.restoreStatus], ['失败原因', lastImageDiagnostic.failureReason || '无']].map(function (_ref10) {
+    var _ref11 = _slicedToArray(_ref10, 2),
+      label = _ref11[0],
+      value = _ref11[1];
     return React.createElement("div", {
       className: "image-diagnostic-item",
       key: label
