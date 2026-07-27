@@ -1,0 +1,76 @@
+import { createRequire } from 'node:module';
+import { createHash } from 'node:crypto';
+import { readFile, writeFile } from 'node:fs/promises';
+import { fileURLToPath } from 'node:url';
+import path from 'node:path';
+
+const directory = path.dirname(fileURLToPath(import.meta.url));
+const require = createRequire(import.meta.url);
+const Babel = require(path.join(directory, 'vendor/babel.js'));
+const lucide = require(path.join(directory, 'vendor/lucide.js'));
+const sourcePath = path.join(directory, 'src.html');
+const source = await readFile(sourcePath, 'utf8');
+const scriptPattern = /\s*<script type="text\/babel">([\s\S]*?)<\/script>/;
+const match = source.match(scriptPattern);
+
+if (!match) {
+  throw new Error('src.html 中未找到 text/babel 应用脚本');
+}
+
+const iconNames = new Set();
+for (const iconTag of source.match(/<Icon\b[\s\S]*?\/>/g) || []) {
+  for (const stringMatch of iconTag.matchAll(/['"]([A-Z][A-Za-z0-9]*)['"]/g)) {
+    if (lucide.icons[stringMatch[1]]) iconNames.add(stringMatch[1]);
+  }
+}
+for (const iconMatch of source.matchAll(/\bicon:\s*['"]([A-Z][A-Za-z0-9]*)['"]/g)) {
+  if (lucide.icons[iconMatch[1]]) iconNames.add(iconMatch[1]);
+}
+
+const iconSubset = Object.fromEntries([...iconNames].sort().map(name => [name, lucide.icons[name][2]]));
+const iconBundle = `/* Lucide icon subset, ISC License: https://lucide.dev/license */\nwindow.moreimgIcons=Object.freeze(${JSON.stringify(iconSubset)});\n`;
+const iconVersion = createHash('sha256').update(iconBundle).digest('hex').slice(0, 12);
+
+const assetPaths = [
+  'styles.css',
+  'vendor/react.js',
+  'vendor/react-dom.js',
+  'vendor/html2canvas.js',
+  'fonts/noto-sans-sc.css'
+];
+const assetContents = Object.fromEntries(await Promise.all(assetPaths.map(async assetPath => [
+  assetPath,
+  await readFile(path.join(directory, assetPath))
+])));
+const assetVersions = Object.fromEntries(assetPaths.map(assetPath => [
+  assetPath,
+  createHash('sha256').update(assetContents[assetPath]).digest('hex').slice(0, 12)
+]));
+
+const { code: transformedCode } = Babel.transform(match[1], {
+  presets: [['env', { modules: false }], ['react', { runtime: 'classic' }]],
+  comments: false,
+  compact: false,
+  sourceType: 'script',
+});
+const code = transformedCode
+  .replace('vendor/html2canvas.js', `vendor/html2canvas.js?v=${assetVersions['vendor/html2canvas.js']}`)
+  .replace('fonts/noto-sans-sc.css', `fonts/noto-sans-sc.css?v=${assetVersions['fonts/noto-sans-sc.css']}`);
+const appVersion = createHash('sha256').update(code).digest('hex').slice(0, 12);
+
+let html = source
+  .replace(/\s*<!-- Babel -->\s*<script src="vendor\/babel\.js"><\/script>/, '')
+  .replace(scriptPattern, `\n  <script src="app.js?v=${appVersion}" defer></script>`);
+
+for (const assetPath of ['styles.css', 'vendor/react.js', 'vendor/react-dom.js']) {
+  html = html.replace(assetPath, `${assetPath}?v=${assetVersions[assetPath]}`);
+}
+html = html.replace('vendor/lucide-moreimg.js', `vendor/lucide-moreimg.js?v=${iconVersion}`);
+
+await Promise.all([
+  writeFile(path.join(directory, 'app.js'), `${code}\n`),
+  writeFile(path.join(directory, 'index.html'), html),
+  writeFile(path.join(directory, 'vendor/lucide-moreimg.js'), iconBundle),
+]);
+
+console.log(`Built moreimg/index.html, app.js and ${iconNames.size} Lucide icons`);

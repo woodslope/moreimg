@@ -1,0 +1,3398 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="author" content="LINPO LAB">
+  <meta name="copyright" content="© 2026 LINPO LAB. All rights reserved.">
+  <link rel="icon" href="data:,">
+  <title>一文多图</title>
+  
+  <link rel="stylesheet" href="styles.css">
+
+  <!-- React & ReactDOM -->
+  <script src="vendor/react.js"></script>
+  <script src="vendor/react-dom.js"></script>
+  
+  <!-- Babel -->
+  <script src="vendor/babel.js"></script>
+
+  <!-- 构建时只保留页面实际使用的 Lucide 图标 -->
+  <script src="vendor/lucide-moreimg.js"></script>
+
+  <style>
+    /* 全局滚动条优化 */
+    .custom-scrollbar::-webkit-scrollbar { width: 5px; height: 5px; }
+    .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+    .custom-scrollbar::-webkit-scrollbar-thumb {
+      background-color: rgba(148, 163, 184, 0.4);
+      border-radius: 10px;
+      transition: background-color 0.3s ease;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb:hover { background-color: rgba(148, 163, 184, 0.7); }
+    .processing-action-button { border: 1px solid transparent; color: #fff; box-shadow: 0 5px 14px rgba(79,70,229,.18); }
+    .processing-action-button.is-ready { background: #4f46e5; }
+    .processing-action-button.is-ready:hover { background: #4338ca; }
+    .processing-action-button.is-running { background: #dc2626; border-color: #ef4444; }
+    .processing-action-button.is-running:hover { background: #b91c1c; }
+    .hide-scrollbar::-webkit-scrollbar { display: none; }
+    .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+    /* =========================================================
+       左侧输入框多状态与流动渐变描边系统
+       ========================================================= */
+    @keyframes borderFlow {
+      0% { background-position: 0% 50%; }
+      50% { background-position: 100% 50%; }
+      100% { background-position: 0% 50%; }
+    }
+    
+    @media (prefers-reduced-motion: reduce) {
+      .sidebar-input-shell::before {
+        animation: none;
+      }
+    }
+
+    .brand-attribution {
+      flex-shrink: 0;
+      margin-top: 16px;
+      padding-top: 14px;
+      border-top: 1px solid rgba(255, 255, 255, 0.6);
+      color: #94a3b8;
+      font-size: 10px;
+      line-height: 1.6;
+      text-align: center;
+      user-select: none;
+    }
+
+    .brand-attribution-name {
+      color: #64748b;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.3px;
+    }
+
+    /* MoreImg 工作台组件系统：共享表面、控件、状态和结果布局。 */
+    .visual-workbench { display: flex; flex-direction: column; gap: 24px; }
+    .mi-icon-button { display: inline-grid; flex: 0 0 auto; place-items: center; padding: 0; line-height: 0; transition: border-color .18s ease, background-color .18s ease, color .18s ease, opacity .18s ease; }
+    .mi-icon-button-standard { width: var(--mi-control-standard); height: var(--mi-control-standard); border-radius: 12px; }
+    .mi-icon-button-compact { width: var(--mi-control-compact); height: var(--mi-control-compact); border-radius: 8px; }
+    .mi-icon-button:focus-visible { outline: 2px solid var(--mi-focus-ring); outline-offset: 2px; }
+    .mi-icon-button:disabled { cursor: not-allowed; opacity: .48; }
+    .mi-button { display: inline-flex; align-items: center; justify-content: center; border: 1px solid transparent; line-height: 1; white-space: nowrap; transition: background-color .18s ease, border-color .18s ease, color .18s ease, box-shadow .18s ease, transform .18s ease; }
+    .mi-button-standard { min-height: var(--mi-control-action); border-radius: var(--mi-radius-action); padding: 0 14px; }
+    .mi-button-compact { min-height: var(--mi-control-auxiliary); border-radius: var(--mi-radius-action); padding: 0 12px; }
+    .mi-button-prominent { min-height: var(--mi-control-primary); border-radius: var(--mi-radius-field); padding: 0 16px; }
+    .mi-button:focus-visible { outline: 2px solid var(--mi-focus-ring); outline-offset: 2px; }
+    .mi-tab { display: inline-flex; height: var(--mi-control-action); align-items: center; justify-content: center; border: 1px solid transparent; white-space: nowrap; transition: background-color .18s ease, border-color .18s ease, color .18s ease, box-shadow .18s ease, opacity .18s ease; }
+    .mi-tab:focus-visible { outline: 2px solid var(--mi-focus-ring); outline-offset: 2px; }
+    .mi-tab:disabled { cursor: not-allowed; opacity: .5; }
+    .mi-field { width: 100%; border: 1px solid var(--mi-field-border); border-radius: var(--mi-radius-field); background: var(--mi-field-bg); color: #475569; transition: background-color .18s ease, border-color .18s ease, box-shadow .18s ease; }
+    .mi-field:hover { border-color: rgba(203,213,225,.9); background: rgba(255,255,255,.72); }
+    .mi-field:focus-visible { border-color: var(--mi-focus-ring); outline: none; box-shadow: var(--mi-focus-shadow); }
+    .mi-field:disabled { cursor: not-allowed; border-color: var(--mi-disabled-border); background: var(--mi-disabled-bg); color: var(--mi-disabled-text); }
+    .mi-surface { min-width: 0; border: 1px solid var(--mi-surface-border); }
+    .mi-surface-panel { border-radius: 16px; background: var(--mi-surface-panel); box-shadow: var(--mi-surface-panel-shadow); }
+    .mi-surface-raised { background: var(--mi-surface-raised); box-shadow: var(--mi-surface-raised-shadow); }
+    .mi-surface-card { border-color: var(--mi-surface-card-border); border-radius: 12px; background: var(--mi-surface-card); }
+    .mi-surface-list { border-color: var(--mi-surface-list-border); border-radius: 12px; padding: 14px; background: var(--mi-surface-list); transition: background-color .18s ease, border-color .18s ease, box-shadow .18s ease, opacity .18s ease; }
+    .mi-surface-list:hover, .mi-surface-list:focus-within { border-color: rgba(255,255,255,.72); background: rgba(255,255,255,.62); }
+    .mi-surface-selected { border-color: rgba(255,255,255,.88); background: rgba(255,255,255,.82); box-shadow: 0 1px 2px rgba(15,23,42,.05); }
+    .mi-surface-disabled { cursor: not-allowed; opacity: .5; }
+    .mi-empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; border: 1px dashed rgba(148,163,184,.72); border-radius: 12px; background: linear-gradient(145deg, #f8fafc, #eef2f7); color: #64748b; text-align: center; }
+    .mi-empty-state-media { width: 100%; aspect-ratio: 3 / 4; border-radius: 10px; }
+    .mi-empty-state-panel { min-height: 260px; padding: 24px; }
+    .mi-empty-state-inline { width: 100%; height: 100%; border: 0; border-radius: 0; background: transparent; }
+    .mi-empty-state-icon { display: flex; width: 40px; height: 40px; flex: 0 0 auto; align-items: center; justify-content: center; border-radius: 10px; background: #eef2ff; color: #4f46e5; }
+    .mi-empty-state-icon-large { width: 48px; height: 48px; border-radius: 12px; }
+    .mi-feedback { display: flex; align-items: flex-start; gap: 8px; border: 1px solid transparent; border-radius: 10px; padding: 10px 12px; font-size: 11px; line-height: 1.6; }
+    .mi-feedback-info { border-color: var(--mi-feedback-info-border); background: var(--mi-feedback-info-bg); color: var(--mi-feedback-info-text); }
+    .mi-feedback-warning { border-color: var(--mi-feedback-warning-border); background: var(--mi-feedback-warning-bg); color: var(--mi-feedback-warning-text); }
+    .mi-feedback-error { border-color: var(--mi-feedback-error-border); background: var(--mi-feedback-error-bg); color: var(--mi-feedback-error-text); }
+    .mi-feedback-success { border-color: var(--mi-feedback-success-border); background: var(--mi-feedback-success-bg); color: var(--mi-feedback-success-text); }
+    .mi-feedback-neutral { border-color: var(--mi-feedback-neutral-border); background: var(--mi-feedback-neutral-bg); color: var(--mi-feedback-neutral-text); }
+    .mi-toast { position: fixed; top: 24px; right: 24px; z-index: 50; display: grid; width: min(420px, calc(100vw - 48px)); grid-template-columns: 32px minmax(0, 1fr) 32px; align-items: center; gap: 10px; border-radius: 16px; padding: 12px; box-shadow: 0 12px 34px rgba(15,23,42,.14); backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px); }
+    .mi-toast-icon { display: grid; width: 32px; height: 32px; place-items: center; border-radius: 10px; background: rgba(255,255,255,.74); }
+    .mi-toast-message { min-width: 0; overflow-wrap: anywhere; font-size: 13px; font-weight: 700; line-height: 1.5; }
+    .mi-toast-dismiss { border: 1px solid transparent; background: transparent; color: currentColor; opacity: .72; }
+    .mi-toast-dismiss:hover { border-color: currentColor; background: rgba(255,255,255,.58); opacity: 1; }
+    .visual-page-toolbar { padding: 10px 14px 0; border-bottom: 1px solid var(--mi-border); background: rgba(248,250,252,.66); }
+    .visual-page-tabs { display: flex; gap: 6px; overflow-x: auto; padding: 0 0 10px; }
+    .visual-page-tab { min-width: 88px; flex: 1 0 auto; border-radius: var(--mi-radius-action); padding: 0 16px; background: transparent; color: #64748b; font-size: 13px; font-weight: 750; }
+    .visual-page-tab:hover { background: rgba(255,255,255,.64); color: #3730a3; }
+    .visual-page-tab-active { border-color: rgba(99,102,241,.22); background: #fff; color: #4338ca; box-shadow: 0 1px 2px rgba(15,23,42,.05); }
+    .visual-panel { overflow: hidden; }
+    .content-card-panel { padding: 24px; content-visibility: auto; contain-intrinsic-size: auto 240px; }
+    .moreimg-empty-icon { background: rgba(255,255,255,.72); box-shadow: 0 10px 28px rgba(76,81,124,.1); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); }
+    .moreimg-feature-card { border-color: rgba(255,255,255,.8); background: rgba(255,255,255,.58); backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px); }
+    .visual-panel-header { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 14px; padding: 14px 18px; border-bottom: 1px solid var(--mi-border); background: rgba(255,255,255,.72); }
+    .visual-panel-title-group { min-width: 0; }
+    .visual-panel-title { display: flex; align-items: center; color: var(--mi-text); font-size: 16px; font-weight: 800; line-height: 1.35; }
+    .visual-panel-meta { margin-top: 4px; color: var(--mi-muted); font-size: 11px; line-height: 1.5; }
+    .visual-panel-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px; }
+    .visual-button { border-color: rgba(203,213,225,.8); background: rgba(255,255,255,.9); color: #4338ca; font-size: 12px; font-weight: 750; box-shadow: 0 1px 2px rgba(15,23,42,.04); }
+    .visual-button:hover { border-color: rgba(99,102,241,.38); background: #fff; color: #3730a3; transform: translateY(-1px); }
+    .visual-button:active { transform: translateY(1px); }
+    .visual-button-primary { border-color: #4f46e5; background: #4f46e5; color: #fff; box-shadow: 0 5px 14px rgba(79,70,229,.2); }
+    .visual-button-primary:hover { border-color: #4338ca; background: #4338ca; color: #fff; }
+    .visual-notice { gap: 9px; }
+    .visual-result-notice { align-self: flex-start; width: fit-content; max-width: 100%; margin-top: 14px; padding: 10px 12px; border-color: rgba(217,119,6,.42); background: rgba(255,251,235,.78); color: #92400e; font-size: 11px; line-height: 1.55; }
+    .visual-result-notice + .visual-result-grid { margin-top: 14px; }
+    .visual-result-notice-icon { width: 16px; height: 16px; flex: 0 0 auto; margin-top: 1px; color: #d97706; }
+    .processing-notice { display: grid; grid-template-columns: 20px minmax(0, 1fr); gap: 10px; margin-bottom: 20px; padding: 12px 14px; box-shadow: inset 0 1px 0 rgba(255,255,255,.58); }
+    .processing-notice-icon { display: flex; width: 20px; height: 20px; align-items: center; justify-content: center; color: inherit; }
+    .processing-notice-copy { min-width: 0; }
+    .processing-notice-header { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 12px; }
+    .processing-notice-title { color: inherit; font-size: 13px; font-weight: 800; line-height: 1.45; }
+    .processing-notice-status { color: inherit; font-size: 11px; font-weight: 700; line-height: 1.5; white-space: nowrap; opacity: .84; }
+    .processing-notice-message { margin: 3px 0 0; color: inherit; font-size: 12px; line-height: 1.65; }
+    .visual-panel-notice { align-items: center; margin: 12px 18px 0; border: 1px solid rgba(99,102,241,.24); border-radius: 8px; padding: 8px 12px; background: rgba(238,242,255,.58); color: #4338ca; }
+    .visual-workspace-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(280px, 340px); align-items: stretch; }
+    .visual-results-column { display: flex; min-width: 0; flex-direction: column; padding: 22px; }
+    .visual-prompt-column { display: grid; min-width: 0; align-content: start; grid-template-rows: repeat(2, 220px); gap: 24px; border-left: 1px solid var(--mi-border); padding: 22px 20px; }
+    .visual-column-title { color: var(--mi-text); font-size: 13px; font-weight: 800; line-height: 1.4; }
+    .visual-column-copy { margin-top: 5px; color: var(--mi-muted); font-size: 11px; line-height: 1.6; }
+    .visual-result-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; gap: 16px; margin-top: 16px; }
+    .visual-result-item { display: flex; flex-direction: column; padding: 12px; }
+    .visual-result-item-header { display: flex; min-height: 32px; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; color: #334155; font-size: 12px; font-weight: 800; }
+    .visual-result-actions { display: flex; align-items: center; gap: 6px; }
+    .visual-result-action { border: 1px solid rgba(203,213,225,.7); background: #fff; color: #6366f1; }
+    .visual-result-action:hover { border-color: rgba(99,102,241,.38); background: #eef2ff; }
+    .visual-preview { position: relative; display: flex; width: 100%; aspect-ratio: 3 / 4; align-items: center; justify-content: center; overflow: hidden; border: 0; border-radius: 10px; background: linear-gradient(145deg, #f8fafc, #eef2f7); }
+    .visual-preview::after { position: absolute; inset: 0; z-index: 1; border: 1px solid rgba(203,213,225,.72); border-radius: inherit; pointer-events: none; content: ""; }
+    .visual-preview-image { display: block; width: 100%; height: 100%; object-fit: contain; }
+    .visual-preview-meta { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 8px; margin-top: 8px; color: #64748b; font-size: 10px; line-height: 1.45; }
+    .visual-preview-meta strong { color: #475569; font-weight: 750; }
+    .visual-preview-meta-warning { color: #b45309; }
+    .visual-prompt-block { display: grid; min-height: 0; grid-template-rows: 32px minmax(0, 1fr); }
+    .visual-prompt-block-header { display: flex; min-height: 32px; align-items: center; justify-content: space-between; gap: 12px; }
+    .visual-prompt-label { color: #475569; font-size: 12px; font-weight: 750; }
+    .visual-prompt-copy { box-sizing: border-box; height: 100%; min-height: 0; overflow: auto; margin: 8px 0 0; border: 1px solid rgba(203,213,225,.72); border-radius: 10px; padding: 12px; background: rgba(255,255,255,.86); white-space: pre-wrap; overflow-wrap: anywhere; color: #475569; font-size: 11px; line-height: 1.65; }
+    .visual-error { margin-top: 14px; font-size: 12px; }
+    .visual-section { padding-top: 0; content-visibility: auto; contain-intrinsic-size: auto 900px; }
+    .visual-stage-heading,
+    .visual-section-heading { display: flex; align-items: center; gap: 10px; padding: 0 2px; }
+    .visual-stage-heading::before,
+    .visual-section-heading::before { width: 3px; height: 18px; flex-shrink: 0; border-radius: 999px; background: #6366f1; content: ""; }
+    .visual-stage-heading { margin-bottom: 18px; }
+    .visual-section-header { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 12px; margin-bottom: 18px; padding: 0 2px; }
+    .visual-stage-heading-title,
+    .visual-section-title { margin: 0; color: #172033; font-size: 16px; font-weight: 800; line-height: 1.4; }
+    .visual-section-description { margin-top: 4px; color: #64748b; font-size: 12px; line-height: 1.6; }
+    .visual-comparison-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
+    .visual-comparison-item { display: flex; flex-direction: column; padding: 12px; }
+    .visual-comparison-label { margin-bottom: 10px; color: #475569; font-size: 12px; font-weight: 800; }
+    .visual-comparison-preview-frame,
+    .html-card-preview-frame { position: relative; width: 400px; aspect-ratio: 3 / 4; max-width: 100%; margin: 0 auto; overflow: hidden; border: 0; border-radius: 12px; background: #eef2f7; box-shadow: 0 10px 28px rgba(15, 23, 42, 0.1); }
+    .visual-comparison-preview-frame { border: 1px solid rgba(203,213,225,.72); }
+    .html-card-preview-frame::after { position: absolute; inset: 0; z-index: 1; border: 1px solid rgba(203,213,225,.72); border-radius: inherit; pointer-events: none; content: ""; }
+    .visual-comparison-image { display: block; width: 100%; height: 100%; object-fit: cover; }
+    .visual-comparison-meta { display: flex; justify-content: space-between; gap: 8px; margin-top: 8px; color: #64748b; font-size: 10px; line-height: 1.45; }
+    .visual-comparison-meta strong { color: #475569; font-weight: 750; }
+    .visual-card-grid { display: grid; grid-template-columns: repeat(1, minmax(0, 1fr)); gap: 28px 20px; }
+    .visual-output-card { min-width: 0; }
+    .visual-output-card-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; padding: 0 4px; }
+    .visual-output-panel { padding: 18px; }
+    .visual-current-output-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
+    .visual-export-button { min-width: 190px; }
+    .visual-current-output-body { display: grid; grid-template-columns: repeat(2, minmax(0, 400px)); justify-content: center; gap: 20px; }
+    .visual-card-count { display: inline; border: 0; border-radius: 0; padding: 0; background: transparent; color: #6366f1; font-size: 12px; font-weight: 800; line-height: 1.4; white-space: nowrap; }
+    .results-stage-frame { width: 100%; max-width: 1120px; margin: 0 auto; }
+    .results-stage-nav { display: flex; align-items: center; gap: 6px; overflow-x: auto; border: 1px solid rgba(255,255,255,.6); border-radius: 20px; padding: 6px; background: rgba(255,255,255,.4); box-shadow: 0 1px 2px rgba(15,23,42,.05); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); }
+    .results-stage-tab { flex-shrink: 0; border-radius: 12px; padding: 0 20px; color: #475569; font-size: 13px; font-weight: 700; }
+    .results-stage-tab:hover { background: rgba(255,255,255,.6); color: #4f46e5; }
+    .results-stage-tab-active { background: rgba(79,70,229,.9); color: #fff; box-shadow: 0 4px 10px rgba(99,102,241,.2); }
+    .results-stage-tab-active:hover { background: #4f46e5; color: #fff; }
+    .sidebar-brand-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+    .sidebar-brand-copy { display: flex; min-width: 0; flex-direction: column; justify-content: center; gap: 4px; }
+    .sidebar-brand-name { color: #1e293b; font-size: 20px; font-weight: 800; line-height: 1; letter-spacing: -.025em; }
+    .sidebar-brand-en { color: #94a3b8; font-size: 11px; font-weight: 700; line-height: 1; letter-spacing: .08em; }
+    .sidebar-header-actions { display: flex; flex-shrink: 0; align-items: center; gap: 8px; }
+    .mobile-history-trigger { gap: 6px; border-color: rgba(255,255,255,.8); background: #fff; color: #64748b; font-size: 12px; font-weight: 750; box-shadow: 0 1px 2px rgba(15,23,42,.05); }
+    .mobile-history-trigger:hover { border-color: rgba(99,102,241,.32); background: #fff; color: #4f46e5; }
+    .mobile-history-count { display: inline-flex; min-width: 18px; height: 18px; align-items: center; justify-content: center; border-radius: 999px; padding: 0 5px; background: #eef2ff; color: #4f46e5; font-size: 10px; font-weight: 800; }
+    .sidebar-brand-mark { display: flex; width: 32px; height: 32px; flex-shrink: 0; align-items: center; justify-content: center; border-radius: 10px; background: #4f46e5; color: #fff; box-shadow: 0 4px 6px -1px #c7d2fe, 0 2px 4px -2px #c7d2fe; }
+    .sidebar-icon-button { border: 1px solid rgba(255,255,255,.6); background: rgba(255,255,255,.8); color: #94a3b8; box-shadow: 0 1px 2px rgba(15,23,42,.05); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); }
+    .sidebar-icon-button:hover { border-color: rgba(255,255,255,.9); background: #fff; color: #4f46e5; }
+    .sidebar-input-shell { position: relative; margin-top: 32px; margin-bottom: 16px; border-radius: 16px; }
+    .sidebar-input-shell::before { content: ""; position: absolute; inset: -2px; border-radius: 18px; padding: 2px; background: linear-gradient(90deg,#6366f1,#a855f7,#0ea5e9,#6366f1); background-size: 300% 300%; animation: borderFlow 3s ease infinite; opacity: .4; -webkit-mask: linear-gradient(#fff 0 0) content-box,linear-gradient(#fff 0 0); -webkit-mask-composite: xor; mask-composite: exclude; pointer-events: none; transition: opacity .3s ease; }
+    .sidebar-input-shell:focus-within::before { opacity: 1; }
+    .sidebar-input-clip { position: relative; overflow: hidden; border-radius: inherit; }
+    .sidebar-input { position: relative; display: block; width: 100%; height: 180px; resize: none; overflow-y: auto; border: 0; border-radius: 16px; background: rgba(255,255,255,.4); padding: 16px; color: #1e293b; font-size: 14px; line-height: 1.65; box-shadow: inset 0 0 0 1px rgba(255,255,255,.6); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); transition: background-color .18s ease, box-shadow .18s ease; }
+    .sidebar-input:hover { background: rgba(255,255,255,.6); box-shadow: inset 0 0 0 1px rgba(255,255,255,.8); }
+    .sidebar-input:focus { outline: none; background: rgba(255,255,255,.9); box-shadow: inset 0 0 0 1px transparent; }
+    .history-item-main { display: block; width: 100%; text-align: left; }
+    .history-item-main:focus-visible { outline: 2px solid var(--mi-focus-ring); outline-offset: 2px; }
+    .history-item:focus-within .history-item-actions { opacity: 1; }
+    .mobile-history-overlay { position: fixed; inset: 0; z-index: 40; display: flex; align-items: center; justify-content: center; padding: 16px; background: rgba(15,23,42,.4); }
+    .mobile-history-dialog { width: 100%; max-width: 420px; max-height: calc(100dvh - 32px); overflow: hidden; border: 1px solid rgba(255,255,255,.72); border-radius: 24px; background: #fff; box-shadow: 0 25px 50px -12px rgba(15,23,42,.3); }
+    .mobile-history-dialog-header { display: flex; flex-shrink: 0; align-items: center; justify-content: space-between; gap: 12px; border-bottom: 1px solid rgba(226,232,240,.72); padding: 18px 16px; background: #fff; }
+    .mobile-history-dialog-body { min-height: 180px; max-height: calc(100dvh - 112px); overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; padding: 16px; background: #f8fafc; }
+    .mobile-history-dialog .history-item-actions { opacity: 1; }
+    .mobile-history-empty { display: flex; min-height: 148px; flex-direction: column; align-items: center; justify-content: center; gap: 10px; color: #94a3b8; text-align: center; }
+    .config-dialog { width: 100%; max-width: 672px; height: min(760px, calc(100dvh - 32px)); overflow: hidden; border: 1px solid rgba(255,255,255,.6); border-radius: 24px; background: #fff; box-shadow: 0 25px 50px -12px rgba(15,23,42,.3); }
+    .config-dialog-header { display: flex; flex-shrink: 0; align-items: center; justify-content: space-between; border-bottom: 1px solid rgba(226,232,240,.5); padding: 20px 24px; background: #fff; }
+    .config-dialog-body { display: flex; min-height: 0; flex: 1; flex-direction: column; gap: 24px; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; padding: 24px; }
+    .config-section { display: flex; flex-direction: column; gap: 18px; }
+    .config-section + .config-section { border-top: 1px solid rgba(226,232,240,.72); padding-top: 24px; }
+    .config-section-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+    .config-section-title { display: flex; align-items: center; gap: 9px; color: #334155; font-size: 14px; font-weight: 800; line-height: 1.4; }
+    .config-section-description { margin-top: 5px; max-width: 48ch; color: var(--mi-text-helper); font-size: 11px; line-height: 1.55; }
+    .config-section-actions { display: flex; flex-shrink: 0; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+    .image-diagnostic summary { display: flex; cursor: pointer; align-items: center; justify-content: space-between; gap: 12px; padding: 13px 15px; color: #334155; font-size: 12px; font-weight: 800; list-style: none; }
+    .image-diagnostic summary::-webkit-details-marker { display: none; }
+    .image-diagnostic summary span { color: var(--mi-text-helper); font-size: 10px; font-weight: 600; }
+    .image-diagnostic-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 14px; border-top: 1px solid rgba(203,213,225,.58); padding: 14px 15px; }
+    .image-diagnostic-item { min-width: 0; }
+    .image-diagnostic-item dt { color: var(--mi-text-helper); font-size: 10px; line-height: 1.4; }
+    .image-diagnostic-item dd { margin-top: 3px; color: #334155; font-size: 11px; font-weight: 700; line-height: 1.5; overflow-wrap: anywhere; }
+    .image-diagnostic-empty { border-top: 1px solid rgba(203,213,225,.58); padding: 14px 15px; color: var(--mi-text-helper); font-size: 11px; }
+    .config-action-button { gap: 7px; border-color: rgba(203,213,225,.8); background: rgba(255,255,255,.68); color: #475569; font-size: 11px; font-weight: 750; }
+    .config-action-button:hover { border-color: rgba(99,102,241,.4); background: #fff; color: #4f46e5; transform: translateY(-1px); }
+    .config-action-button:active { transform: translateY(1px); }
+    .config-dialog .mi-field,
+    .config-dialog .mi-field:hover { background: #fff; }
+    .config-dialog .mi-field:disabled { background: var(--mi-disabled-bg); }
+    .mi-button:disabled,
+    .mi-button:disabled:hover { cursor: not-allowed; border-color: var(--mi-disabled-border); background: var(--mi-disabled-bg); color: var(--mi-disabled-text); box-shadow: none; transform: none; }
+    .mi-button[aria-busy="true"]:disabled { cursor: wait; }
+    .config-hint { color: var(--mi-text-helper); font-size: 11px; line-height: 1.55; }
+    .config-status { line-height: 1.55; }
+    .config-grid { display: grid; grid-template-columns: repeat(1, minmax(0, 1fr)); gap: 20px; }
+    .config-field { display: flex; min-width: 0; flex-direction: column; gap: 8px; }
+    .config-label { color: #475569; font-size: 13px; font-weight: 700; line-height: 1.5; }
+    .config-input { display: block; height: var(--mi-control-field); padding: 0 16px; font-family: monospace; font-size: 14px; }
+    .config-checkbox { display: flex; min-height: var(--mi-control-field); align-items: center; gap: 10px; padding: 0 14px; font-size: 13px; font-weight: 700; }
+    .config-checkbox:focus-within { border-color: var(--mi-focus-ring); box-shadow: var(--mi-focus-shadow); }
+    .config-checkbox input { width: 16px; height: 16px; accent-color: #4f46e5; }
+    .config-preference-note { gap: 10px; line-height: 1.65; }
+    .config-preference-textarea { min-height: 108px; resize: vertical; padding: 14px 16px; font-family: inherit; font-size: 13px; line-height: 1.65; }
+    .config-select-shell { position: relative; width: 100%; }
+    .config-select { appearance: none; -webkit-appearance: none; cursor: pointer; padding-right: 44px; }
+    .config-select-icon { position: absolute; right: 16px; top: 50%; width: 16px; height: 16px; transform: translateY(-50%); pointer-events: none; color: #64748b; }
+    .config-divider { margin: 0; border: 0; border-top: 1px solid rgba(226,232,240,.6); }
+    .config-dialog-footer { flex-shrink: 0; border-top: 1px solid rgba(226,232,240,.5); padding: 24px; background: #f8fafc; }
+    @media (min-width: 768px) { .config-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .config-span-2 { grid-column: span 2 / span 2; } }
+    @media (min-width: 900px) { .visual-card-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+    @media (max-width: 1024px) {
+      .visual-workspace-grid { min-height: 0; grid-template-columns: 1fr; }
+      .visual-prompt-column { border-top: 1px solid rgba(203,213,225,.72); border-left: 0; }
+    }
+    @media (max-width: 760px) {
+      .visual-result-grid { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 640px) {
+      .visual-panel-header { align-items: stretch; }
+      .visual-panel-actions { width: 100%; justify-content: flex-start; }
+      .visual-button { flex: 1 1 auto; }
+      .visual-page-tab { min-width: 76px; padding: 0 12px; }
+      .visual-results-column, .visual-prompt-column { padding: 14px; }
+      .content-card-panel { padding: 18px; }
+      .visual-result-grid { grid-template-columns: 1fr; }
+      .visual-comparison-grid { grid-template-columns: 1fr; }
+      .mi-empty-state-panel { min-height: 220px; }
+      .visual-current-output-body { grid-template-columns: 1fr; }
+      .processing-notice { grid-template-columns: 18px minmax(0, 1fr); gap: 9px; padding: 11px 12px; }
+      .processing-notice-icon { width: 18px; height: 18px; }
+      .processing-notice-message { font-size: 11px; }
+      .mi-toast { top: auto; right: 12px; bottom: calc(12px + env(safe-area-inset-bottom)); left: 12px; width: auto; }
+      .sidebar-input-shell { margin-top: 16px; margin-bottom: 12px; }
+      .sidebar-input { height: 96px; }
+      .config-dialog-header, .config-dialog-body, .config-dialog-footer { padding-left: 16px; padding-right: 16px; }
+      .config-dialog { height: calc(100dvh - 32px); }
+      .config-section-header { flex-direction: column; }
+      .config-section-actions { width: 100%; justify-content: flex-start; }
+      .config-action-button { flex: 1 1 auto; }
+      .moreimg-main-scroll { padding-bottom: max(32px, calc(24px + env(safe-area-inset-bottom))); }
+      .moreimg-empty-state { height: auto; min-height: 100%; margin-top: 0; padding-bottom: max(48px, calc(32px + env(safe-area-inset-bottom))); }
+    }
+
+    .html-card-preview-scale {
+      width: 1242px;
+      height: 1656px;
+      transform: scale(var(--moreimg-preview-scale, 0.322061));
+      transform-origin: top left;
+    }
+
+    @media (max-width: 420px) {
+      .html-card-preview-frame { width: 300px; }
+    }
+
+    .moreimg-app-shell {
+      --mi-surface: rgba(255,255,255,.9);
+      --mi-surface-soft: rgba(248,250,252,.78);
+      --mi-surface-panel: rgba(255,255,255,.82);
+      --mi-surface-raised: rgba(255,255,255,.88);
+      --mi-surface-card: #fff;
+      --mi-surface-border: rgba(255,255,255,.76);
+      --mi-surface-card-border: rgba(203,213,225,.72);
+      --mi-surface-list: rgba(255,255,255,.3);
+      --mi-surface-list-border: rgba(255,255,255,.4);
+      --mi-surface-panel-shadow: 0 8px 24px rgba(76,81,124,.07);
+      --mi-surface-raised-shadow: 0 12px 34px rgba(76,81,124,.1);
+      --mi-feedback-info-bg: rgba(238,242,255,.76);
+      --mi-feedback-info-border: rgba(99,102,241,.56);
+      --mi-feedback-info-text: #3730a3;
+      --mi-feedback-warning-bg: rgba(255,251,235,.92);
+      --mi-feedback-warning-border: #d97706;
+      --mi-feedback-warning-text: #92400e;
+      --mi-feedback-error-bg: rgba(255,241,242,.94);
+      --mi-feedback-error-border: #dc2626;
+      --mi-feedback-error-text: #be123c;
+      --mi-feedback-success-bg: rgba(236,253,245,.94);
+      --mi-feedback-success-border: #059669;
+      --mi-feedback-success-text: #047857;
+      --mi-feedback-neutral-bg: rgba(248,250,252,.94);
+      --mi-feedback-neutral-border: #94a3b8;
+      --mi-feedback-neutral-text: #475569;
+      --mi-accent: #4f46e5;
+      --mi-border: rgba(203,213,225,.72);
+      --mi-text: #172033;
+      --mi-muted: #64748b;
+      --mi-focus-ring: #6366f1;
+      --mi-focus-shadow: 0 0 0 3px rgba(99,102,241,.14);
+      --mi-text-helper: #64748b;
+      --mi-control-standard: 40px;
+      --mi-control-compact: 32px;
+      --mi-control-action: 40px;
+      --mi-control-auxiliary: 36px;
+      --mi-control-primary: 48px;
+      --mi-control-field: 48px;
+      --mi-radius-action: 10px;
+      --mi-radius-field: 12px;
+      --mi-field-border: rgba(226,232,240,.6);
+      --mi-field-bg: #fff;
+      --mi-disabled-border: rgba(226,232,240,.9);
+      --mi-disabled-bg: rgba(248,250,252,.78);
+      --mi-disabled-text: #94a3b8;
+      flex-direction: column;
+      background-color: #f8fafc;
+      background-image:
+        radial-gradient(ellipse at 0% 18%, rgba(129,140,248,.4) 0%, rgba(129,140,248,.2) 30%, transparent 60%),
+        radial-gradient(ellipse at 72% 8%, rgba(125,211,252,.36) 0%, rgba(125,211,252,.16) 34%, transparent 62%),
+        radial-gradient(ellipse at 28% 100%, rgba(192,132,252,.34) 0%, rgba(192,132,252,.14) 36%, transparent 64%);
+      background-repeat: no-repeat;
+    }
+    .moreimg-sidebar { width: 100%; height: auto; }
+    .moreimg-history, .moreimg-brand { display: none; }
+
+    @media (min-width: 768px) {
+      .moreimg-app-shell { flex-direction: row; }
+      .moreimg-sidebar { width: 320px; height: 100%; padding: 24px; border-right-width: 1px; border-bottom-width: 0; }
+      .moreimg-history { display: flex; }
+      .moreimg-brand { display: block; }
+      .mobile-history-trigger { display: none; }
+      .mobile-history-overlay { display: none; }
+    }
+  </style>
+</head>
+<body class="antialiased text-slate-800 bg-slate-50">
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useEffect, useMemo, useRef } = React;
+
+    const IMAGE_DB_NAME = 'moreimg_images';
+    const IMAGE_STORE_NAME = 'generated_images';
+    const SESSION_STORE_NAME = 'sessions';
+    const MOREIMG_IMAGE_DIAGNOSTIC_KEY = 'moreimg_last_image_diagnostic';
+    const HISTORY_INDEX_KEY = 'moreimg_history_index';
+    const LEGACY_HISTORY_KEY = 'agent_history';
+    const HISTORY_LIMIT = 50;
+
+    const loadLastImageDiagnostic = () => {
+      try {
+        const value = JSON.parse(localStorage.getItem(MOREIMG_IMAGE_DIAGNOSTIC_KEY) || 'null');
+        return value && typeof value === 'object' ? value : null;
+      } catch {
+        return null;
+      }
+    };
+
+    const getDiagnosticEndpointPath = (value) => {
+      try {
+        return new URL(value).pathname || '/';
+      } catch {
+        return value ? '自定义接口' : '未记录';
+      }
+    };
+
+    const getDiagnosticImageHost = (value) => {
+      try {
+        return new URL(value).host || 'API 响应';
+      } catch {
+        return 'API 响应';
+      }
+    };
+
+    const getDiagnosticFailureReason = (error, phase = 'request') => {
+      const message = String(error?.message || '').toLowerCase();
+      if (phase === 'restore') return 'IndexedDB 图片记录读取失败';
+      if (/未返回 url|未返回可识别|未返回图片/.test(message)) return 'API 未返回可识别的图片数据';
+      if (/fetch|network|cors|图片下载|failed to fetch/.test(message)) return '图片 URL 无法读取（CORS、网络或链接失效）';
+      if (phase === 'storage') return 'IndexedDB 图片写入失败';
+      return '生图请求失败';
+    };
+
+    const openImageDatabase = () => new Promise((resolve, reject) => {
+      const request = indexedDB.open(IMAGE_DB_NAME, 2);
+      request.onupgradeneeded = () => {
+        const database = request.result;
+        if (!database.objectStoreNames.contains(IMAGE_STORE_NAME)) {
+          const store = database.createObjectStore(IMAGE_STORE_NAME, { keyPath: 'id' });
+          store.createIndex('sessionId', 'sessionId', { unique: false });
+        }
+        if (!database.objectStoreNames.contains(SESSION_STORE_NAME)) {
+          database.createObjectStore(SESSION_STORE_NAME, { keyPath: 'id' });
+        }
+      };
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+
+    const saveImageBlob = async (sessionId, cardTitle, blob, mode = 'visual') => {
+      const database = await openImageDatabase();
+      await new Promise((resolve, reject) => {
+        const transaction = database.transaction(IMAGE_STORE_NAME, 'readwrite');
+        transaction.objectStore(IMAGE_STORE_NAME).put({ id: `${sessionId}:${mode}:${cardTitle}`, sessionId, cardTitle, mode, blob, updatedAt: Date.now() });
+        transaction.oncomplete = resolve;
+        transaction.onerror = () => reject(transaction.error);
+      });
+      database.close();
+    };
+
+    const loadSessionImages = async (sessionId) => {
+      if (!sessionId) return [];
+      const database = await openImageDatabase();
+      const images = await new Promise((resolve, reject) => {
+        const transaction = database.transaction(IMAGE_STORE_NAME, 'readonly');
+        const request = transaction.objectStore(IMAGE_STORE_NAME).index('sessionId').getAll(sessionId);
+        request.onsuccess = () => resolve(request.result || []);
+        request.onerror = () => reject(request.error);
+      });
+      database.close();
+      return images;
+    };
+
+    const deleteSessionImages = async (sessionId) => {
+      const database = await openImageDatabase();
+      const images = await new Promise((resolve, reject) => {
+        const transaction = database.transaction(IMAGE_STORE_NAME, 'readonly');
+        const request = transaction.objectStore(IMAGE_STORE_NAME).index('sessionId').getAll(sessionId);
+        request.onsuccess = () => resolve(request.result || []);
+        request.onerror = () => reject(request.error);
+      });
+      await new Promise((resolve, reject) => {
+        const transaction = database.transaction(IMAGE_STORE_NAME, 'readwrite');
+        const store = transaction.objectStore(IMAGE_STORE_NAME);
+        images.forEach(item => store.delete(item.id));
+        transaction.oncomplete = resolve;
+        transaction.onerror = () => reject(transaction.error);
+      });
+      database.close();
+    };
+
+    const toHistoryIndex = (record) => ({
+      id: record.id,
+      title: record.title,
+      date: record.date
+    });
+
+    const saveSessionRecord = async (record) => {
+      const database = await openImageDatabase();
+      await new Promise((resolve, reject) => {
+        const transaction = database.transaction(SESSION_STORE_NAME, 'readwrite');
+        transaction.objectStore(SESSION_STORE_NAME).put(record);
+        transaction.oncomplete = resolve;
+        transaction.onerror = () => reject(transaction.error);
+      });
+      database.close();
+    };
+
+    const loadSessionRecord = async (id) => {
+      const database = await openImageDatabase();
+      const record = await new Promise((resolve, reject) => {
+        const transaction = database.transaction(SESSION_STORE_NAME, 'readonly');
+        const request = transaction.objectStore(SESSION_STORE_NAME).get(id);
+        request.onsuccess = () => resolve(request.result || null);
+        request.onerror = () => reject(request.error);
+      });
+      database.close();
+      return record;
+    };
+
+    const deleteSessionRecord = async (id) => {
+      const database = await openImageDatabase();
+      await new Promise((resolve, reject) => {
+        const transaction = database.transaction(SESSION_STORE_NAME, 'readwrite');
+        transaction.objectStore(SESSION_STORE_NAME).delete(id);
+        transaction.oncomplete = resolve;
+        transaction.onerror = () => reject(transaction.error);
+      });
+      database.close();
+    };
+
+    const migrateLegacyHistory = async (legacyHistory) => {
+      const records = Array.isArray(legacyHistory) ? legacyHistory.filter(item => item?.id && item?.sessionData) : [];
+      await Promise.all(records.map(saveSessionRecord));
+      return records.map(toHistoryIndex);
+    };
+
+    const dataUrlToBlob = (dataUrl) => {
+      const [header, encoded] = dataUrl.split(',');
+      const mimeType = header.match(/data:(.*?);base64/)?.[1] || 'image/png';
+      const binary = atob(encoded);
+      const bytes = new Uint8Array(binary.length);
+      for (let index = 0; index < binary.length; index++) bytes[index] = binary.charCodeAt(index);
+      return new Blob([bytes], { type: mimeType });
+    };
+
+    // MoreImg v6 核心规则属于应用协议，不向普通用户开放编辑。
+    const DEFAULT_SYSTEM_PROMPT = String.raw`你是 MoreImg v6 内容加工与视觉规划 Agent。你必须在一次响应中，把用户原文加工成可供应用直接读取的 moreimg-1.0 JSON。
+
+总原则
+- 一次完成内容判型、事实边界检查、完整文章精修、卡片拆分、Style Lock 设计和逐页无文字主视觉映射。
+- 忠于原文，不得编造原文没有的数据、案例、经历、人物、产品能力、时间、结论、比喻或行动建议。
+- 不得声称已经联网、全网搜索或完成外部事实核验。
+
+唯一输出协议
+1. 只输出一个合法 JSON 对象，JSON 前后不得出现任何其他字符。
+2. 禁止输出 Markdown 代码块、阶段标题、解释、前言、后记、自检结论或注释。
+3. 所有属性名和字符串必须使用双引号；禁止尾随逗号、undefined、NaN 和未转义换行。
+4. schema_version 必须严格等于 "moreimg-1.0"。
+5. status 只能是 "complete" 或 "rejected"。
+6. 不得输出 validation 字段，不得创建独立 cards 数组或 prompts 数组。
+7. 同一页的 card、semantic 和 image_prompt 必须位于同一个 pages 元素中。
+8. 所有规定为数组的字段都必须输出 JSON 数组；即使没有内容也必须输出空数组 []。
+9. 禁止将数组字段输出为字符串、null 或对象；只有字段内的单个元素才能是字符串或规定的对象。
+
+数组字段硬约束
+- analysis 中的 independent_units、fact_notes、logic_issues、article 中的 paragraphs 必须是数组。
+- 每页 card.points、semantic.supporting_concepts、semantic.excluded_concepts、semantic.avoid_misread 必须是字符串数组。
+- style_lock.visual_dna.recurring_elements、style_lock.negative 和每页 image_prompt.avoid 必须是字符串数组。
+- pages 必须是对象数组；fact_notes 必须是对象数组；其余上述数组字段不得包含对象。
+
+拒绝规则
+- 只有原文完全没有可识别主题、观点或内容结构时才能拒绝。
+- 不得因为文章短、缺少数据、不需要事实核查或只有一个观点而拒绝。
+- 拒绝时只能输出：{"schema_version":"moreimg-1.0","status":"rejected","reason":"明确简短的原因"}
+
+成功结果必须且只能包含以下顶层字段：
+- schema_version
+- status
+- analysis
+- article
+- style_lock
+- pages
+
+analysis
+- mode 只能是 "standard"、"short" 或 "single_point"。
+- 必须包含 topic、core_claim、independent_units、fact_notes、logic_issues。
+- fact_notes 每项包含 claim、category、status、note。
+- category 只能是 author_statement、public_fact、opinion、scene。
+- status 只能是 consistent、unverified、uncertain、not_applicable。
+- 作者自述只检查内部一致性；公开事实无法核实时使用 unverified 或 uncertain；观点和场景不得伪装成已核实事实。
+
+article
+- 必须包含 title、subtitle、paragraphs。
+- paragraphs 必须是字符串数组，每项是一段完整正文，不得输出摘要、提纲、检查说明或卡片文案代替全文。
+- standard 模式保留原文开场、论证、分观点、转折和收束，通常保持原文有效正文的 80%-120%，只删除重复、调整顺序、消除歧义并补充必要连接句。
+- short 和 single_point 模式不得为凑篇幅而扩写，但仍须输出完整、可独立阅读的精修正文。
+
+pages
+- 固定结构为封面 + 1-7张正文 + 封底，封底始终生成。
+- 第1页 page_id 为 "cover"，page_type 为 "cover"。
+- 正文 page_id 从 "content-01" 连续编号。
+- 最后一页 page_id 为 "closing"，page_type 为 "quote"。
+- order 从1开始连续递增且不得重复。
+- page_type 只能是 cover、process、timeline、relationship、comparison、checklist、framework、quote。
+- 每页只表达一个核心判断，页面顺序必须跟随文章论证顺序。
+
+card
+- 每页必须包含 title、subtitle、points、summary；不使用的字符串输出空字符串，不使用的 points 输出空数组。
+- 封面 points 必须为空；title 是核心标题，subtitle 是短副标题，summary 是标语或记忆句，三者不得机械重复。
+- 正文 title 建议4-14个汉字；points 为2-5条短信息且每条不超过25个汉字；summary 最多一句且不超过20个汉字。
+- 封底自然收束全文。原文有行动建议时可以提炼；原文没有时使用核心结论或中性收束，禁止新增任务、互动问题、关注引导和营销号召。
+- 所有入图文字必须可回溯到原文或精修正文。
+
+semantic
+- 每页必须包含 page_goal、primary_claim、primary_concept、primary_relation、supporting_concepts、excluded_concepts、avoid_misread。
+- primary_relation 必须是本页独有的具体关系，不得让所有页面重复整篇文章总主题。
+- 先判断主概念和主关系，再判断辅助概念。类比、旁注、背景说明及不同抽象层级概念默认放入 excluded_concepts。
+- 不得因为出现三个名词就画成三层架构、三栏并列或三个同等主体。
+
+style_lock
+- 整套只能使用一个 Style Lock，必须包含 style_id、style_name、card_shell、prompt_prefix、visual_dna、negative。
+- card_shell.preset 固定为 "moreimg-clean-v1"；surface 只能是 "light" 或 "dark"；accent_color 使用 #RRGGBB；overlay 只能是 "none"、"soft_dark" 或 "soft_light"。
+- visual_dna 必须包含 medium、visual_world、shape_language、perspective、lighting、material、recurring_subject、recurring_elements。
+- medium 只能是 3d_model、geometric_silhouette、hand_drawn_line、isometric_icon、flat_vector、wireframe_perspective。
+- visual_world 必须定义具体统一的视觉世界，不能只写科技感、高级感等空泛词。
+- recurring_subject 必须定义跨页重复的人物、物体或符号系统。
+- 各页可以改变场景和关系，但不得改变主色体系、视觉媒介、造型语言、透视、光影、材质、视觉世界和重复主体系统。
+- 禁止把每页分别设计成互不相关的航海、音乐厅、流程图、工具箱或城市世界。
+
+image_prompt
+- 每页必须包含 scene、relationship、composition、safe_area、continuity、avoid。
+- image_prompt 只描述无文字主视觉，不负责生成卡片文字。
+- 封面 safe_area 使用 "top_40"；正文和封底使用 "top_52"。
+- scene 必须明确实际出现的主体与场景；relationship 必须与 semantic.primary_relation 一致；composition 必须说明视觉重心和留白；continuity 必须说明如何继承 Style Lock。
+- avoid 只写本页特有误读风险，全局禁用项放入 style_lock.negative。
+- 所有图片禁止文字、字母、数字、Logo、水印、伪文字、UI标签和随机符号。
+
+输出前在内部检查：完整正文没有摘要化；封面、正文、封底齐全；page_id 与 order 连续；每页三个对象完整绑定；主关系符合原文概念层级；全套只有一个 Style Lock；没有新增原文外事实。不要输出检查过程。`;
+
+    const Icon = React.memo(({ name, className = "", strokeWidth = 2, fill = "none", ...props }) => {
+      const nodes = window.moreimgIcons?.[name] || [];
+      return (
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          viewBox="0 0 24 24"
+          fill={fill}
+          stroke="currentColor"
+          strokeWidth={strokeWidth}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden="true"
+          data-icon-name={name}
+          className={`inline-block shrink-0 ${className}`}
+          {...props}
+        >
+          {nodes.map(([tag, attrs], index) => React.createElement(tag, { ...attrs, key: attrs.key || index }))}
+        </svg>
+      );
+    });
+
+    // =========================================================================
+    // 全局统一 Markdown 渲染组件
+    // =========================================================================
+    const FormattedContent = ({ text }) => {
+      if (!text) return null;
+      const lines = text.split('\n');
+      let isFirstNonEmpty = true; 
+
+      return (
+        <div className="text-slate-700 leading-relaxed">
+          {lines.map((line, i) => {
+            // 新增：过滤无用的 AI 过程话术与过渡文本
+            const cleanLineForCheck = line.replace(/[*_]/g, '').trim();
+            if (
+              /^进入阶段\d[。.]?$/.test(cleanLineForCheck) ||
+              /^卡片内容包生成完毕[，,]待转入视觉指令生产[。.]?$/.test(cleanLineForCheck) ||
+              /^核查与精修说明[：:]/.test(cleanLineForCheck)
+            ) {
+              return null; // 直接静默拦截，不渲染到前端
+            }
+
+            if (line.trim() === '') return <div key={i} className="h-3"></div>;
+            
+            // 修复：同时支持 **加粗** 和 *斜体* 解析
+            const formatInline = (str) => {
+              const parts = str.split(/(\*\*.*?\*\*|\*[^*]+\*)/g);
+              return parts.map((part, index) => {
+                if (part.startsWith('**') && part.endsWith('**')) {
+                  return <strong key={index} className="font-bold text-slate-900">{part.slice(2, -2)}</strong>;
+                }
+                if (part.startsWith('*') && part.endsWith('*') && part.length > 2) {
+                  return <em key={index} className="italic text-slate-500">{part.slice(1, -1)}</em>;
+                }
+                return part;
+              });
+            };
+
+            const isFirst = isFirstNonEmpty;
+            isFirstNonEmpty = false;
+            const trimmedLine = line.trimStart();
+
+            // 新增：处理一级标题 #
+            if (trimmedLine.startsWith('# ')) {
+              return (
+                <h1 key={i} className={`text-[24px] font-black text-slate-900 mb-5 tracking-tight ${isFirst ? 'mt-0' : 'mt-10'}`}>
+                  {formatInline(trimmedLine.replace('# ', ''))}
+                </h1>
+              );
+            }
+
+            if (trimmedLine.startsWith('## ')) {
+              return (
+                <h2 key={i} className={`text-[20px] font-extrabold text-slate-900 mb-4 ${isFirst ? 'mt-0' : 'mt-8'}`}>
+                  {formatInline(trimmedLine.replace('## ', ''))}
+                </h2>
+              );
+            }
+            
+            if (trimmedLine.startsWith('### ')) {
+              return (
+                <h3 key={i} className={`text-[16px] font-bold text-slate-800 mb-3 ${isFirst ? 'mt-0' : 'mt-6'}`}>
+                  {formatInline(trimmedLine.replace('### ', ''))}
+                </h3>
+              );
+            }
+
+            if (trimmedLine.startsWith('#### ')) {
+              return (
+                <h4 key={i} className={`text-[15px] font-semibold text-slate-800 mb-2.5 ${isFirst ? 'mt-0' : 'mt-5'}`}>
+                  {formatInline(trimmedLine.replace('#### ', ''))}
+                </h4>
+              );
+            }
+            
+            if (trimmedLine.match(/^[-•*]\s+/)) {
+              return (
+                <div key={i} className="flex mb-2.5 items-start">
+                  <span className="mr-2.5 text-indigo-400 font-bold mt-[1px] shrink-0 text-[14px]">•</span>
+                  <span className="text-[14px] leading-relaxed flex-1">
+                    {formatInline(trimmedLine.replace(/^[-•*]\s+/, ''))}
+                  </span>
+                </div>
+              );
+            }
+            
+            const olMatch = trimmedLine.match(/^(\d+\.)\s+(.*)/);
+            if (olMatch) {
+              return (
+                <div key={i} className="flex mb-2.5 items-start">
+                  <span className="mr-2 text-indigo-500 font-mono font-bold text-[13px] mt-[2px] shrink-0 w-4 text-right">
+                    {olMatch[1]}
+                  </span>
+                  <span className="text-[14px] leading-relaxed flex-1">
+                    {formatInline(olMatch[2])}
+                  </span>
+                </div>
+              );
+            }
+
+            if (trimmedLine.match(/^[-*_]{3,}$/)) {
+              return <hr key={i} className="my-6 border-slate-200/60" />;
+            }
+
+            return (
+              <p key={i} className="mb-3 text-[14px] leading-relaxed last:mb-0">
+                {formatInline(trimmedLine)}
+              </p>
+            );
+          })}
+        </div>
+      );
+    };
+
+    const NEW_STAGES = [
+      { id: 'step1', name: '理解与核查', icon: 'ListChecks', subStages: [1, 2] },
+      { id: 'step2', name: '文章与卡片', icon: 'Cpu', subStages: [3, 4] },
+      { id: 'step3', name: '视觉生成与对比', icon: 'Image', subStages: [5] }
+    ];
+
+    const STAGE_LOADING_TEXT = {
+      1: "正在注入原料，执行 AI 准入判型...",
+      2: "引擎运转：全网事实核查与结构拆解中...",
+      3: "逻辑精装中，正在重构文章框架...",
+      4: "正在切片：模块化封装知识卡片包...",
+      5: "视觉中枢唤醒：渲染生产级中文提示词...",
+      6: "最终质量验收，校验卡片与指令匹配度..."
+    };
+
+    const parseStreamedText = (fullText) => {
+      const stages = { 1: '', 2: '', 3: '', 4: '', 5: '', 6: '' };
+      
+      // 核心修复：宽容度极高的正则，捕捉 [阶段1]、### 阶段1、**阶段1**、阶段1： 等各种变体，只要位于行首即可
+      const stageRegex = /(?:^|\n)[ \t#*\[【]*阶段[ \t]*([1-6])[ \t]*[\]】#*]*[ \t]*[：:]?[ \t]*/g;
+      let match;
+      let lastIndex = 0;
+      let currentStage = null;
+
+      while ((match = stageRegex.exec(fullText)) !== null) {
+        if (currentStage !== null) {
+          stages[currentStage] = fullText.substring(lastIndex, match.index).trim();
+        }
+        currentStage = parseInt(match[1]);
+        lastIndex = match.index + match[0].length;
+      }
+      
+      if (currentStage !== null) {
+        stages[currentStage] = fullText.substring(lastIndex).trim();
+      } else if (fullText.trim()) {
+        // 兜底机制：如果没有任何标准格式输出，强制渲染在阶段1中
+        stages[1] = fullText.trim();
+      }
+      return { stages, latestStage: currentStage || 1 };
+    };
+
+    const PROCESSING_MAX_OUTPUT_TOKENS = 12000;
+    const TEXT_REQUEST_TIMEOUT_MS = 300000;
+    const TEXT_TEST_TIMEOUT_MS = 30000;
+
+    const runWithRequestControl = (task, options = {}) => {
+      const {
+        timeoutMs = TEXT_REQUEST_TIMEOUT_MS,
+        signal: externalSignal,
+        timeoutMessage = `接口请求超过 ${Math.round(timeoutMs / 1000)} 秒，请检查接口或稍后重试。`
+      } = options;
+      const controller = new AbortController();
+
+      return new Promise((resolve, reject) => {
+        let settled = false;
+        let timeoutId;
+        let externalAbortHandler;
+
+        const finish = (handler, value) => {
+          if (settled) return;
+          settled = true;
+          if (timeoutId) clearTimeout(timeoutId);
+          if (externalSignal && externalAbortHandler) externalSignal.removeEventListener('abort', externalAbortHandler);
+          handler(value);
+        };
+
+        const abortRequest = (message) => {
+          if (!controller.signal.aborted) controller.abort();
+          finish(reject, new Error(message));
+        };
+
+        timeoutId = setTimeout(() => abortRequest(timeoutMessage), timeoutMs);
+        externalAbortHandler = () => abortRequest('已停止运算');
+        if (externalSignal) {
+          if (externalSignal.aborted) externalAbortHandler();
+          else externalSignal.addEventListener('abort', externalAbortHandler, { once: true });
+        }
+
+        Promise.resolve()
+          .then(() => task(controller.signal))
+          .then(value => finish(resolve, value))
+          .catch(error => {
+            if (externalSignal?.aborted) finish(reject, new Error('已停止运算'));
+            else finish(reject, error);
+          });
+      });
+    };
+
+    const parsePromptSections = (content = '') => {
+      const source = String(content || '');
+      const headingSections = [];
+      const headingRegex = /###\s*\[?((?:封面|正文\d+\/\d+|封底))\]?\s*([\s\S]*?)(?=###|$)/g;
+      let match;
+      while ((match = headingRegex.exec(source)) !== null) {
+        headingSections.push({ title: match[1].trim(), text: match[2].trim() });
+      }
+
+      const parseBracketSections = (value) => {
+        const items = [];
+        const bracketRegex = /\[((?:封面|正文\d+\/\d+|封底))\]\s*([\s\S]*?)(?=\[(?:封面|正文\d+\/\d+|封底)\]|$)/g;
+        while ((match = bracketRegex.exec(value)) !== null) {
+          items.push({ title: match[1].trim(), text: match[2].trim() });
+        }
+        return items;
+      };
+      const codeBlockSources = [...source.matchAll(/```[^\n]*\n([\s\S]*?)```/g)].map(block => block[1]);
+      const bracketCandidates = [...codeBlockSources.map(parseBracketSections), parseBracketSections(source)];
+
+      const plainHeaderRegex = /(?:^|\n)\s*(?:#{1,6}\s*)?(封面|正文\d+\/\d+|封底)(?:提示词)?\s*[：:]?\s*(?=\n|$)/g;
+      const headers = [...source.matchAll(plainHeaderRegex)];
+      const plainSections = headers.map((header, index) => {
+        const blockStart = header.index + header[0].length;
+        const blockEnd = headers[index + 1]?.index ?? source.length;
+        return { title: header[1].trim(), text: source.slice(blockStart, blockEnd).trim() };
+      });
+
+      const dedupeSections = (items) => {
+        const seen = new Set();
+        return items.filter(section => {
+          if (!section.title || !section.text || seen.has(section.title)) return false;
+          seen.add(section.title);
+          return true;
+        });
+      };
+
+      return [headingSections, ...bracketCandidates, plainSections]
+        .map(dedupeSections)
+        .sort((left, right) => right.length - left.length)[0] || [];
+    };
+
+    const assessAnalysisDepth = (parsed, originalText = '') => {
+      const inputLength = String(originalText || '').replace(/\s+/g, '').length;
+      if (!inputLength) return { isAdequate: true, requiredStage3Length: 0 };
+      const stageLengths = [1, 2, 3].map(stage => String(parsed.stages[stage] || '').replace(/\s+/g, '').length);
+      const isCompactSource = inputLength < 600;
+      const requiredStage3Length = isCompactSource
+        ? Math.max(60, Math.floor(inputLength * 0.45))
+        : Math.min(1200, Math.max(360, Math.floor(inputLength * 0.5)));
+      const requiredStage1Length = isCompactSource ? 40 : 60;
+      const requiredStage2Length = isCompactSource ? 60 : 180;
+      return {
+        isAdequate: stageLengths[0] >= requiredStage1Length && stageLengths[1] >= requiredStage2Length && stageLengths[2] >= requiredStage3Length,
+        requiredStage3Length,
+        stageLengths
+      };
+    };
+
+    const assessProcessingResult = (fullText, originalText = '') => {
+      const text = String(fullText || '').trim();
+      const parsed = parseStreamedText(text);
+      const isRejected = parsed.latestStage === 1 && /(不适合|不通过|不足以|建议提供|暂不适合)/.test(parsed.stages[1] || '');
+      const hasStage4 = Boolean(parsed.stages[4]?.trim());
+      const hasStage5 = Boolean(parsed.stages[5]?.trim());
+      const parsedCards = parseCardPackage(parsed.stages[4]);
+      const parsedPrompts = parsePromptSections(parsed.stages[5]);
+      const cardTypes = new Set(parsedCards.map(card => card.type));
+      const cardPageKeys = parsedCards.map(card => card.imageKey);
+      const promptHeadingKeys = [...String(parsed.stages[5] || '').matchAll(/(?:^|\n)\s*#{1,6}\s*\[?((?:封面|正文\d+\/\d+|封底))\]?\s*(?=\n|$)/g)]
+        .map(match => match[1]);
+      const promptPageKeys = promptHeadingKeys.length > 0
+        ? promptHeadingKeys
+        : parsedPrompts.map(section => section.title);
+      const promptTitles = new Set(promptPageKeys);
+      const hasUsableCards = cardTypes.has('cover') && cardTypes.has('body') && cardTypes.has('back');
+      const hasUsablePrompts = promptTitles.has('封面') && [...promptTitles].some(title => /^正文\d+\/\d+$/.test(title)) && promptTitles.has('封底');
+      const isValidPageSequence = (pageKeys) => {
+        if (pageKeys.length < 3 || pageKeys[0] !== '封面' || pageKeys.at(-1) !== '封底') return false;
+        if (new Set(pageKeys).size !== pageKeys.length) return false;
+        const bodyKeys = pageKeys.slice(1, -1);
+        return bodyKeys.length > 0 && bodyKeys.every((pageKey, index) => {
+          const match = pageKey.match(/^正文(\d+)\/(\d+)$/);
+          return Boolean(match) && Number(match[1]) === index + 1 && Number(match[2]) === bodyKeys.length;
+        });
+      };
+      const hasExactPageMapping = isValidPageSequence(cardPageKeys)
+        && isValidPageSequence(promptPageKeys)
+        && cardPageKeys.length === promptPageKeys.length
+        && cardPageKeys.every((pageKey, index) => pageKey === promptPageKeys[index]);
+      const hasFormatError = text.includes('接口返回格式异常');
+      const analysisDepth = assessAnalysisDepth(parsed, originalText);
+      const isComplete = hasUsableCards && hasUsablePrompts && hasExactPageMapping && analysisDepth.isAdequate && !hasFormatError;
+      const canContinue = hasStage4 && hasStage5 && hasUsableCards && hasUsablePrompts && hasExactPageMapping && !hasFormatError;
+      const warning = canContinue && !analysisDepth.isAdequate
+        ? '阶段1至3内容仍过于简略，已保留卡片和提示词，建议换用指令遵循能力更强的文本模型重试。'
+        : canContinue && !isComplete ? '内容已生成，但部分卡片或提示词格式不标准，请在生图前检查。' : '';
+      return {
+        parsed,
+        analysisDepth,
+        isComplete,
+        canContinue,
+        warning,
+        isRejected,
+        reason: hasFormatError ? '接口返回格式异常' : !hasStage4 ? '尚未生成阶段4卡片内容' : !hasStage5 ? '尚未生成阶段5提示词内容' : !hasUsableCards ? '阶段4卡片格式不完整' : !hasUsablePrompts ? '阶段5提示词格式不完整' : !hasExactPageMapping ? '卡片与提示词未一一对应' : !analysisDepth.isAdequate ? '阶段1至3内容过于简略' : ''
+      };
+    };
+
+    const applyProcessingFinishReason = (assessment, finishReason = '') => {
+      const normalizedFinishReason = String(finishReason || '').trim().toLowerCase();
+      const isTruncated = ['length', 'max_tokens', 'max_output_tokens'].includes(normalizedFinishReason);
+      if (!isTruncated || assessment.isRejected) return { ...assessment, finishReason: normalizedFinishReason };
+      return {
+        ...assessment,
+        isComplete: false,
+        canContinue: false,
+        warning: '',
+        reason: `输出达到 ${PROCESSING_MAX_OUTPUT_TOKENS} Token 上限`,
+        finishReason: normalizedFinishReason
+      };
+    };
+
+    const formatProcessingError = (error) => {
+      const message = String(error?.message || error || '未知错误').trim();
+      if (/\bHTTP 524\b/.test(message)) {
+        return '上游模型服务响应超时（HTTP 524），请稍后重试或换用响应更快的文本模型。';
+      }
+      return `引擎连接失败：${message}`;
+    };
+
+    const MOREIMG_SCHEMA_VERSION = 'moreimg-1.0';
+    const MOREIMG_PAGE_TYPES = new Set(['cover', 'process', 'timeline', 'relationship', 'comparison', 'checklist', 'framework', 'quote']);
+    const MOREIMG_MODES = new Set(['standard', 'short', 'single_point']);
+    const MOREIMG_MEDIA = new Set(['3d_model', 'geometric_silhouette', 'hand_drawn_line', 'isometric_icon', 'flat_vector', 'wireframe_perspective']);
+    const MOREIMG_SURFACES = new Set(['light', 'dark']);
+    const MOREIMG_OVERLAYS = new Set(['none', 'soft_dark', 'soft_light']);
+
+    const createDefaultProcessingPreferences = () => ({
+      refinement: 'standard',
+      pageCount: 'auto',
+      preserveTitle: false,
+      tone: 'preserve',
+      customInstruction: ''
+    });
+
+    const requireObject = (value, path, errors) => {
+      if (!value || typeof value !== 'object' || Array.isArray(value)) {
+        errors.push(`${path} 必须是对象`);
+        return false;
+      }
+      return true;
+    };
+
+    const requireString = (value, path, errors, options = {}) => {
+      const { allowEmpty = false, maxLength = 0 } = options;
+      if (typeof value !== 'string' || (!allowEmpty && !value.trim())) {
+        errors.push(`${path} 必须是${allowEmpty ? '' : '非空'}字符串`);
+        return false;
+      }
+      if (maxLength && value.length > maxLength) errors.push(`${path} 不能超过 ${maxLength} 个字符`);
+      return true;
+    };
+
+    const requireStringArray = (value, path, errors, options = {}) => {
+      const { min = 0, max = Infinity, itemMaxLength = 0 } = options;
+      if (!Array.isArray(value)) {
+        errors.push(`${path} 必须是数组`);
+        return false;
+      }
+      if (value.length < min || value.length > max) errors.push(`${path} 数量必须为 ${min}-${max} 项`);
+      value.forEach((item, index) => requireString(item, `${path}[${index}]`, errors, { maxLength: itemMaxLength }));
+      return true;
+    };
+
+    const validateMoreImgPackage = (packageData, originalText = '') => {
+      const errors = [];
+      const warnings = [];
+      if (!requireObject(packageData, '根对象', errors)) return { packageData, isComplete: false, canContinue: false, isRejected: false, reason: errors[0], warning: '', errors, warnings };
+      if (packageData.schema_version !== MOREIMG_SCHEMA_VERSION) errors.push(`schema_version 必须是 ${MOREIMG_SCHEMA_VERSION}`);
+      if (!['complete', 'rejected'].includes(packageData.status)) errors.push('status 必须是 complete 或 rejected');
+
+      if (packageData.status === 'rejected') {
+        requireString(packageData.reason, 'reason', errors);
+        return {
+          packageData,
+          isComplete: false,
+          canContinue: false,
+          isRejected: errors.length === 0,
+          reason: errors[0] || packageData.reason,
+          warning: '',
+          errors,
+          warnings
+        };
+      }
+
+      if (requireObject(packageData.analysis, 'analysis', errors)) {
+        if (!MOREIMG_MODES.has(packageData.analysis.mode)) errors.push('analysis.mode 必须是 standard、short 或 single_point');
+        requireString(packageData.analysis.topic, 'analysis.topic', errors);
+        requireString(packageData.analysis.core_claim, 'analysis.core_claim', errors);
+        requireStringArray(packageData.analysis.independent_units, 'analysis.independent_units', errors, { min: 1 });
+        if (!Array.isArray(packageData.analysis.fact_notes)) errors.push('analysis.fact_notes 必须是数组');
+        if (!Array.isArray(packageData.analysis.logic_issues)) errors.push('analysis.logic_issues 必须是数组');
+      }
+
+      if (requireObject(packageData.article, 'article', errors)) {
+        requireString(packageData.article.title, 'article.title', errors);
+        requireString(packageData.article.subtitle, 'article.subtitle', errors, { allowEmpty: true });
+        if (requireStringArray(packageData.article.paragraphs, 'article.paragraphs', errors, { min: 1 })) {
+          const sourceLength = String(originalText || '').replace(/\s+/g, '').length;
+          const articleLength = packageData.article.paragraphs.join('').replace(/\s+/g, '').length;
+          if (packageData.analysis?.mode === 'standard' && sourceLength >= 600) {
+            const retentionRatio = articleLength / sourceLength;
+            if (retentionRatio < 0.3) {
+              errors.push('article.paragraphs 过短，标准模式正文保留率低于 30%');
+            } else if (retentionRatio < 0.65) {
+              warnings.push('标准模式正文保留率低于 65%，可能已去重或压缩，请核对完整性');
+            }
+          }
+        }
+      }
+
+      if (requireObject(packageData.style_lock, 'style_lock', errors)) {
+        const styleLock = packageData.style_lock;
+        requireString(styleLock.style_id, 'style_lock.style_id', errors);
+        requireString(styleLock.style_name, 'style_lock.style_name', errors);
+        requireString(styleLock.prompt_prefix, 'style_lock.prompt_prefix', errors);
+        requireStringArray(styleLock.negative, 'style_lock.negative', errors, { min: 1 });
+        if (requireObject(styleLock.card_shell, 'style_lock.card_shell', errors)) {
+          if (styleLock.card_shell.preset !== 'moreimg-clean-v1') errors.push('style_lock.card_shell.preset 必须是 moreimg-clean-v1');
+          if (!MOREIMG_SURFACES.has(styleLock.card_shell.surface)) errors.push('style_lock.card_shell.surface 必须是 light 或 dark');
+          if (!/^#[0-9A-F]{6}$/i.test(styleLock.card_shell.accent_color || '')) errors.push('style_lock.card_shell.accent_color 必须是 #RRGGBB 色值');
+          if (!MOREIMG_OVERLAYS.has(styleLock.card_shell.overlay)) errors.push('style_lock.card_shell.overlay 不受支持');
+        }
+        if (requireObject(styleLock.visual_dna, 'style_lock.visual_dna', errors)) {
+          const dna = styleLock.visual_dna;
+          if (!MOREIMG_MEDIA.has(dna.medium)) errors.push('style_lock.visual_dna.medium 不受支持');
+          ['visual_world', 'shape_language', 'perspective', 'lighting', 'material', 'recurring_subject'].forEach(field => requireString(dna[field], `style_lock.visual_dna.${field}`, errors));
+          requireStringArray(dna.recurring_elements, 'style_lock.visual_dna.recurring_elements', errors, { min: 1 });
+        }
+      }
+
+      if (!Array.isArray(packageData.pages)) {
+        errors.push('pages 必须是数组');
+      } else {
+        if (packageData.pages.length < 3 || packageData.pages.length > 9) errors.push('pages 必须包含封面、1-7张正文和封底');
+        const pageIds = new Set();
+        packageData.pages.forEach((page, index) => {
+          const path = `pages[${index}]`;
+          if (!requireObject(page, path, errors)) return;
+          requireString(page.page_id, `${path}.page_id`, errors);
+          if (pageIds.has(page.page_id)) errors.push(`${path}.page_id 重复`);
+          pageIds.add(page.page_id);
+          if (page.order !== index + 1) errors.push(`${path}.order 必须是 ${index + 1}`);
+          if (!MOREIMG_PAGE_TYPES.has(page.page_type)) errors.push(`${path}.page_type 不受支持`);
+          if (index === 0 && (page.page_id !== 'cover' || page.page_type !== 'cover')) errors.push('第1页必须是 cover 封面');
+          if (index > 0 && index < packageData.pages.length - 1 && page.page_id !== `content-${String(index).padStart(2, '0')}`) errors.push(`${path}.page_id 必须连续编号`);
+
+          if (requireObject(page.card, `${path}.card`, errors)) {
+            requireString(page.card.title, `${path}.card.title`, errors);
+            requireString(page.card.subtitle, `${path}.card.subtitle`, errors, { allowEmpty: true });
+            requireStringArray(page.card.points, `${path}.card.points`, errors, { max: 5, itemMaxLength: 25 });
+            requireString(page.card.summary, `${path}.card.summary`, errors, { allowEmpty: true, maxLength: 20 });
+          }
+          if (requireObject(page.semantic, `${path}.semantic`, errors)) {
+            ['page_goal', 'primary_claim', 'primary_concept', 'primary_relation'].forEach(field => requireString(page.semantic[field], `${path}.semantic.${field}`, errors));
+            ['supporting_concepts', 'excluded_concepts', 'avoid_misread'].forEach(field => requireStringArray(page.semantic[field], `${path}.semantic.${field}`, errors));
+          }
+          if (requireObject(page.image_prompt, `${path}.image_prompt`, errors)) {
+            ['scene', 'relationship', 'composition', 'continuity'].forEach(field => requireString(page.image_prompt[field], `${path}.image_prompt.${field}`, errors));
+            if (!['top_40', 'top_52'].includes(page.image_prompt.safe_area)) errors.push(`${path}.image_prompt.safe_area 不受支持`);
+            requireStringArray(page.image_prompt.avoid, `${path}.image_prompt.avoid`, errors);
+          }
+        });
+        const closing = packageData.pages.at(-1);
+        if (!closing || closing.page_id !== 'closing' || closing.page_type !== 'quote') errors.push('最后一页必须是 closing 封底');
+      }
+
+      return {
+        packageData,
+        isComplete: errors.length === 0 && warnings.length === 0,
+        canContinue: errors.length === 0,
+        isRejected: false,
+        reason: errors[0] || '',
+        warning: warnings[0] || '',
+        errors,
+        warnings
+      };
+    };
+
+    const parseMoreImgPackage = (rawText, originalText = '') => {
+      const source = String(rawText || '').trim();
+      if (!source || source.startsWith('```') || source.endsWith('```')) throw new Error('接口必须返回合法 JSON，不能包含 Markdown 代码块或解释文字');
+      let packageData;
+      try {
+        packageData = JSON.parse(source);
+      } catch (error) {
+        throw new Error(`接口未返回合法 JSON：${error.message}`);
+      }
+      return validateMoreImgPackage(packageData, originalText);
+    };
+
+    const buildPageImagePrompt = (styleLock, page) => {
+      if (!styleLock || !page?.image_prompt) return '';
+      const localAvoid = Array.isArray(page.image_prompt.avoid) ? page.image_prompt.avoid : [];
+      const globalAvoid = Array.isArray(styleLock.negative) ? styleLock.negative : [];
+      const safeArea = page.image_prompt.safe_area === 'top_40' ? '顶部40%' : '顶部52%';
+      return `无文字主视觉，3:4全幅连续背景。画面气质：${styleLock.prompt_prefix}。场景：${page.image_prompt.scene}。主关系：${page.image_prompt.relationship}。构图：${page.image_prompt.composition}；${safeArea}保留低细节、明暗稳定的文字安全区。系列连续性：${page.image_prompt.continuity}。避免：${[...globalAvoid, ...localAvoid].filter(Boolean).join('、')}。不得出现任何文字、字母、数字、符号、Logo、水印、UI标签、卡片框架或伪文字纹理。`;
+    };
+
+    const PROCESSING_PREFERENCE_LABELS = {
+      refinement: { standard: '标准精修', light: '轻度整理' },
+      tone: { preserve: '尽量保留原文语气', concise: '更简洁克制', conversational: '更口语自然' }
+    };
+
+    const buildInitialProcessingMessages = (originalText, systemPrompt = '', preferences = createDefaultProcessingPreferences()) => {
+      const pageCountText = preferences.pageCount === 'auto' ? '自动决定，固定包含封面和封底' : `总页数：${preferences.pageCount}页，固定包含封面和封底`;
+      const preferenceLines = [
+        `精修方式：${PROCESSING_PREFERENCE_LABELS.refinement[preferences.refinement] || PROCESSING_PREFERENCE_LABELS.refinement.standard}`,
+        `卡片页数：${pageCountText}`,
+        `原文标题：${preferences.preserveTitle ? '优先保留' : '允许优化'}`,
+        `内容口吻：${PROCESSING_PREFERENCE_LABELS.tone[preferences.tone] || PROCESSING_PREFERENCE_LABELS.tone.preserve}`,
+        preferences.customInstruction?.trim() ? `补充要求：${preferences.customInstruction.trim()}` : ''
+      ].filter(Boolean);
+      return [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: `请按内置规则处理以下原文，并只返回 moreimg-1.0 JSON。\n\n加工偏好：\n${preferenceLines.join('\n')}\n\n原文：\n${originalText}` }
+      ];
+    };
+
+    const isResponsesApiEndpoint = (apiUrl = '') => /\/responses(?:[/?#]|$)/i.test(String(apiUrl).trim());
+
+    const resolveApiEndpoint = (apiUrl = '', kind = 'text') => {
+      const rawUrl = String(apiUrl || '').trim();
+      if (!rawUrl) return '';
+      try {
+        const url = new URL(rawUrl);
+        const pathname = url.pathname.replace(/\/+$/, '');
+        const isCompleteTextEndpoint = /\/(?:chat\/completions|responses)$/i.test(pathname);
+        const isCompleteImageEndpoint = /\/images\/generations$/i.test(pathname);
+        if ((kind === 'text' && isCompleteTextEndpoint) || (kind === 'image' && isCompleteImageEndpoint)) return rawUrl;
+        if (/\/v\d+(?:\.\d+)?$/i.test(pathname)) {
+          url.pathname = `${pathname}${kind === 'image' ? '/images/generations' : '/chat/completions'}`;
+          return url.toString();
+        }
+      } catch {
+        return rawUrl;
+      }
+      return rawUrl;
+    };
+
+    const getRequestTransport = (endpoint, kind, pageLocation = window.location) => {
+      const isLocalService = pageLocation?.protocol === 'http:' && ['127.0.0.1', 'localhost'].includes(pageLocation?.hostname);
+      try {
+        const endpointUrl = new URL(endpoint, pageLocation.origin);
+        const isLoopbackEndpoint = ['127.0.0.1', 'localhost'].includes(endpointUrl.hostname);
+        if (!isLocalService && isLoopbackEndpoint) return { url: endpoint, headers: {}, blockedLocalService: true };
+      } catch {}
+      if (!isLocalService) return { url: endpoint, headers: {} };
+      try {
+        const target = new URL(endpoint, pageLocation.origin);
+        if (target.origin === pageLocation.origin) return { url: endpoint, headers: {} };
+        return {
+          url: `/proxy/${kind === 'image' ? 'image' : 'text'}`,
+          headers: { 'X-MoreImg-Upstream': target.toString() }
+        };
+      } catch {
+        return { url: endpoint, headers: {} };
+      }
+    };
+
+    const deriveModelsEndpoint = (apiUrl = '') => {
+      const normalizedUrl = String(apiUrl || '').trim();
+      if (!normalizedUrl) return '';
+      const url = new URL(normalizedUrl);
+      const suffixes = ['/chat/completions', '/images/generations', '/responses'];
+      const matchingSuffix = suffixes.find(suffix => url.pathname.replace(/\/$/, '').endsWith(suffix));
+      if (matchingSuffix) {
+        url.pathname = `${url.pathname.replace(/\/$/, '').slice(0, -matchingSuffix.length)}/models`;
+      } else {
+        url.pathname = `${url.pathname.replace(/\/$/, '')}/models`;
+      }
+      url.search = '';
+      url.hash = '';
+      return url.toString().replace(/\/$/, '');
+    };
+
+    const extractModelIds = (data = {}) => {
+      const rawModels = Array.isArray(data.data) ? data.data : Array.isArray(data.models) ? data.models : [];
+      return [...new Set(rawModels
+        .map(item => typeof item === 'string' ? item : item?.id || item?.name || '')
+        .map(item => String(item).trim())
+        .filter(Boolean))];
+    };
+
+    const buildProcessingRequestBody = (apiUrl, model, messages, maxOutputTokens = PROCESSING_MAX_OUTPUT_TOKENS, stream = true) => {
+      if (isResponsesApiEndpoint(apiUrl)) {
+        const instructions = messages
+          .filter(message => message.role === 'system')
+          .map(message => String(message.content || '').trim())
+          .filter(Boolean)
+          .join('\n\n');
+        const input = messages
+          .filter(message => message.role !== 'system')
+          .map(message => ({ role: message.role, content: String(message.content || '') }));
+        return {
+          model,
+          ...(instructions ? { instructions } : {}),
+          input,
+          stream,
+          max_output_tokens: maxOutputTokens
+        };
+      }
+
+      const requestBody = { model, messages, stream, temperature: 0.7 };
+      const usesCompletionTokenLimit = /^(?:gpt-5|o\d)/i.test(String(model || '').trim());
+      if (usesCompletionTokenLimit) requestBody.max_completion_tokens = maxOutputTokens;
+      else requestBody.max_tokens = maxOutputTokens;
+      return requestBody;
+    };
+
+    const extractProcessingResponseText = (data = {}) => {
+      if (typeof data.output_text === 'string') return data.output_text;
+      if (typeof data.response?.output_text === 'string') return data.response.output_text;
+
+      const choiceContent = data.choices?.[0]?.message?.content ?? data.choices?.[0]?.delta?.content;
+      if (typeof choiceContent === 'string') return choiceContent;
+      if (Array.isArray(choiceContent)) {
+        return choiceContent.map(item => item?.text?.value || item?.text || '').join('');
+      }
+
+      const output = data.output || data.response?.output || [];
+      return output.flatMap(item => item?.content || [])
+        .map(content => content?.text?.value || content?.text || '')
+        .filter(Boolean)
+        .join('');
+    };
+
+    const extractProcessingFinishReason = (data = {}) => {
+      const chatReason = data.choices?.[0]?.finish_reason;
+      if (chatReason) return chatReason;
+      const responseData = data.response || data;
+      if (responseData.incomplete_details?.reason) return responseData.incomplete_details.reason;
+      if (responseData.status === 'incomplete') return 'max_output_tokens';
+      return '';
+    };
+
+    const extractProcessingStreamDelta = (data = {}) => {
+      const chatDelta = data.choices?.[0]?.delta?.content;
+      if (typeof chatDelta === 'string') return chatDelta;
+      if (data.type === 'response.output_text.delta' && typeof data.delta === 'string') return data.delta;
+      return '';
+    };
+
+    const readProcessingResponse = async (response) => {
+      const contentType = String(response.headers?.get?.('content-type') || '').toLowerCase();
+      if (!contentType.includes('text/event-stream')) {
+        const responseText = await response.text();
+        try {
+          const data = JSON.parse(responseText);
+          return {
+            text: extractProcessingResponseText(data),
+            finishReason: extractProcessingFinishReason(data)
+          };
+        } catch {
+          return { text: responseText, finishReason: '' };
+        }
+      }
+
+      if (!response.body || typeof response.body.getReader !== 'function') {
+        throw new Error('接口返回了不可读取的流，请检查接口或更换文本模型。');
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder('utf-8');
+      let streamBuffer = '';
+      let fullResponseText = '';
+      let finishReason = '';
+      let streamCompleted = false;
+
+      const consumeLine = (rawLine) => {
+        const line = String(rawLine || '').trim();
+        if (!line.startsWith('data:')) return;
+        const payload = line.slice(5).trim();
+        if (!payload) return;
+        if (payload === '[DONE]') {
+          streamCompleted = true;
+          return;
+        }
+        try {
+          const data = JSON.parse(payload);
+          fullResponseText += extractProcessingStreamDelta(data);
+          const eventFinishReason = extractProcessingFinishReason(data);
+          finishReason = eventFinishReason || finishReason;
+          if (eventFinishReason || ['response.completed', 'response.incomplete', 'response.failed'].includes(data.type)) {
+            streamCompleted = true;
+          }
+        } catch {}
+      };
+
+      while (true) {
+        const { done, value } = await reader.read();
+        streamBuffer += decoder.decode(value || new Uint8Array(), { stream: !done });
+        const lines = streamBuffer.split(/\r?\n/);
+        streamBuffer = lines.pop() || '';
+        lines.forEach(consumeLine);
+        if (done) break;
+      }
+      consumeLine(streamBuffer);
+
+      if (!streamCompleted) {
+        throw new Error('流式响应提前结束，未收到完成标记，请稍后重试或检查上游服务。');
+      }
+      if (!fullResponseText.trim()) {
+        throw new Error('大模型未返回任何有效内容，请检查接口配置或稍后重试。');
+      }
+      return { text: fullResponseText, finishReason };
+    };
+
+    const getCardVisibleText = (card) => card ? [card.title, card.subtitle, ...(card.points || []), card.summary].filter(Boolean) : [];
+
+    const buildVisualOnlyPrompt = (visualPrompt, card) => {
+      const visibleText = card ? [card.title, card.subtitle, ...(card.points || []), card.summary].filter(Boolean) : [];
+      let sanitizedPrompt = String(visualPrompt || '')
+        .replace(/```[^\n]*\n?/g, '')
+        .replace(/```/g, '')
+        .replace(/「[^」]*」|“[^”]*”|"[^"]*"/g, '')
+        .replace(/(?:核心)?主体(?:必须)?占(?:整个)?画面(?:的)?45%-65%[^。；\n]*[。；]?/g, '')
+        .replace(/顶部55%[^。；\n]*[。；]?/g, '')
+        .trim();
+
+      visibleText.forEach(text => {
+        sanitizedPrompt = sanitizedPrompt.split(String(text)).join('');
+      });
+
+      const textLayoutInstruction = /(?:主标题|副标题|标题|要点|总结|行动号召|信息条|文字排版|文本排版|字体|字号|字重|文案|准确绘制|逐字|写上|标注|页码|署名|二维码)/;
+      const sceneDescription = sanitizedPrompt
+        .split(/[。！？；\n]+/)
+        .map(sentence => sentence
+          .split(/[，,]+/)
+          .map(part => part.trim().replace(/^[、:：\s]+|[、:：\s]+$/g, ''))
+          .filter(part => part && !textLayoutInstruction.test(part))
+          .join('，'))
+        .filter(part => part && !textLayoutInstruction.test(part))
+        .join('。');
+
+      const safeArea = card?.type === 'cover' ? '顶部35%-45%' : '顶部50%-55%';
+      return `无文字主视觉。生成一张可作为整张 3:4 卡片全幅背景的连续画面，背景自然延伸到四边，不要内嵌图片框、海报边框或独立卡片容器。主视觉完整集中在下方可用视觉区并占据该区域的大部分空间，${safeArea}保留低细节、明暗稳定的文字安全区；底部只展示主视觉，不预留文字位置。只保留并生成以下场景或插图元素：${sceneDescription || '围绕卡片主关系设计一个主体明确、构图简洁的视觉场景'}。不得出现任何文字、字母、数字、符号、Logo、水印、卡片框架、UI、信息条或伪文字纹理；不要绘制标题、要点、总结和按钮标签。`;
+    };
+
+    const buildFullImagePrompt = (visualPrompt, card) => {
+      const visibleText = getCardVisibleText(card);
+      const sanitizedVisualPrompt = String(visualPrompt || '')
+        .replace(/无文字主视觉|无文字视觉素材/g, '完整卡片视觉')
+        .replace(/画面中不生成任何文字[^。；\n]*[。；]?/g, '')
+        .replace(/不得出现任何文字[^。；\n]*[。；]?/g, '')
+        .replace(/不要绘制标题[^。；\n]*[。；]?/g, '')
+        .replace(/(?:核心)?主体(?:必须)?占(?:整个)?画面(?:的)?45%-65%[^。；\n]*[。；]?/g, '')
+        .replace(/避免：([^。；\n]*)/g, (_, items) => {
+          const keptItems = items.split(/[、，,]/)
+            .map(item => item.trim())
+            .filter(item => item && !/(文字|字母|数字|符号|Logo|水印|标签|代码字符|伪文字)/i.test(item));
+          return keptItems.length > 0 ? `避免：${keptItems.join('、')}` : '';
+        })
+        .replace(/[。；]{2,}/g, '。')
+        .trim();
+      const layoutInstruction = card?.type === 'back'
+        ? '这是封底：页标、核心总结和行动号召依次排列在上半部；下半部只展示主视觉，不放任何文字。画面必须同时出现核心总结和行动号召。'
+        : card?.type === 'cover'
+          ? '这是封面：主标题最醒目，副标题紧随其后，文字位于顶部低细节区域。'
+          : '这是正文页：标题、要点和总结依次排列在上半部；下半部只展示主视觉，不放任何文字。';
+      return `生成一张完整的小红书知识卡片成品图，直接完成3:4排版。本页必须包含且只能包含以下文字：${visibleText.map(text => `「${text}」`).join('、')}。${layoutInstruction}所有文字必须清晰可读、逐字保持不变，不能省略；禁止生成无文字版本，不要添加任何未提供的文字。\n\n视觉背景参考：${sanitizedVisualPrompt}。AI 整图为实验性输出，优先保证文字与卡片结构对应。`;
+    };
+
+    const cleanCardValue = (value = '') => value
+      .replace(/^\s*[-*•]\s*/, '')
+      .replace(/^\*\*|\*\*$/g, '')
+      .replace(/^[「“\"]|[」”\"]$/g, '')
+      .trim();
+
+    const readCardField = (block, fieldNames) => {
+      const names = (Array.isArray(fieldNames) ? fieldNames : [fieldNames])
+        .map(name => name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+        .join('|');
+      const match = block.match(new RegExp(`(?:^|\\n)\\s*(?:[-*•]\\s*)?(?:\\*\\*)?(?:${names})(?:\\*\\*)?\\s*[：:]\\s*(.+)`, 'm'));
+      return cleanCardValue(match?.[1] || '');
+    };
+
+    const readCardPoints = (block) => {
+      const lines = block.split('\n');
+      const points = [];
+      let collecting = false;
+      for (const rawLine of lines) {
+        const line = rawLine.trim();
+        if (/^(?:[-*•]\s*)?(?:\*\*)?(?:内容要点|要点)(?:\*\*)?\s*[：:]/.test(line)) {
+          collecting = true;
+          const inlineValue = line.replace(/^(?:[-*•]\s*)?(?:\*\*)?(?:内容要点|要点)(?:\*\*)?\s*[：:]\s*/, '');
+          if (inlineValue) points.push(...inlineValue.split(/[；;]/).map(cleanCardValue).filter(Boolean));
+          continue;
+        }
+        if (collecting && /^(?:[-*•]\s*)?(?:\*\*)?(?:一句话总结|总结|核心总结|行动号召|核心比喻)(?:\*\*)?\s*[：:]/.test(line)) break;
+        if (collecting && /^[-*•]\s+/.test(line)) points.push(cleanCardValue(line));
+      }
+      return points;
+    };
+
+    const parseCardPackage = (content) => {
+      if (!content) return [];
+      const headerRegex = /(?:^|\n)\s*(?:#{1,6}\s*)?(?:\*\*)?(封面卡片|正文卡片\s*\d+\/\d+|封底卡片)(?:\*\*)?\s*[：:]?\s*(?=\n|$)/g;
+      const headers = [...content.matchAll(headerRegex)];
+      return headers.map((header, index) => {
+        const label = header[1].replace(/\s+/g, ' ').trim();
+        const blockStart = header.index + header[0].length;
+        const blockEnd = headers[index + 1]?.index ?? content.length;
+        const block = content.slice(blockStart, blockEnd).trim();
+        const isCover = label === '封面卡片';
+        const isBack = label === '封底卡片';
+        const bodyMatch = label.match(/正文卡片\s*(\d+\/\d+)/);
+        const imageKey = isCover ? '封面' : isBack ? '封底' : `正文${bodyMatch?.[1] || index}`;
+        return {
+          id: `${imageKey}-${index}`,
+          label: isCover ? '封面' : isBack ? '封底' : `正文 ${bodyMatch?.[1] || ''}`,
+          imageKey,
+          type: isCover ? 'cover' : isBack ? 'back' : 'body',
+          title: isCover ? readCardField(block, '主标题') : isBack ? readCardField(block, '核心总结') : readCardField(block, '标题'),
+          subtitle: isCover ? readCardField(block, '副标题') : '',
+          points: isCover || isBack ? [] : readCardPoints(block),
+          summary: isBack ? readCardField(block, '行动号召') : readCardField(block, ['一句话总结', '总结'])
+        };
+      }).filter(card => card.title || card.subtitle || card.points.length || card.summary);
+    };
+
+    const getPageDisplayName = (page, contentCount = 0) => {
+      if (page.page_id === 'cover') return '封面';
+      if (page.page_id === 'closing') return '封底';
+      const match = page.page_id.match(/^content-(\d+)$/);
+      return `正文${Number(match?.[1] || page.order - 1)}/${contentCount || '?'}`;
+    };
+
+    const packagePageToCard = (page, index, pages = []) => {
+      const contentCount = Math.max(0, pages.length - 2);
+      const type = page.page_id === 'cover' ? 'cover' : page.page_id === 'closing' ? 'back' : 'body';
+      const imageKey = getPageDisplayName(page, contentCount);
+      return {
+        id: `${page.page_id}-${index}`,
+        label: imageKey === '封面' || imageKey === '封底' ? imageKey : imageKey.replace('正文', '正文 '),
+        imageKey,
+        pageId: page.page_id,
+        type,
+        title: page.card.title,
+        subtitle: page.card.subtitle || '',
+        points: Array.isArray(page.card.points) ? page.card.points : [],
+        summary: page.card.summary || ''
+      };
+    };
+
+    const packagePageToPromptSection = (page, styleLock, pages = []) => ({
+      title: getPageDisplayName(page, Math.max(0, pages.length - 2)),
+      pageId: page.page_id,
+      text: buildPageImagePrompt(styleLock, page)
+    });
+
+    const getPackageStageText = (packageData, stageId) => {
+      if (!packageData || packageData.status !== 'complete') return '';
+      if (stageId === 1) {
+        const modeLabels = { standard: '标准模式', short: '短文模式', single_point: '单点模式' };
+        return [
+          `## 判型结论`,
+          `- 加工模式：${modeLabels[packageData.analysis.mode] || packageData.analysis.mode}`,
+          `- 主题：${packageData.analysis.topic}`,
+          `- 核心观点：${packageData.analysis.core_claim}`,
+          `- 独立信息单元：${packageData.analysis.independent_units.join('；')}`
+        ].join('\n');
+      }
+      if (stageId === 2) {
+        const factLines = packageData.analysis.fact_notes.length
+          ? packageData.analysis.fact_notes.map(item => `- ${item.claim || '未命名信息'}：${item.note || item.status || '未说明'}`)
+          : ['- 原文没有需要单独提示的事实边界'];
+        const logicLines = packageData.analysis.logic_issues.length
+          ? packageData.analysis.logic_issues.map(item => `- ${typeof item === 'string' ? item : item.note || item.issue || JSON.stringify(item)}`)
+          : ['- 未发现需要单独提示的逻辑问题'];
+        return [`## 事实边界`, ...factLines, `## 逻辑检查`, ...logicLines].join('\n');
+      }
+      if (stageId === 3) {
+        return [`# ${packageData.article.title}`, packageData.article.subtitle ? `## ${packageData.article.subtitle}` : '', ...packageData.article.paragraphs].filter(Boolean).join('\n\n');
+      }
+      if (stageId === 4) return 'JSON 卡片页面';
+      if (stageId === 5) return 'JSON 视觉页面';
+      return '';
+    };
+
+    const getCardShellPresentation = (styleLock) => {
+      const shell = styleLock?.card_shell || {};
+      const surface = shell.surface === 'light' ? 'light' : 'dark';
+      const overlay = MOREIMG_OVERLAYS.has(shell.overlay) ? shell.overlay : surface === 'light' ? 'soft_light' : 'soft_dark';
+      const accentColor = /^#[0-9A-F]{6}$/i.test(shell.accent_color || '') ? shell.accent_color : '#F59E42';
+      return {
+        className: `moreimg-card-surface-${surface} moreimg-card-overlay-${overlay}`,
+        style: { '--moreimg-card-accent': accentColor }
+      };
+    };
+
+    const HTML_CARD_EXPORT_STYLES = `
+      .moreimg-export-card{--moreimg-card-accent:#F59E42;box-sizing:border-box;position:relative;isolation:isolate;width:1242px;height:1656px;overflow:hidden;background:#121417;color:#f7f7f2;font-family:"Noto Sans SC Variable",sans-serif;padding:0;letter-spacing:0}
+      .moreimg-export-card *{box-sizing:border-box}
+      .moreimg-card-media{position:absolute;inset:0;z-index:-4;background:#15171a;overflow:hidden}
+      .moreimg-card-media img{width:100%;height:100%;object-fit:cover;object-position:center 58%;display:block;transform:scale(1.012)}
+      .moreimg-card-body .moreimg-card-media img{object-position:center 54%}
+      .moreimg-card-back .moreimg-card-media img{object-position:center 48%}
+      .moreimg-card-visual-placeholder{position:absolute;inset:0;background:radial-gradient(circle at 62% 66%,rgba(239,232,216,.25),transparent 24%),linear-gradient(155deg,#313842 0%,#15181d 56%,#08090b 100%)}
+      .moreimg-card-shade{position:absolute;inset:0;z-index:-3;pointer-events:none;background:linear-gradient(180deg,rgba(7,9,12,.9) 0%,rgba(7,9,12,.66) 24%,rgba(7,9,12,.08) 58%,rgba(7,9,12,.44) 100%)}
+      .moreimg-card-body .moreimg-card-shade{background:linear-gradient(180deg,rgba(5,8,12,.9) 0%,rgba(5,8,12,.72) 28%,rgba(5,8,12,.38) 48%,rgba(5,8,12,.08) 66%,rgba(5,8,12,.04) 100%)}
+      .moreimg-card-back .moreimg-card-shade{background:linear-gradient(180deg,rgba(7,9,12,.9) 0%,rgba(7,9,12,.68) 30%,rgba(7,9,12,.28) 50%,rgba(7,9,12,.06) 68%,rgba(7,9,12,.03) 100%)}
+      .moreimg-card-noise{position:absolute;inset:0;z-index:-2;opacity:.1;background-image:radial-gradient(rgba(255,255,255,.38) .7px,transparent .8px);background-size:8px 8px;mix-blend-mode:soft-light;pointer-events:none}
+      .moreimg-card-content{position:relative;z-index:2;width:1080px;height:1440px;padding:78px;display:flex;flex-direction:column;transform:scale(1.15,1.152778);transform-origin:top left}
+      .moreimg-card-header{max-width:890px}
+      .moreimg-card-kicker{display:flex;align-items:center;gap:14px;color:rgba(255,255,255,.76);font-size:29px;line-height:1;font-weight:780;letter-spacing:.06em}
+      .moreimg-card-kicker-mark{display:block;width:6px;height:28px;border-radius:3px;background:var(--moreimg-card-accent);flex:none}
+      /* html2canvas 的中文字形基线比 Chrome 布局低，仅在导出克隆中做视觉对齐。 */
+      .moreimg-export-render .moreimg-card-kicker-mark{transform:translateY(14px)}
+      .moreimg-card-title{margin:44px 0 0;font-size:92px;line-height:1.08;font-weight:920;letter-spacing:0;color:#f8f7f2;max-width:930px;overflow-wrap:anywhere;text-wrap:balance;text-shadow:0 2px 12px rgba(0,0,0,.3)}
+      .moreimg-card-subtitle{margin-top:26px;max-width:840px;font-size:38px;line-height:1.42;font-weight:660;color:rgba(255,255,255,.82);text-shadow:0 1px 8px rgba(0,0,0,.26)}
+      .moreimg-card-points{margin-top:34px;padding:0 6px;background:transparent}
+      .moreimg-card-point{min-height:88px;padding:22px 0;display:flex;align-items:center;border-bottom:1px solid rgba(255,255,255,.22);font-size:36px;line-height:1.34;font-weight:740;color:#f7f6f1;text-shadow:0 1px 8px rgba(0,0,0,.3)}
+      .moreimg-card-point:last-child{border-bottom:0}
+      .moreimg-card-point-index{width:62px;margin-right:20px;flex:none;color:var(--moreimg-card-accent);font-size:23px;font-variant-numeric:tabular-nums;letter-spacing:.08em}
+      .moreimg-card-summary{margin-top:20px;padding:24px 6px 0;border-top:2px solid rgba(255,255,255,.4);font-size:37px;line-height:1.36;font-weight:840;color:#fbfaf5;text-shadow:0 1px 8px rgba(0,0,0,.3)}
+      .moreimg-card-body .moreimg-card-title{margin-top:38px;font-size:80px;line-height:1.08;max-width:900px}
+      .moreimg-card-body .moreimg-card-header{max-width:850px}
+      .moreimg-card-back .moreimg-card-content{justify-content:flex-start}
+      .moreimg-card-back-copy{max-width:900px;margin-top:58px;padding-bottom:8px}
+      .moreimg-card-back .moreimg-card-title{margin:0;font-size:80px;line-height:1.13}
+      .moreimg-card-back .moreimg-card-summary{margin-top:30px;padding:26px 0 0;font-size:40px;max-width:860px;color:rgba(255,255,255,.84)}
+      .moreimg-card-overlay-none .moreimg-card-shade{background:transparent}
+      .moreimg-card-surface-light{background:#f2f5f3;color:#14202b}
+      .moreimg-card-surface-light .moreimg-card-media{background:#e8eeec}
+      .moreimg-card-surface-light .moreimg-card-visual-placeholder{background:radial-gradient(circle at 62% 66%,rgba(245,158,66,.22),transparent 25%),linear-gradient(155deg,#f8faf9 0%,#e8efec 56%,#dbe5e1 100%)}
+      .moreimg-card-surface-light.moreimg-card-overlay-soft_light .moreimg-card-shade{background:linear-gradient(180deg,rgba(248,250,249,.96) 0%,rgba(248,250,249,.86) 28%,rgba(248,250,249,.34) 55%,rgba(248,250,249,.08) 100%)}
+      .moreimg-card-surface-light .moreimg-card-kicker{color:rgba(20,32,43,.68)}
+      .moreimg-card-surface-light .moreimg-card-title{color:#14202b;text-shadow:0 1px 8px rgba(255,255,255,.72)}
+      .moreimg-card-surface-light .moreimg-card-subtitle{color:rgba(20,32,43,.72);text-shadow:0 1px 6px rgba(255,255,255,.68)}
+      .moreimg-card-surface-light .moreimg-card-point{border-bottom-color:rgba(20,32,43,.18);color:#1c2b36;text-shadow:none}
+      .moreimg-card-surface-light .moreimg-card-summary{border-top-color:var(--moreimg-card-accent);color:#14202b;text-shadow:none}
+      .moreimg-card-surface-light.moreimg-card-overlay-soft_dark .moreimg-card-shade{background:linear-gradient(180deg,rgba(20,29,36,.82) 0%,rgba(20,29,36,.58) 28%,rgba(20,29,36,.12) 62%,transparent 100%)}
+      .moreimg-card-surface-light.moreimg-card-overlay-soft_dark .moreimg-card-kicker,.moreimg-card-surface-light.moreimg-card-overlay-soft_dark .moreimg-card-title,.moreimg-card-surface-light.moreimg-card-overlay-soft_dark .moreimg-card-subtitle,.moreimg-card-surface-light.moreimg-card-overlay-soft_dark .moreimg-card-point,.moreimg-card-surface-light.moreimg-card-overlay-soft_dark .moreimg-card-summary{color:#f8faf7;text-shadow:0 1px 8px rgba(0,0,0,.3)}
+    `;
+
+    const HtmlCard = ({ card, imageUrl, cardRef, styleLock }) => {
+      const presentation = getCardShellPresentation(styleLock);
+      return (
+      <div ref={cardRef} style={presentation.style} className={`moreimg-export-card moreimg-card-${card.type} ${presentation.className}`}>
+        <div className="moreimg-card-media">
+          {imageUrl ? <img src={imageUrl} alt="" decoding="async" /> : <div className="moreimg-card-visual-placeholder"></div>}
+        </div>
+        <div className="moreimg-card-shade"></div>
+        <div className="moreimg-card-noise"></div>
+        <div className="moreimg-card-content">
+          {card.type === 'back' ? (
+            <>
+              <div className="moreimg-card-kicker"><span className="moreimg-card-kicker-mark" aria-hidden="true"></span>{card.label}</div>
+              <div className="moreimg-card-back-copy">
+                <h3 className="moreimg-card-title">{card.title || '未识别到总结'}</h3>
+                {card.summary && <div className="moreimg-card-summary">{card.summary}</div>}
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="moreimg-card-header">
+                <div className="moreimg-card-kicker"><span className="moreimg-card-kicker-mark" aria-hidden="true"></span>{card.label}</div>
+                <h3 className="moreimg-card-title">{card.title || '未识别到标题'}</h3>
+                {card.subtitle && <div className="moreimg-card-subtitle">{card.subtitle}</div>}
+              </div>
+              {card.points.length > 0 && (
+                <div className="moreimg-card-points">
+                  {card.points.map((point, index) => (
+                    <div key={index} className="moreimg-card-point"><span className="moreimg-card-point-index">{String(index + 1).padStart(2, '0')}</span>{point}</div>
+                  ))}
+                </div>
+              )}
+              {card.summary && <div className="moreimg-card-summary">{card.summary}</div>}
+            </>
+          )}
+        </div>
+      </div>
+      );
+    };
+
+    const HtmlCardPreview = ({ children }) => {
+      const frameRef = useRef(null);
+      useEffect(() => {
+        loadExportFontStylesheet().catch(() => {});
+        const frame = frameRef.current;
+        if (!frame) return undefined;
+        const updateScale = (width) => {
+          if (!width) return;
+          frame.style.setProperty('--moreimg-preview-scale', String(Math.min(1, width / 1242)));
+        };
+        updateScale(frame.clientWidth);
+        if (typeof ResizeObserver === 'undefined') return undefined;
+        const observer = new ResizeObserver(entries => updateScale(entries[0]?.contentRect?.width));
+        observer.observe(frame);
+        return () => observer.disconnect();
+      }, []);
+      return (
+        <div ref={frameRef} className="html-card-preview-frame">
+          <div className="html-card-preview-scale">{children}</div>
+        </div>
+      );
+    };
+
+    const VisualPreview = ({ imageUrl, alt }) => {
+      const [naturalSize, setNaturalSize] = useState(null);
+      const isThreeByFour = naturalSize && Math.abs((naturalSize.width / naturalSize.height) - (3 / 4)) < 0.01;
+
+      useEffect(() => setNaturalSize(null), [imageUrl]);
+
+      return (
+        <>
+          <div className="visual-preview">
+            <img
+              src={imageUrl}
+              alt={alt}
+              className="visual-preview-image"
+              decoding="async"
+              onLoad={(event) => setNaturalSize({ width: event.currentTarget.naturalWidth, height: event.currentTarget.naturalHeight })}
+            />
+          </div>
+          <div className="visual-preview-meta">
+            <span><strong>预览框 3:4</strong> · 原图等比显示</span>
+            {naturalSize && (
+              <span className={isThreeByFour ? '' : 'visual-preview-meta-warning'}>
+                原图 {naturalSize.width}×{naturalSize.height}{isThreeByFour ? '' : ' · 尺寸不匹配'}
+              </span>
+            )}
+          </div>
+        </>
+      );
+    };
+
+    const handleTabListKeyDown = (event) => {
+      if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+      const tabList = event.currentTarget.closest('[role="tablist"]');
+      if (!tabList) return;
+      const tabs = [...tabList.querySelectorAll('[role="tab"]')].filter(tab => !tab.disabled);
+      const currentIndex = tabs.indexOf(event.currentTarget);
+      if (currentIndex < 0 || tabs.length < 2) return;
+
+      event.preventDefault();
+      const nextIndex = event.key === 'Home'
+        ? 0
+        : event.key === 'End'
+          ? tabs.length - 1
+          : event.key === 'ArrowRight'
+            ? (currentIndex + 1) % tabs.length
+            : (currentIndex - 1 + tabs.length) % tabs.length;
+      tabs[nextIndex].focus();
+      tabs[nextIndex].click();
+    };
+
+    const Toast = ({ message, type = 'success', onClose, duration = 3000 }) => {
+      useEffect(() => {
+        const timer = setTimeout(onClose, duration);
+        return () => clearTimeout(timer);
+      }, [onClose, duration]);
+
+      return (
+        <div
+          className={`mi-toast mi-feedback mi-feedback-${type === 'error' ? 'error' : 'success'} animate-fade-in-down`}
+          role={type === 'error' ? 'alert' : 'status'}
+          aria-live={type === 'error' ? 'assertive' : 'polite'}
+          aria-atomic="true"
+        >
+          <div className="mi-toast-icon">
+            <Icon name={type === 'error' ? 'AlertCircle' : 'CheckCircle2'} className="h-4 w-4" />
+          </div>
+          <span className="mi-toast-message">{message}</span>
+          <button type="button" onClick={onClose} className="mi-icon-button mi-icon-button-compact mi-toast-dismiss" aria-label="关闭通知" title="关闭通知">
+            <Icon name="X" className="h-4 w-4" />
+          </button>
+        </div>
+      );
+    };
+
+    const ConfigStatus = ({ state }) => {
+      if (!state || state.status === 'idle') return null;
+      const iconName = state.status === 'loading' ? 'LoaderCircle' : state.status === 'success' ? 'CheckCircle2' : 'AlertCircle';
+      const feedbackType = state.status === 'loading' ? 'neutral' : state.status;
+      return (
+        <div className={`mi-feedback mi-feedback-${feedbackType} config-status config-status-${state.status}`} role={state.status === 'error' ? 'alert' : 'status'} aria-live="polite">
+          <Icon name={iconName} className={`mt-0.5 h-3.5 w-3.5 shrink-0 ${state.status === 'loading' ? 'animate-spin' : ''}`} />
+          <span>{state.message}</span>
+        </div>
+      );
+    };
+
+    const ResultsPanel = React.memo(({ content }) => content);
+
+    const DEFAULT_PROMPT_VERSION = 7;
+
+    const normalizeSystemPrompt = (prompt = '') => String(prompt).replace(/\s+/g, ' ').trim();
+
+    const isLegacyDefaultPrompt = (prompt, currentDefaultPrompt = DEFAULT_SYSTEM_PROMPT) => {
+      const normalized = normalizeSystemPrompt(prompt);
+      if (!normalized || normalized === normalizeSystemPrompt(currentDefaultPrompt)) return false;
+      const hasDefaultStructure = normalized.includes('阶段1：原料接收与判型')
+        && normalized.includes('阶段6：交付后质量自检')
+        && normalized.includes('激活指令：');
+      const knownDefaultFamily = normalized.includes('核心工作流')
+        || (normalized.includes('交付总原则')
+          && normalized.includes('每张卡只输出一次提示词')
+          && normalized.includes('不要再输出总览副本'));
+      const previousDefaultMarkers = [
+        '篇幅是否足以支撑' + '至少3张正文卡片',
+        '阶段3必须输出可独立发布的' + '完整文章',
+        '核心比喻（用' + '“A = B”概括）',
+        '核心主体必须占整个画面' + '的45%-65%'
+      ];
+      return hasDefaultStructure && knownDefaultFamily && previousDefaultMarkers.some(marker => normalized.includes(marker))
+        || hasDefaultStructure && knownDefaultFamily;
+    };
+
+    const shouldOfferDefaultPromptUpgrade = (config = {}) => (
+      Number(config.promptVersion || 0) < DEFAULT_PROMPT_VERSION
+      && isLegacyDefaultPrompt(config.systemPrompt)
+    );
+
+    const hasSavedApiConfig = () => {
+      try {
+        const savedConfig = localStorage.getItem('agent_api_config');
+        if (!savedConfig) return false;
+        const parsedConfig = JSON.parse(savedConfig);
+        return Boolean(parsedConfig.apiKey);
+      } catch {
+        return false;
+      }
+    };
+
+    let html2CanvasLoader = null;
+    let exportFontStylesheetLoader = null;
+
+    const loadExportFontStylesheet = () => {
+      if (exportFontStylesheetLoader) return exportFontStylesheetLoader;
+
+      exportFontStylesheetLoader = new Promise((resolve, reject) => {
+        const link = document.createElement('link');
+        link.rel = 'stylesheet';
+        link.href = 'fonts/noto-sans-sc.css';
+        link.dataset.moreimgExportFonts = 'true';
+        link.onload = () => resolve(link);
+        link.onerror = () => reject(new Error('导出字体样式加载失败'));
+        document.head.appendChild(link);
+      }).catch(error => {
+        document.querySelector('link[data-moreimg-export-fonts="true"]')?.remove();
+        exportFontStylesheetLoader = null;
+        throw error;
+      });
+      return exportFontStylesheetLoader;
+    };
+
+    const loadHtml2Canvas = () => {
+      if (window.html2canvas) return Promise.resolve(window.html2canvas);
+      if (html2CanvasLoader) return html2CanvasLoader;
+
+      html2CanvasLoader = new Promise((resolve, reject) => {
+        const script = document.createElement('script');
+        script.src = 'vendor/html2canvas.js';
+        script.onload = () => window.html2canvas
+          ? resolve(window.html2canvas)
+          : reject(new Error('导出组件加载失败'));
+        script.onerror = () => reject(new Error('导出组件加载失败'));
+        document.head.appendChild(script);
+      }).catch(error => {
+        html2CanvasLoader = null;
+        throw error;
+      });
+      return html2CanvasLoader;
+    };
+
+    const HTML_EXPORT_PHASE_LABELS = Object.freeze({
+      loader: '加载导出组件',
+      fonts: '等待导出字体',
+      clone: '准备卡片',
+      render: '渲染卡片',
+      encode: '编码 PNG',
+      download: '触发下载'
+    });
+
+    const formatHtmlExportError = (error, phase) => {
+      const phaseLabel = HTML_EXPORT_PHASE_LABELS[phase] || '处理导出';
+      return `导出失败（${phaseLabel}）：${error?.message || '未知错误'}`;
+    };
+
+    function App() {
+      // API 由用户配置；MoreImg v6 核心规则固定内置，普通用户只调整加工偏好。
+      const [apiConfig, setApiConfig] = useState({ 
+        apiUrl: '',
+        model: '',
+        apiKey: '',
+        promptVersion: DEFAULT_PROMPT_VERSION,
+        processingPreferences: createDefaultProcessingPreferences(),
+        imageApiUrl: 'https://api.openai.com/v1/images/generations',
+        imageModel: 'gpt-image-1',
+        imageApiKey: '',
+        imageSize: '768x1024'
+      });
+      const [isConfigOpen, setIsConfigOpen] = useState(() => !hasSavedApiConfig());
+      const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+      const [history, setHistory] = useState([]);
+      const [activeHistoryId, setActiveHistoryId] = useState(null);
+      const [inputText, setInputText] = useState('');
+      const [isProcessing, setIsProcessing] = useState(false);
+      const [showResults, setShowResults] = useState(false); 
+      const [internalStage, setInternalStage] = useState(0); 
+      const [activeStageTab, setActiveStageTab] = useState('step1');
+      const [activeVisualPage, setActiveVisualPage] = useState('');
+      const [toast, setToast] = useState(null);
+      const [imageResults, setImageResults] = useState({});
+      const [lastImageDiagnostic, setLastImageDiagnostic] = useState(loadLastImageDiagnostic);
+      const [htmlExportState, setHtmlExportState] = useState({ cardId: '', status: 'idle', error: '' });
+      const [hiddenFullImages, setHiddenFullImages] = useState({});
+      const [textModels, setTextModels] = useState([]);
+      const [imageModels, setImageModels] = useState([]);
+      const [configTools, setConfigTools] = useState({
+        textModels: { status: 'idle', message: '' },
+        imageModels: { status: 'idle', message: '' },
+        textTest: { status: 'idle', message: '' }
+      });
+      
+      const [isInputFocused, setIsInputFocused] = useState(false);
+
+      const [currentSession, setCurrentSession] = useState({
+        rawText: '',
+        packageData: null,
+        stages: { 1: '', 2: '', 3: '', 4: '', 5: '', 6: '' },
+        isHalted: false,
+        stopReason: '',
+        warning: ''
+      });
+      const messagesEndRef = useRef(null);
+      const processingAbortRef = useRef(null);
+      const imageObjectUrlsRef = useRef([]);
+      const htmlCardRefs = useRef({});
+      const htmlExportInFlightRef = useRef(false);
+      const resultScrollRef = useRef(null);
+      const resultsStageNavRef = useRef(null);
+      const parsedSession = useMemo(() => {
+        if (currentSession.packageData?.status === 'complete') {
+          const pages = currentSession.packageData.pages || [];
+          return {
+            cardBlocks: [],
+            cardHeaders: [],
+            htmlCards: pages.map(packagePageToCard),
+            promptSections: pages.map(page => packagePageToPromptSection(page, currentSession.packageData.style_lock, pages))
+          };
+        }
+        const cardContent = currentSession.stages[4] || '';
+        return {
+          cardBlocks: cardContent.split(/\*\*.*?卡片.*?\*\*/g).filter(block => block.trim() !== ''),
+          cardHeaders: cardContent.match(/\*\*.*?卡片.*?\*\*/g) || [],
+          htmlCards: parseCardPackage(cardContent),
+          promptSections: parsePromptSections(currentSession.stages[5] || '')
+        };
+      }, [currentSession.packageData, currentSession.stages[4], currentSession.stages[5]]);
+
+      const updateConfigTool = (key, nextState) => {
+        setConfigTools(prev => ({ ...prev, [key]: { ...prev[key], ...nextState } }));
+      };
+
+      const saveLastImageDiagnostic = (patch) => {
+        setLastImageDiagnostic(previous => {
+          const next = { ...(previous || {}), ...patch, updatedAt: new Date().toISOString() };
+          localStorage.setItem(MOREIMG_IMAGE_DIAGNOSTIC_KEY, JSON.stringify(next));
+          return next;
+        });
+      };
+
+      useEffect(() => {
+        if (!showResults || !resultScrollRef.current) return;
+        resultScrollRef.current.scrollTop = 0;
+      }, [activeStageTab, activeHistoryId, showResults]);
+
+      useEffect(() => {
+        if (!showResults || !resultsStageNavRef.current) return;
+        const revealActiveStage = () => {
+          resultsStageNavRef.current?.querySelector('[aria-selected="true"]')?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+        };
+        revealActiveStage();
+        window.addEventListener('resize', revealActiveStage);
+        return () => window.removeEventListener('resize', revealActiveStage);
+      }, [activeStageTab, activeHistoryId, showResults]);
+
+      useEffect(() => {
+        if (!isProcessing || showResults) return;
+        setInternalStage(1);
+        const timer = setInterval(() => setInternalStage(stage => Math.min(stage + 1, 5)), 7000);
+        return () => clearInterval(timer);
+      }, [isProcessing, showResults]);
+
+      const replaceImageResults = (nextResults) => {
+        imageObjectUrlsRef.current.forEach(url => URL.revokeObjectURL(url));
+        imageObjectUrlsRef.current = Object.values(nextResults).map(item => item.imageUrl).filter(url => url?.startsWith('blob:'));
+        setImageResults(nextResults);
+      };
+
+      const restoreSessionImages = async (sessionId) => {
+        try {
+          const storedImages = await loadSessionImages(sessionId);
+          const nextResults = {};
+          storedImages.forEach(item => {
+            const imageUrl = URL.createObjectURL(item.blob);
+            nextResults[`${item.mode || 'visual'}:${item.cardTitle}`] = { status: 'success', imageUrl, error: '', mode: item.mode || 'visual' };
+          });
+          replaceImageResults(nextResults);
+          if (loadLastImageDiagnostic()?.sessionId === sessionId) {
+            saveLastImageDiagnostic({
+              restoreStatus: storedImages.length ? '成功' : '失败',
+              failureReason: storedImages.length ? '' : '未找到可恢复的本地图片'
+            });
+          }
+        } catch (error) {
+          if (loadLastImageDiagnostic()?.sessionId === sessionId) {
+            saveLastImageDiagnostic({ restoreStatus: '失败', failureReason: getDiagnosticFailureReason(error, 'restore') });
+          }
+          setToast({ message: `图片记录读取失败: ${error.message}`, type: 'error' });
+        }
+      };
+
+      useEffect(() => {
+        let isActive = true;
+        const loadHistory = async () => {
+          const savedHistory = localStorage.getItem(HISTORY_INDEX_KEY);
+          if (savedHistory) {
+            try {
+              const parsedHistory = JSON.parse(savedHistory);
+              if (isActive && Array.isArray(parsedHistory)) setHistory(parsedHistory);
+            } catch {
+              localStorage.removeItem(HISTORY_INDEX_KEY);
+            }
+            return;
+          }
+
+          const legacyValue = localStorage.getItem(LEGACY_HISTORY_KEY);
+          if (!legacyValue) return;
+          try {
+            const migratedHistory = await migrateLegacyHistory(JSON.parse(legacyValue));
+            if (!isActive) return;
+            localStorage.setItem(HISTORY_INDEX_KEY, JSON.stringify(migratedHistory));
+            localStorage.removeItem(LEGACY_HISTORY_KEY);
+            setHistory(migratedHistory);
+          } catch (error) {
+            if (isActive) setToast({ message: `历史记录迁移失败: ${error.message}`, type: 'error', duration: 5000 });
+          }
+        };
+
+        const savedConfig = localStorage.getItem('agent_api_config');
+        if (savedConfig) {
+          const parsedConfig = JSON.parse(savedConfig);
+          delete parsedConfig.systemPrompt;
+          parsedConfig.promptVersion = DEFAULT_PROMPT_VERSION;
+          parsedConfig.processingPreferences = {
+            ...createDefaultProcessingPreferences(),
+            ...(parsedConfig.processingPreferences || {})
+          };
+          parsedConfig.imageApiUrl = parsedConfig.imageApiUrl || 'https://api.openai.com/v1/images/generations';
+          parsedConfig.imageModel = parsedConfig.imageModel || 'gpt-image-1';
+          parsedConfig.imageApiKey = parsedConfig.imageApiKey || '';
+          parsedConfig.imageSize = parsedConfig.imageSize || '768x1024';
+          localStorage.setItem('agent_api_config', JSON.stringify(parsedConfig));
+          setApiConfig(parsedConfig);
+          if (parsedConfig.apiKey) {
+            setIsConfigOpen(false);
+          }
+        } else {
+          setIsConfigOpen(true);
+        }
+        loadHistory();
+        return () => { isActive = false; };
+      }, []);
+
+      useEffect(() => () => {
+        imageObjectUrlsRef.current.forEach(url => URL.revokeObjectURL(url));
+      }, []);
+
+      const handleSaveConfig = () => {
+        const nextConfig = {
+          ...apiConfig,
+          promptVersion: DEFAULT_PROMPT_VERSION,
+          processingPreferences: {
+            ...createDefaultProcessingPreferences(),
+            ...(apiConfig.processingPreferences || {})
+          }
+        };
+        localStorage.setItem('agent_api_config', JSON.stringify(nextConfig));
+        setApiConfig(nextConfig);
+        setToast({ message: 'AI 引擎及技能配置已保存', type: 'success' });
+        setIsConfigOpen(false);
+      };
+
+      const handleLoadModels = async (kind) => {
+        const isImage = kind === 'image';
+        const endpoint = resolveApiEndpoint(isImage ? apiConfig.imageApiUrl : apiConfig.apiUrl, isImage ? 'image' : 'text');
+        const apiKey = isImage ? apiConfig.imageApiKey.trim() : apiConfig.apiKey.trim();
+        const stateKey = isImage ? 'imageModels' : 'textModels';
+        const setModels = isImage ? setImageModels : setTextModels;
+        if (!endpoint || !apiKey) {
+          updateConfigTool(stateKey, { status: 'error', message: '请先填写接口地址和 API Key。' });
+          return;
+        }
+
+        updateConfigTool(stateKey, { status: 'loading', message: '正在读取模型列表...' });
+        try {
+          const modelsEndpoint = deriveModelsEndpoint(endpoint);
+          const response = await fetch(modelsEndpoint, {
+            method: 'GET',
+            headers: { 'Authorization': `Bearer ${apiKey}` }
+          });
+          const data = await response.json().catch(() => ({}));
+          if (!response.ok) throw new Error(data?.error?.message || data?.message || `HTTP ${response.status}`);
+          const modelIds = extractModelIds(data);
+          if (modelIds.length === 0) throw new Error('接口未返回可用模型');
+          setModels(modelIds);
+          updateConfigTool(stateKey, { status: 'success', message: `已读取 ${modelIds.length} 个模型，可继续手动输入或从建议中选择。` });
+        } catch (error) {
+          updateConfigTool(stateKey, { status: 'error', message: `读取失败：${error.message}。不影响手动填写。` });
+        }
+      };
+
+      const handleModelSelection = (kind, value) => {
+        if (value === '__manual__') {
+          if (kind === 'image') setImageModels([]);
+          else setTextModels([]);
+          return;
+        }
+        const configKey = kind === 'image' ? 'imageModel' : 'model';
+        setApiConfig(prev => ({ ...prev, [configKey]: value }));
+      };
+
+      const handleTestTextConnection = async () => {
+        const endpoint = resolveApiEndpoint(apiConfig.apiUrl, 'text');
+        const model = apiConfig.model.trim();
+        const apiKey = apiConfig.apiKey.trim();
+        if (!endpoint || !model || !apiKey) {
+          updateConfigTool('textTest', { status: 'error', message: '请先填写接口地址、模型和 API Key。' });
+          return;
+        }
+
+        updateConfigTool('textTest', { status: 'loading', message: '正在发送最小测试请求...' });
+        const startedAt = Date.now();
+        try {
+          const transport = getRequestTransport(endpoint, 'text');
+          const messages = [
+            { role: 'system', content: '这是连接测试。' },
+            { role: 'user', content: '只回复 OK' }
+          ];
+          const data = await runWithRequestControl(async signal => {
+            const response = await fetch(transport.url, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${apiKey}`,
+                ...transport.headers
+              },
+              body: JSON.stringify(buildProcessingRequestBody(endpoint, model, messages, 64, false)),
+              signal
+            });
+            const responseData = await response.json().catch(() => ({}));
+            if (!response.ok) throw new Error(responseData?.error?.message || responseData?.message || `HTTP ${response.status}`);
+            return responseData;
+          }, {
+            timeoutMs: TEXT_TEST_TIMEOUT_MS,
+            timeoutMessage: '接口测试超过 30 秒，请检查接口地址、模型或服务状态。'
+          });
+          const responseText = extractProcessingResponseText(data).trim();
+          if (!responseText) throw new Error('接口成功响应，但没有可解析文本');
+          const elapsedMs = Date.now() - startedAt;
+          const preview = responseText.replace(/\s+/g, ' ').slice(0, 48);
+          updateConfigTool('textTest', { status: 'success', message: `连接成功，耗时 ${elapsedMs} ms，返回：${preview}` });
+        } catch (error) {
+          updateConfigTool('textTest', { status: 'error', message: `测试失败：${error.message}` });
+        }
+      };
+
+      const handleGenerateImage = async (cardTitle, prompt, mode = 'visual') => {
+        if (!apiConfig.imageApiUrl.trim() || !apiConfig.imageModel.trim() || !apiConfig.imageApiKey.trim()) {
+          setToast({ message: '请先配置图片接口、模型和密钥', type: 'error' });
+          setIsConfigOpen(true);
+          return;
+        }
+
+        const resultKey = `${mode}:${cardTitle}`;
+        const imageEndpoint = resolveApiEndpoint(apiConfig.imageApiUrl, 'image');
+        const imageTransport = getRequestTransport(imageEndpoint, 'image');
+        setImageResults(prev => ({ ...prev, [resultKey]: { status: 'loading', imageUrl: '', error: '', mode } }));
+        let diagnosticPhase = 'request';
+        const sessionId = activeHistoryId || 'current';
+        saveLastImageDiagnostic({
+          sessionId,
+          requestMode: '同步',
+          endpointPath: getDiagnosticEndpointPath(imageEndpoint),
+          requestedFormat: '由 API 决定',
+          actualFormat: '等待响应',
+          imageHost: '等待响应',
+          storageBackend: 'IndexedDB',
+          storageStatus: '等待保存',
+          restoreStatus: '尚未验证',
+          failureReason: ''
+        });
+
+        try {
+          const response = await fetch(imageTransport.url, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${apiConfig.imageApiKey.trim()}`,
+              ...imageTransport.headers
+            },
+            body: JSON.stringify({
+              model: apiConfig.imageModel.trim(),
+              prompt,
+              size: apiConfig.imageSize.trim() || '768x1024',
+              n: 1
+            })
+          });
+
+          const data = await response.json();
+          if (!response.ok) {
+            throw new Error(data?.error?.message || `HTTP ${response.status}`);
+          }
+
+          const firstImage = data?.data?.[0];
+          const remoteUrl = firstImage?.url || '';
+          const dataUrl = firstImage?.b64_json ? `data:image/png;base64,${firstImage.b64_json}` : '';
+          if (!remoteUrl && !dataUrl) throw new Error('接口未返回 url 或 b64_json 图片数据');
+          diagnosticPhase = 'storage';
+          saveLastImageDiagnostic({
+            actualFormat: dataUrl ? 'Base64' : 'URL',
+            imageHost: dataUrl ? 'API 响应' : getDiagnosticImageHost(remoteUrl),
+            storageStatus: '保存中'
+          });
+
+          const imageBlob = dataUrl ? dataUrlToBlob(dataUrl) : await fetch(remoteUrl).then(imageResponse => {
+            if (!imageResponse.ok) throw new Error(`图片下载失败 HTTP ${imageResponse.status}`);
+            return imageResponse.blob();
+          });
+          await saveImageBlob(sessionId, cardTitle, imageBlob, mode);
+          saveLastImageDiagnostic({ storageBackend: 'IndexedDB', storageStatus: '成功', restoreStatus: '尚未验证', failureReason: '' });
+          const imageUrl = URL.createObjectURL(imageBlob);
+
+          setImageResults(prev => {
+            const previousUrl = prev[resultKey]?.imageUrl;
+            if (previousUrl?.startsWith('blob:')) URL.revokeObjectURL(previousUrl);
+            const nextResults = { ...prev, [resultKey]: { status: 'success', imageUrl, error: '', mode, size: apiConfig.imageSize.trim() || '768x1024' } };
+            imageObjectUrlsRef.current = Object.values(nextResults).map(item => item.imageUrl).filter(url => url?.startsWith('blob:'));
+            return nextResults;
+          });
+          const generationLabel = mode === 'full' ? 'AI 整图' : mode === 'visual-only' ? '无字主视觉' : '主视觉';
+          setToast({ message: `[${cardTitle}] ${generationLabel}生成完成`, type: 'success' });
+        } catch (error) {
+          saveLastImageDiagnostic({
+            storageStatus: diagnosticPhase === 'storage' ? '失败' : '未开始',
+            failureReason: getDiagnosticFailureReason(error, diagnosticPhase)
+          });
+          setImageResults(prev => ({ ...prev, [resultKey]: { status: 'error', imageUrl: '', error: error.message, mode } }));
+          setToast({ message: `图片生成失败: ${error.message}`, type: 'error', duration: 5000 });
+        }
+      };
+
+    const downloadImage = (cardTitle, imageUrl) => {
+      const link = document.createElement('a');
+      link.href = imageUrl;
+        link.download = `${cardTitle.replace(/[^\w\u4e00-\u9fa5-]+/g, '-')}.png`;
+        link.target = '_blank';
+        link.rel = 'noopener noreferrer';
+        document.body.appendChild(link);
+        link.click();
+      link.remove();
+    };
+
+    const createHtmlCardExportClone = (sourceNode) => {
+      const exportRoot = document.createElement('div');
+      Object.assign(exportRoot.style, {
+        position: 'fixed',
+        left: '0',
+        top: '0',
+        width: '1242px',
+        height: '1656px',
+        overflow: 'hidden',
+        pointerEvents: 'none',
+        zIndex: '-2147483647'
+      });
+      const exportNode = sourceNode.cloneNode(true);
+      exportNode.classList.add('moreimg-export-render');
+      exportNode.style.width = '1242px';
+      exportNode.style.height = '1656px';
+      exportNode.style.transform = 'none';
+      exportNode.style.transformOrigin = 'top left';
+      exportRoot.appendChild(exportNode);
+      document.body.appendChild(exportRoot);
+      return { exportRoot, exportNode };
+    };
+
+    const exportHtmlCard = async (card) => {
+        if (htmlExportInFlightRef.current) return;
+        const visualResult = imageResults[`visual-only:${card.imageKey}`];
+        if (visualResult?.status !== 'success') {
+          setToast({ message: '请先生成无字主视觉', type: 'error' });
+          return;
+        }
+        const sourceNode = htmlCardRefs.current[card.id];
+        if (!sourceNode) {
+          const errorMessage = formatHtmlExportError(new Error('导出区域未就绪，请刷新页面后重试'), 'clone');
+          setHtmlExportState({ cardId: card.id, status: 'error', error: errorMessage });
+          setToast({ message: errorMessage, type: 'error', duration: 8000 });
+          return;
+        }
+        htmlExportInFlightRef.current = true;
+        setHtmlExportState({ cardId: card.id, status: 'pending', error: '' });
+        let exportRoot = null;
+        let exportPhase = 'loader';
+        try {
+          await loadHtml2Canvas();
+          exportPhase = 'fonts';
+          await loadExportFontStylesheet();
+          if (document.fonts?.ready) await document.fonts.ready;
+          exportPhase = 'clone';
+          const exportClone = createHtmlCardExportClone(sourceNode);
+          exportRoot = exportClone.exportRoot;
+          const exportNode = exportClone.exportNode;
+          exportPhase = 'render';
+          const canvas = await window.html2canvas(exportNode, {
+            width: 1242,
+            height: 1656,
+            scale: 1,
+            backgroundColor: null,
+            useCORS: true,
+            allowTaint: false,
+            logging: false
+          });
+          exportPhase = 'encode';
+          const pngBlob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png', 1));
+          if (!pngBlob) throw new Error('PNG 编码失败');
+          const pngUrl = URL.createObjectURL(pngBlob);
+          exportPhase = 'download';
+          downloadImage(`${card.label}-HTML成品`, pngUrl);
+          setTimeout(() => URL.revokeObjectURL(pngUrl), 60000);
+          setHtmlExportState({ cardId: card.id, status: 'success', error: '' });
+          setToast({ message: `[${card.label}] HTML 成品已导出`, type: 'success' });
+        } catch (error) {
+          const errorMessage = formatHtmlExportError(error, exportPhase);
+          setHtmlExportState({ cardId: card.id, status: 'error', error: errorMessage });
+          setToast({ message: errorMessage, type: 'error', duration: 8000 });
+        } finally {
+          htmlExportInFlightRef.current = false;
+          exportRoot?.remove();
+        }
+      };
+
+      const deleteHistoryItem = (id, e) => {
+        e.stopPropagation(); 
+        const updatedHistory = history.filter(item => item.id !== id);
+        setHistory(updatedHistory);
+        localStorage.setItem(HISTORY_INDEX_KEY, JSON.stringify(updatedHistory));
+        deleteSessionRecord(id).catch(() => {});
+        deleteSessionImages(id).catch(() => {});
+        
+        if (activeHistoryId === id) {
+          setActiveHistoryId(null);
+          setShowResults(false);
+          setCurrentSession({ rawText: '', packageData: null, stages: { 1: '', 2: '', 3: '', 4: '', 5: '', 6: '' }, isHalted: false, stopReason: '', warning: '' });
+          replaceImageResults({});
+        }
+        setToast({ message: '已删除该条记录', type: 'success' });
+      };
+
+      const requestProcessingText = (messages, externalSignal) => runWithRequestControl(async signal => {
+        let fullResponseText = '';
+        let finishReason = '';
+        const endpoint = resolveApiEndpoint(apiConfig.apiUrl, 'text');
+        const transport = getRequestTransport(endpoint, 'text');
+        if (transport.blockedLocalService) {
+          throw new Error('当前是线上页面，不能使用本机代理地址。请在设置中改为可跨域访问的 HTTPS 接口。');
+        }
+        const response = await fetch(transport.url, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${apiConfig.apiKey.trim()}`,
+            ...transport.headers
+          },
+          body: JSON.stringify(buildProcessingRequestBody(endpoint, apiConfig.model.trim(), messages, PROCESSING_MAX_OUTPUT_TOKENS, true)),
+          signal
+        });
+
+        if (!response.ok) {
+          const responseText = await response.text();
+          let errorMsg = response.statusText;
+          try {
+            const errorData = JSON.parse(responseText);
+            if (errorData.error?.message) errorMsg = errorData.error.message;
+            else if (errorData.message) errorMsg = errorData.message;
+          } catch (e) {}
+          throw new Error(`(HTTP ${response.status}) ${errorMsg}`);
+        }
+
+        const processingResponse = await readProcessingResponse(response);
+        fullResponseText = processingResponse.text;
+        finishReason = processingResponse.finishReason;
+
+        if (!fullResponseText.trim()) throw new Error('大模型未返回任何有效内容，请检查接口配置或稍后重试。');
+        return { text: fullResponseText, finishReason };
+      }, {
+        timeoutMs: TEXT_REQUEST_TIMEOUT_MS,
+        signal: externalSignal,
+        timeoutMessage: '内容生成超过 300 秒，已自动停止。请先测试接口，或换用响应更快的文本模型。'
+      });
+
+      const handleStopProcessing = () => {
+        if (!processingAbortRef.current || processingAbortRef.current.signal.aborted) return;
+        processingAbortRef.current.abort();
+        setToast({ message: '正在停止本次运算...', type: 'error' });
+      };
+
+      const handleStartProcessing = async (overrideText = null) => {
+        const textToProcess = (typeof overrideText === 'string' ? overrideText : inputText).trim();
+
+        if (!apiConfig.apiKey) { setToast({ message: '请先配置密钥', type: 'error' }); setIsConfigOpen(true); return; }
+        if (!textToProcess) { setToast({ message: '请输入需加工的文章或文案', type: 'error' }); return; }
+
+        setInputText(textToProcess);
+        setIsProcessing(true);
+        setShowResults(false); 
+        setInternalStage(1);
+        setActiveStageTab('step1');
+        setCurrentSession({ rawText: '', packageData: null, stages: { 1: '', 2: '', 3: '', 4: '', 5: '', 6: '' }, isHalted: false, stopReason: '', warning: '' });
+        replaceImageResults({});
+        
+        const newSessionId = Date.now().toString();
+        const processingController = new AbortController();
+        processingAbortRef.current = processingController;
+        let shouldShowResults = false;
+
+        try {
+          const initialMessages = buildInitialProcessingMessages(textToProcess, DEFAULT_SYSTEM_PROMPT, apiConfig.processingPreferences);
+          const processingResult = await requestProcessingText(initialMessages, processingController.signal);
+          const fullResponseText = processingResult.text;
+          const normalizedFinishReason = String(processingResult.finishReason || '').trim().toLowerCase();
+          if (['length', 'max_tokens', 'max_output_tokens'].includes(normalizedFinishReason)) {
+            throw new Error(`输出达到 ${PROCESSING_MAX_OUTPUT_TOKENS} Token 上限，JSON 不完整`);
+          }
+          const assessment = parseMoreImgPackage(fullResponseText, textToProcess);
+          const isHalted = !assessment.canContinue;
+          const stopReason = assessment.isRejected ? assessment.reason || '文章暂不适合加工' : isHalted ? assessment.reason || 'JSON 物料包不完整' : '';
+          const warning = assessment.warning || '';
+          const sessionData = { rawText: fullResponseText, packageData: assessment.packageData, stages: { 1: '', 2: '', 3: '', 4: '', 5: '', 6: '' }, isHalted, stopReason, warning, finishReason: normalizedFinishReason };
+          setCurrentSession(sessionData);
+          setInternalStage(isHalted ? 1 : 5);
+
+          const newHistoryItem = { 
+            id: newSessionId, 
+            title: textToProcess.substring(0, 20) + '...', 
+            date: new Date().toLocaleString(), 
+            sessionData,
+            originalInput: textToProcess 
+          };
+          const updatedHistory = [toHistoryIndex(newHistoryItem), ...history].slice(0, HISTORY_LIMIT);
+          try {
+            await saveSessionRecord(newHistoryItem);
+            setHistory(updatedHistory);
+            localStorage.setItem(HISTORY_INDEX_KEY, JSON.stringify(updatedHistory));
+            history.slice(HISTORY_LIMIT - 1).forEach(item => {
+              deleteSessionRecord(item.id).catch(() => {});
+              deleteSessionImages(item.id).catch(() => {});
+            });
+          } catch (storageError) {
+            setToast({ message: `结果已生成，但历史记录保存失败: ${storageError.message}`, type: 'error', duration: 5000 });
+          }
+          setActiveHistoryId(newSessionId);
+          
+          setToast({
+            message: assessment.isRejected ? '文章暂不适合加工，流程已停止' : isHalted ? `物料包不完整：${assessment.reason || 'JSON 字段缺失'}` : 'JSON 物料包生成完毕！',
+            type: isHalted ? 'error' : 'success',
+            duration: isHalted ? 6000 : 3000
+          });
+          shouldShowResults = true;
+        } catch (error) {
+          const isCancelled = error.message === '已停止运算';
+          const errorMessage = isCancelled ? '已停止本次运算' : formatProcessingError(error);
+          if (!isCancelled) {
+            setCurrentSession(prev => ({ ...prev, isHalted: true, stopReason: errorMessage, warning: '' }));
+          }
+          setToast({
+            message: errorMessage,
+            type: 'error',
+            duration: isCancelled ? 3000 : 8000
+          });
+          shouldShowResults = !isCancelled;
+        } finally {
+          if (processingAbortRef.current === processingController) processingAbortRef.current = null;
+          setIsProcessing(false);
+          setShowResults(shouldShowResults); 
+        }
+      };
+
+      const loadHistoryItem = async (id) => {
+        const item = await loadSessionRecord(id);
+        if (item) {
+          setActiveHistoryId(id);
+          setCurrentSession(item.sessionData);
+          restoreSessionImages(id);
+          if (item.sessionData.packageData?.status === 'complete') {
+            setInternalStage(5);
+            setShowResults(true);
+            replaceImageResults({});
+            setActiveStageTab('step3');
+            return;
+          }
+          let highest = 1;
+          for (let i = 6; i >= 1; i--) { if (item.sessionData.stages[i]?.trim()) { highest = i; break; } }
+          setInternalStage(highest);
+          setShowResults(true);
+          replaceImageResults({});
+          if (highest >= 5) setActiveStageTab('step3');
+          else if (highest >= 3) setActiveStageTab('step2');
+          else setActiveStageTab('step1');
+        } else {
+          setToast({ message: '该历史记录不存在或已被清理', type: 'error' });
+        }
+      };
+
+      const retryHistoryItem = async (id) => {
+        const item = await loadSessionRecord(id);
+        if (!item?.originalInput) {
+          setToast({ message: '该记录缺少原文备份，无法重试', type: 'error' });
+          return;
+        }
+        handleStartProcessing(item.originalInput);
+      };
+
+      const fallbackCopyText = (text) => {
+        const copyTarget = document.createElement('textarea');
+        copyTarget.value = text;
+        copyTarget.setAttribute('readonly', '');
+        copyTarget.style.position = 'fixed';
+        copyTarget.style.opacity = '0';
+        document.body.appendChild(copyTarget);
+        copyTarget.select();
+        const copied = document.execCommand('copy');
+        document.body.removeChild(copyTarget);
+        return copied;
+      };
+
+      const copyToClipboard = async (text, label) => {
+        if (!text) {
+          setToast({ message: `${label} 暂无可复制内容`, type: 'error' });
+          return;
+        }
+        try {
+          if (!navigator.clipboard?.writeText) throw new Error('Clipboard API unavailable');
+          await navigator.clipboard.writeText(text);
+          setToast({ message: `${label} 已复制到剪贴板`, type: 'success' });
+        } catch (error) {
+          try {
+            if (!fallbackCopyText(text)) throw new Error('Fallback copy failed');
+            setToast({ message: `${label} 已复制到剪贴板`, type: 'success' });
+          } catch (fallbackError) {
+            setToast({ message: `${label} 复制失败，请手动复制`, type: 'error' });
+          }
+        }
+      };
+
+      const renderStageContent = () => {
+        const currentStageConfig = NEW_STAGES.find(s => s.id === activeStageTab);
+        if (!currentStageConfig) return null;
+
+        const isJsonPackage = currentSession.packageData?.status === 'complete';
+        const hasContent = currentStageConfig.subStages.some(sId => {
+          const content = isJsonPackage ? getPackageStageText(currentSession.packageData, sId) : currentSession.stages[sId];
+          return Boolean(content && content.trim());
+        });
+
+        if (!hasContent) {
+          return (
+            <div className="mi-empty-state mi-empty-state-panel animate-fade-in-up">
+              <div className="mi-empty-state-icon mi-empty-state-icon-large mb-4">
+                <Icon name="Box" className="w-6 h-6" />
+              </div>
+              <p className="text-[15px] font-bold text-slate-500 mb-1">当前阶段暂无内容</p>
+              <p className="text-[13px] text-slate-400">大模型输出格式解析异常，或正在等待渲染指令。</p>
+            </div>
+          );
+        }
+
+        return (
+          <div className="space-y-12">
+            {currentStageConfig.subStages.map(sId => {
+              const content = isJsonPackage ? getPackageStageText(currentSession.packageData, sId) : currentSession.stages[sId];
+              if (!content || !content.trim()) return null;
+
+              return (
+                <div key={sId}>
+                  <div className="visual-stage-heading">
+                    <h4 className="visual-stage-heading-title">
+                      {sId === 1 ? 'AI 准入判型' : sId === 2 ? '深度事实核查与骨架提取' : sId === 3 ? '精修版文章重构' : sId === 4 ? '知识卡片内容包' : sId === 5 ? '视觉生成与成品对比' : ''}
+                    </h4>
+                  </div>
+                  <div>
+                    {sId === 3 ? (
+                      <div className="mi-surface mi-surface-panel stage-content-panel p-8 md:p-10">
+                        <FormattedContent text={content} />
+                      </div>
+                    ) : sId === 4 ? (
+                      (() => {
+                        if (isJsonPackage) {
+                          return (
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                              {currentSession.packageData.pages.map((page, index, pages) => (
+                                <div key={page.page_id} className="mi-surface mi-surface-panel content-card-panel">
+                                  <h3 className="text-[18px] font-bold text-slate-800 mb-6 flex items-center">
+                                    <span className="w-8 h-8 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center text-[14px] mr-3 font-mono shadow-sm border border-indigo-100">{index + 1}</span>
+                                    <span className="truncate">{getPageDisplayName(page, pages.length - 2)}</span>
+                                  </h3>
+                                  <div className="space-y-4 text-[13px] leading-relaxed text-slate-600">
+                                    <div>
+                                      <div className="font-extrabold text-slate-900 text-[16px]">{page.card.title}</div>
+                                      {page.card.subtitle && <div className="mt-1 text-slate-500">{page.card.subtitle}</div>}
+                                    </div>
+                                    {page.card.points.length > 0 && (
+                                      <div className="space-y-2">
+                                        {page.card.points.map((point, pointIndex) => <div key={pointIndex} className="flex gap-2"><span className="text-indigo-500">•</span><span>{point}</span></div>)}
+                                      </div>
+                                    )}
+                                    {page.card.summary && <div className="border-t border-slate-200 pt-3 font-bold text-slate-700">{page.card.summary}</div>}
+                                    <div className="border-t border-slate-100 pt-3 text-[11px] text-slate-400">
+                                      <div>页面目标：{page.semantic.page_goal}</div>
+                                      <div className="mt-1">主关系：{page.semantic.primary_relation}</div>
+                                    </div>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          );
+                        }
+                        const { cardBlocks, cardHeaders } = parsedSession;
+                        if (cardBlocks.length > 0 && cardHeaders.length === cardBlocks.length) {
+                          return (
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                              {cardBlocks.map((block, i) => (
+                                <div key={i} className="mi-surface mi-surface-panel content-card-panel">
+                                  <h3 className="text-[18px] font-bold text-slate-800 mb-6 flex items-center">
+                                    <span className="w-8 h-8 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center text-[14px] mr-3 font-mono shadow-sm border border-indigo-100">{i+1}</span>
+                                    <span className="truncate">{cardHeaders[i].replace(/\*\*/g, '')}</span>
+                                  </h3>
+                                  <div>
+                                    <FormattedContent text={block.trim()} />
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          );
+                        }
+                        return (
+                          <div className="mi-surface mi-surface-panel stage-content-panel p-8">
+                            <FormattedContent text={content} />
+                          </div>
+                        );
+                      })()
+                    ) : sId === 5 ? (
+                      (() => {
+                        const { promptSections, htmlCards } = parsedSession;
+
+                        if (promptSections.length > 0) {
+                          const selectedPromptSection = promptSections.find(section => section.title === activeVisualPage) || promptSections[0];
+                          const selectedPromptIndex = promptSections.findIndex(section => section.title === selectedPromptSection.title);
+                          const cleanPromptText = selectedPromptSection.text.replace(/```[^\n]*\n?/g, '').replace(/```/g, '').trim();
+                          const imageResult = imageResults[`visual-only:${selectedPromptSection.title}`];
+                          const legacyVisualResult = imageResults[`visual:${selectedPromptSection.title}`];
+                          const fullImageResult = imageResults[`full:${selectedPromptSection.title}`];
+                          const matchingCard = htmlCards.find(card => card.imageKey === selectedPromptSection.title);
+                          const selectedHtmlCard = matchingCard || null;
+                          const selectedHtmlImageResult = selectedHtmlCard ? imageResults[`visual-only:${selectedHtmlCard.imageKey}`] : null;
+                          const selectedHtmlLegacyResult = selectedHtmlCard ? imageResults[`visual:${selectedHtmlCard.imageKey}`] : null;
+                          const isSelectedHtmlCardExporting = Boolean(selectedHtmlCard && htmlExportState.cardId === selectedHtmlCard.id && htmlExportState.status === 'pending');
+                          const selectedHtmlCardExportError = selectedHtmlCard && htmlExportState.cardId === selectedHtmlCard.id && htmlExportState.status === 'error' ? htmlExportState.error : '';
+                          const visualOnlyPrompt = isJsonPackage ? cleanPromptText : buildVisualOnlyPrompt(cleanPromptText, matchingCard);
+                          const fullImagePrompt = matchingCard ? buildFullImagePrompt(cleanPromptText, matchingCard) : '';
+                          return (
+                            <div className="visual-workbench">
+                              <section className="mi-surface mi-surface-panel mi-surface-raised visual-panel">
+                                <div className="visual-page-toolbar">
+                                  <div className="visual-page-tabs hide-scrollbar" role="tablist" aria-label="选择卡片页面">
+                                    {promptSections.map(section => (
+                                      <button
+                                        key={section.title}
+                                        type="button"
+                                        role="tab"
+                                        aria-selected={section.title === selectedPromptSection.title}
+                                        tabIndex={section.title === selectedPromptSection.title ? 0 : -1}
+                                        onKeyDown={handleTabListKeyDown}
+                                        onClick={() => setActiveVisualPage(section.title)}
+                                        className={`mi-tab mi-tab-page visual-page-tab ${section.title === selectedPromptSection.title ? 'visual-page-tab-active' : ''}`}
+                                      >
+                                        {section.title}
+                                      </button>
+                                    ))}
+                                  </div>
+                                </div>
+                                <div className="visual-panel-header">
+                                  <div className="visual-panel-title-group">
+                                    <div className="visual-panel-title"><Icon name="Image" className="mr-2 h-4 w-4 text-indigo-600" />{selectedPromptSection.title}</div>
+                                    <div className="visual-panel-meta">第 {selectedPromptIndex + 1} 页，共 {promptSections.length} 页</div>
+                                  </div>
+                                  <div className="visual-panel-actions">
+                                    <button
+                                      onClick={() => handleGenerateImage(selectedPromptSection.title, visualOnlyPrompt, 'visual-only')}
+                                      disabled={imageResult?.status === 'loading'}
+                                      aria-busy={imageResult?.status === 'loading'}
+                                      className="mi-button mi-button-standard visual-button visual-button-primary"
+                                    >
+                                      <Icon name={imageResult?.status === 'loading' ? 'LoaderCircle' : 'Sparkles'} className={`mr-2 h-4 w-4 ${imageResult?.status === 'loading' ? 'animate-spin' : ''}`} />
+                                      {imageResult?.status === 'loading' ? '生成中' : imageResult ? '重生成主视觉' : '生成主视觉'}
+                                    </button>
+                                    <button
+                                      onClick={() => handleGenerateImage(selectedPromptSection.title, fullImagePrompt, 'full')}
+                                      disabled={!matchingCard || fullImageResult?.status === 'loading'}
+                                      aria-busy={fullImageResult?.status === 'loading'}
+                                      className="mi-button mi-button-standard visual-button"
+                                    >
+                                      <Icon name={fullImageResult?.status === 'loading' ? 'LoaderCircle' : 'LayoutTemplate'} className={`mr-2 h-4 w-4 ${fullImageResult?.status === 'loading' ? 'animate-spin' : ''}`} />
+                                      {fullImageResult?.status === 'loading' ? '生成中' : fullImageResult ? '重生成整图' : '生成 AI 整图'}
+                                    </button>
+                                  </div>
+                                </div>
+                                <div className="mi-feedback mi-feedback-info visual-notice visual-panel-notice"><Icon name="Info" className="mt-0.5 h-3.5 w-3.5 shrink-0" /><span>HTML 成品卡用于准确中文交付；AI 整图用于视觉候选，生成后仍需核对文字。</span></div>
+
+                                <div className="visual-workspace-grid">
+                                  <div className="visual-results-column">
+                                    <div className="visual-column-title">生成结果</div>
+                                    <div className="visual-column-copy">固定 3:4 检查框：上方快速确认素材，底部再进行成品对比。</div>
+
+                                    {legacyVisualResult?.status === 'success' && imageResult?.status !== 'success' && <div className="mi-feedback mi-feedback-warning visual-notice visual-result-notice" role="status" aria-live="polite"><Icon name="CircleAlert" className="visual-result-notice-icon" /><span>旧版主视觉不能用于 HTML 成品卡，请重新生成主视觉。</span></div>}
+                                    {imageResult?.status === 'error' && <div className="mi-feedback mi-feedback-error visual-error" role="alert">图片生成失败：{imageResult.error}</div>}
+                                    {fullImageResult?.status === 'error' && <div className="mi-feedback mi-feedback-error visual-error" role="alert">AI 整图生成失败：{fullImageResult.error}</div>}
+
+                                    <div className="visual-result-grid">
+                                      {imageResult?.status === 'success' ? (
+                                        <div className="mi-surface mi-surface-card visual-result-item">
+                                          <div className="visual-result-item-header">
+                                            <span>HTML 主视觉</span>
+                                            <button type="button" onClick={() => downloadImage(selectedPromptSection.title, imageResult.imageUrl)} className="mi-icon-button mi-icon-button-compact visual-result-action" aria-label="下载主视觉" title="下载主视觉"><Icon name="Download" className="h-3.5 w-3.5" /></button>
+                                          </div>
+                                          <VisualPreview imageUrl={imageResult.imageUrl} alt={`${selectedPromptSection.title} 生成结果`} />
+                                        </div>
+                                      ) : (
+                                        <div className="mi-surface mi-surface-card visual-result-item">
+                                          <div className="visual-result-item-header"><span>HTML 主视觉</span></div>
+                                          <div className="mi-empty-state mi-empty-state-media visual-result-slot-empty">
+                                            <div className="mi-empty-state-icon"><Icon name={imageResult?.status === 'loading' ? 'LoaderCircle' : 'ImagePlus'} className={`h-5 w-5 ${imageResult?.status === 'loading' ? 'animate-spin' : ''}`} /></div>
+                                            <span className="mt-3 text-[11px] font-bold">{imageResult?.status === 'loading' ? '生成中' : '等待生成'}</span>
+                                          </div>
+                                          <div className="visual-preview-meta"><span><strong>预览框 3:4</strong> · 固定卡片槽位</span></div>
+                                        </div>
+                                      )}
+                                      {fullImageResult?.status === 'success' && !hiddenFullImages[selectedPromptSection.title] ? (
+                                        <div className="mi-surface mi-surface-card visual-result-item">
+                                          <div className="visual-result-item-header">
+                                            <span>AI 整图</span>
+                                            <div className="visual-result-actions">
+                                              <button type="button" onClick={() => downloadImage(`${selectedPromptSection.title}-AI整图`, fullImageResult.imageUrl)} className="mi-icon-button mi-icon-button-compact visual-result-action" aria-label="下载 AI 整图" title="下载 AI 整图"><Icon name="Download" className="h-3.5 w-3.5" /></button>
+                                              <button type="button" onClick={() => setHiddenFullImages(prev => ({ ...prev, [selectedPromptSection.title]: true }))} className="mi-icon-button mi-icon-button-compact visual-result-action" aria-label="隐藏 AI 整图" title="隐藏 AI 整图"><Icon name="EyeOff" className="h-3.5 w-3.5" /></button>
+                                            </div>
+                                          </div>
+                                          <VisualPreview imageUrl={fullImageResult.imageUrl} alt={`${selectedPromptSection.title} AI 整图`} />
+                                        </div>
+                                      ) : (
+                                        <div className="mi-surface mi-surface-card visual-result-item">
+                                          <div className="visual-result-item-header">
+                                            <span>AI 整图</span>
+                                            {fullImageResult?.status === 'success' && hiddenFullImages[selectedPromptSection.title] && <button type="button" onClick={() => setHiddenFullImages(prev => ({ ...prev, [selectedPromptSection.title]: false }))} className="mi-icon-button mi-icon-button-compact visual-result-action" aria-label="显示 AI 整图" title="显示 AI 整图"><Icon name="Eye" className="h-3.5 w-3.5" /></button>}
+                                          </div>
+                                          <div className="mi-empty-state mi-empty-state-media visual-result-slot-empty">
+                                            <div className="mi-empty-state-icon"><Icon name={fullImageResult?.status === 'loading' ? 'LoaderCircle' : 'LayoutTemplate'} className={`h-5 w-5 ${fullImageResult?.status === 'loading' ? 'animate-spin' : ''}`} /></div>
+                                            <span className="mt-3 text-[11px] font-bold">{fullImageResult?.status === 'loading' ? '生成中' : fullImageResult?.status === 'success' ? '已隐藏' : '等待生成'}</span>
+                                          </div>
+                                          <div className="visual-preview-meta"><span><strong>预览框 3:4</strong> · 固定卡片槽位</span></div>
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+
+                                  <aside className="visual-prompt-column">
+                                    <div className="visual-prompt-block">
+                                      <div className="visual-prompt-block-header">
+                                        <span className="visual-prompt-label">原始视觉提示词</span>
+                                        <button type="button" onClick={() => copyToClipboard(cleanPromptText, `[${selectedPromptSection.title}] 原始视觉提示词`)} className="mi-icon-button mi-icon-button-compact visual-result-action" aria-label="复制原始视觉提示词" title="复制原始视觉提示词"><Icon name="Copy" className="h-3.5 w-3.5" /></button>
+                                      </div>
+                                      <pre className="visual-prompt-copy font-mono"><code>{cleanPromptText}</code></pre>
+                                    </div>
+                                    <div className="visual-prompt-block">
+                                      <div className="visual-prompt-block-header">
+                                        <span className="visual-prompt-label">AI 整图实际请求</span>
+                                        <button type="button" disabled={!matchingCard} onClick={() => copyToClipboard(fullImagePrompt, `[${selectedPromptSection.title}] AI 整图请求`)} className="mi-icon-button mi-icon-button-compact visual-result-action" aria-label="复制 AI 整图请求" title="复制 AI 整图请求"><Icon name="Copy" className="h-3.5 w-3.5" /></button>
+                                      </div>
+                                      <pre className="visual-prompt-copy font-mono"><code>{fullImagePrompt}</code></pre>
+                                    </div>
+                                  </aside>
+                                </div>
+                              </section>
+
+                              {htmlCards.length > 0 && (
+                                <section className="visual-section">
+                                  <div className="visual-section-header">
+                                    <div>
+                                      <div className="visual-section-heading">
+                                        <h4 className="visual-section-title">当前页成品对比</h4>
+                                      </div>
+                                      <p className="visual-section-description">HTML 成品与 AI 整图统一按 3:4 预览，导出仅包含左侧 HTML 成品。</p>
+                                    </div>
+                                    <span className="visual-card-count">{selectedPromptIndex + 1} / {htmlCards.length}</span>
+                                  </div>
+                                  <style>{HTML_CARD_EXPORT_STYLES}</style>
+                                  <div className="mi-surface mi-surface-panel mi-surface-raised visual-panel visual-output-panel">
+                                    {!selectedHtmlCard && <div className="mi-feedback mi-feedback-error visual-error" role="alert">未找到与「{selectedPromptSection.title}」同名的卡片内容，已停止成品合成，请重新生成完整物料包。</div>}
+                                    {selectedHtmlCard && (
+                                      <div className="visual-output-card">
+                                        <div className="visual-current-output-header">
+                                          <span className="text-[13px] font-bold text-slate-800">{selectedHtmlCard.label}</span>
+                                          <button
+                                            onClick={() => exportHtmlCard(selectedHtmlCard)}
+                                            disabled={selectedHtmlImageResult?.status !== 'success' || isSelectedHtmlCardExporting}
+                                            aria-busy={isSelectedHtmlCardExporting}
+                                            title={isSelectedHtmlCardExporting ? '正在导出 HTML 成品' : selectedHtmlImageResult?.status === 'success' ? '导出左侧 HTML 成品 PNG（1242×1656）' : '请先生成无字主视觉'}
+                                            className="mi-button mi-button-standard visual-button visual-export-button"
+                                          >
+                                            <Icon name={isSelectedHtmlCardExporting ? 'Loader' : 'Download'} className={`mr-1.5 h-3.5 w-3.5 ${isSelectedHtmlCardExporting ? 'animate-spin' : ''}`} /> {isSelectedHtmlCardExporting ? '导出中' : '导出 HTML 成品 PNG'}
+                                          </button>
+                                        </div>
+                                        {selectedHtmlCardExportError && <div className="mi-feedback mi-feedback-error visual-error visual-export-error" role="alert">{selectedHtmlCardExportError}</div>}
+                                        <div className="visual-current-output-body">
+                                          <div className="mi-surface mi-surface-card visual-comparison-item">
+                                            <div className="visual-comparison-label">HTML 成品</div>
+                                            <HtmlCardPreview>
+                                              <HtmlCard
+                                                card={selectedHtmlCard}
+                                                imageUrl={selectedHtmlImageResult?.status === 'success' ? selectedHtmlImageResult.imageUrl : ''}
+                                                cardRef={node => { if (node) htmlCardRefs.current[selectedHtmlCard.id] = node; }}
+                                                styleLock={currentSession.packageData?.style_lock}
+                                              />
+                                            </HtmlCardPreview>
+                                            <div className="visual-comparison-meta"><span><strong>预览框 3:4</strong> · HTML 成品</span><span>导出 1242×1656</span></div>
+                                            {selectedHtmlImageResult?.status !== 'success' && <p className={`mt-3 text-center text-[11px] ${selectedHtmlLegacyResult?.status === 'success' ? 'text-amber-600' : 'text-slate-400'}`}>{selectedHtmlLegacyResult?.status === 'success' ? '旧版主视觉不再用于 HTML 成品卡，请重新生成无字主视觉。' : '当前使用视觉占位，生成无字主视觉后会自动替换。'}</p>}
+                                          </div>
+                                          <div className="mi-surface mi-surface-card visual-comparison-item">
+                                            <div className="visual-comparison-label">AI 整图</div>
+                                            {fullImageResult?.status === 'success' && !hiddenFullImages[selectedPromptSection.title] ? (
+                                              <>
+                                              <div className="visual-comparison-preview-frame"><img src={fullImageResult.imageUrl} alt={`${selectedHtmlCard.label} AI 整图对比`} loading="lazy" decoding="async" className="visual-comparison-image" /></div>
+                                              <div className="visual-comparison-meta"><span><strong>预览框 3:4</strong> · AI 整图</span><span>模型排版输出</span></div>
+                                              </>
+                                            ) : (
+                                              <>
+                                                <div className="visual-comparison-preview-frame">
+                                                  <div className="mi-empty-state mi-empty-state-inline visual-comparison-empty">
+                                                    <Icon name={fullImageResult?.status === 'loading' ? 'LoaderCircle' : 'LayoutTemplate'} className={`h-5 w-5 ${fullImageResult?.status === 'loading' ? 'animate-spin' : ''}`} />
+                                                    <span className="mt-3 text-[11px] font-bold">{fullImageResult?.status === 'loading' ? 'AI 整图生成中' : fullImageResult?.status === 'success' ? 'AI 整图已隐藏' : '尚未生成 AI 整图'}</span>
+                                                  </div>
+                                                </div>
+                                                <div className="visual-comparison-meta"><span><strong>预览框 3:4</strong> · AI 整图</span><span>固定对比槽位</span></div>
+                                              </>
+                                            )}
+                                          </div>
+                                        </div>
+                                      </div>
+                                    )}
+                                  </div>
+                                </section>
+                              )}
+                            </div>
+                          );
+                        }
+                        
+                        const fullCleanText = content.replace(/```[^\n]*\n?/g, '').replace(/```/g, '').trim();
+                        return (
+                          <div className="mi-surface mi-surface-panel stage-content-panel p-8">
+                             <FormattedContent text={fullCleanText} />
+                          </div>
+                        );
+                      })()
+                    ) : (
+                      <div className="mi-surface mi-surface-panel stage-content-panel p-8 md:p-10">
+                        <FormattedContent text={content} />
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        );
+      };
+
+      const resultContent = useMemo(() => {
+        if (!showResults) return null;
+        return (
+          <div className="pb-20">
+            {currentSession.isHalted && (
+              <div className="mi-feedback mi-feedback-error processing-notice processing-notice-error" role="alert">
+                <div className="processing-notice-icon">
+                  <Icon name="AlertTriangle" className="h-4 w-4" />
+                </div>
+                <div className="processing-notice-copy">
+                  <div className="processing-notice-header">
+                    <div className="processing-notice-title">流程未完整完成</div>
+                    <div className="processing-notice-status">需要重试</div>
+                  </div>
+                  <p className="processing-notice-message">{currentSession.stopReason || '缺少必要阶段，请检查模型输出限制后重试。'}</p>
+                </div>
+              </div>
+            )}
+            {!currentSession.isHalted && currentSession.warning && (
+              <div className="mi-feedback mi-feedback-warning processing-notice" role="status" aria-live="polite">
+                <div className="processing-notice-icon">
+                  <Icon name="CircleAlert" className="h-4 w-4" />
+                </div>
+                <div className="processing-notice-copy">
+                  <div className="processing-notice-header">
+                    <div className="processing-notice-title">内容深度待复核</div>
+                    <div className="processing-notice-status">结果可继续使用</div>
+                  </div>
+                  <p className="processing-notice-message">{currentSession.warning}</p>
+                </div>
+              </div>
+            )}
+            {renderStageContent()}
+          </div>
+        );
+      }, [showResults, currentSession, activeStageTab, activeVisualPage, imageResults, hiddenFullImages, apiConfig, htmlExportState]);
+
+      // 运算中按钮切换为停止操作；空配置只阻止发起新请求。
+      const isButtonDisabled = !isProcessing && (!apiConfig.apiKey || !inputText.trim());
+
+      const renderHistoryItems = ({ closeAfterOpen = false, mobile = false } = {}) => (
+        <>
+          {history.length === 0 && (
+            mobile ? (
+              <div className="mobile-history-empty">
+                <Icon name="History" className="h-8 w-8 text-slate-300" />
+                <span className="text-[13px]">暂无历史记录</span>
+              </div>
+            ) : (
+              <div className="mt-6 text-center text-[13px] italic text-slate-400">暂无历史记录</div>
+            )
+          )}
+          {history.map(item => (
+            <div
+              key={item.id}
+              className={`mi-surface mi-surface-list history-item relative group backdrop-blur-sm shrink-0
+                ${isProcessing ? 'mi-surface-disabled' : ''}
+                ${activeHistoryId === item.id && showResults ? 'mi-surface-selected' : ''}`}
+            >
+              <button
+                type="button"
+                className="history-item-main pr-16"
+                onClick={() => {
+                  if (isProcessing) return;
+                  if (closeAfterOpen) setIsHistoryOpen(false);
+                  loadHistoryItem(item.id);
+                }}
+                disabled={isProcessing}
+                aria-current={activeHistoryId === item.id && showResults ? 'true' : undefined}
+                aria-label={`打开历史记录：${item.title || '未命名'}`}
+              >
+                <div className={`text-[13px] font-bold truncate flex items-center ${activeHistoryId === item.id && showResults ? 'text-indigo-600' : 'text-slate-700'}`}>
+                  {item.title || '未命名'}
+                </div>
+                <div className="mt-1.5 font-mono text-[11px] text-slate-400">{item.date}</div>
+              </button>
+              {!isProcessing && (
+                <div className="history-item-actions absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-all">
+                  <button
+                    type="button"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      if (closeAfterOpen) setIsHistoryOpen(false);
+                      retryHistoryItem(item.id);
+                    }}
+                    className="mi-icon-button mi-icon-button-compact history-item-action bg-indigo-50/80 text-indigo-500 hover:bg-indigo-100 hover:text-indigo-600 shadow-sm border border-indigo-100/50"
+                    aria-label={`再次生成：${item.title || '未命名'}`}
+                    title="再次生成"
+                  >
+                    <Icon name="RefreshCw" className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={(event) => deleteHistoryItem(item.id, event)}
+                    className="mi-icon-button mi-icon-button-compact history-item-action bg-red-50/80 text-red-500 hover:bg-red-100 hover:text-red-600 shadow-sm border border-red-100/50"
+                    aria-label={`删除记录：${item.title || '未命名'}`}
+                    title="删除记录"
+                  >
+                    <Icon name="Trash2" className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              )}
+            </div>
+          ))}
+        </>
+      );
+
+      return (
+        <div className="moreimg-app-shell flex flex-col md:flex-row h-screen overflow-hidden font-sans text-slate-800 relative bg-transparent">
+
+          {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
+
+          <div className="moreimg-sidebar w-full md:w-[320px] h-auto md:h-full flex-shrink-0 flex flex-col bg-white/60 md:bg-white/40 backdrop-blur-3xl border-b md:border-b-0 md:border-r border-white/60 shadow-sm md:shadow-[8px_0_32px_rgba(31,38,135,0.05)] z-20 p-4 md:p-6 relative">
+            
+            <div className="sidebar-brand-row z-10 shrink-0">
+              <h1 className="flex min-w-0 items-center">
+                <div className="sidebar-brand-mark mr-3">
+                  <Icon name="Sparkles" className="w-5 h-5 text-white" strokeWidth={2} />
+                </div>
+                <span className="sidebar-brand-copy">
+                  <span className="sidebar-brand-name">一文多图</span>
+                  <span className="sidebar-brand-en">MoreImg</span>
+                </span>
+              </h1>
+              <div className="sidebar-header-actions">
+                <button
+                  type="button"
+                  onClick={() => setIsHistoryOpen(true)}
+                  disabled={isProcessing}
+                  className="mi-button mi-button-standard mobile-history-trigger"
+                  aria-label={`打开历史记录，共 ${history.length} 条`}
+                  title="历史记录"
+                >
+                  <Icon name="History" className="h-4 w-4" />
+                  <span>历史</span>
+                  {history.length > 0 && <span className="mobile-history-count" aria-hidden="true">{history.length}</span>}
+                </button>
+                <button type="button" onClick={() => setIsConfigOpen(true)} className="mi-icon-button mi-icon-button-standard sidebar-icon-button" aria-label="打开设置" title="打开设置">
+                  <Icon name="Settings" className="w-5 h-5" strokeWidth={2} />
+                </button>
+              </div>
+            </div>
+
+            <div className="sidebar-input-shell">
+              <div className="sidebar-input-clip">
+                <textarea
+                  className="sidebar-input custom-scrollbar placeholder-slate-400 focus:placeholder-slate-300"
+                  placeholder="在此注入原始长文，唤醒 AI 重塑引擎..."
+                  value={inputText}
+                  onChange={(e) => setInputText(e.target.value)}
+                  disabled={isProcessing}
+                  spellCheck="false"
+                />
+              </div>
+            </div>
+
+            <button
+              onClick={isProcessing ? handleStopProcessing : handleStartProcessing}
+              disabled={isButtonDisabled}
+              className={`mi-button mi-button-prominent processing-action-button w-full shrink-0 font-bold text-[14px] relative overflow-hidden z-10 backdrop-blur-sm
+                ${isButtonDisabled ? 'is-disabled' : isProcessing ? 'is-running' : 'is-ready'}`}
+            >
+              {isProcessing ? (
+                 <><Icon name="Square" className="w-4 h-4 mr-2 text-white" fill="currentColor" /> 停止运算</>
+              ) : (
+                 <><Icon name="Zap" className={`w-4 h-4 mr-2 ${isButtonDisabled ? 'text-slate-400' : 'text-white'}`} strokeWidth={2} />一键提取提示词物料包</>
+              )}
+            </button>
+
+            <div className="moreimg-history hidden md:flex mt-10 flex-1 relative shrink-0 flex-col min-h-0">
+              <div className="flex items-center text-[12px] font-bold text-slate-400 mb-4 tracking-wide uppercase shrink-0">
+                历史记录
+              </div>
+              <div className="space-y-3 overflow-y-auto custom-scrollbar flex-1 pb-4 pr-1">
+                {renderHistoryItems()}
+              </div>
+            </div>
+
+            <div className="moreimg-brand brand-attribution hidden md:block" aria-label="项目归属与版权">
+              <div className="brand-attribution-name">MoreImg · LINPO LAB</div>
+              <div>© 2026 LINPO LAB. All rights reserved.</div>
+            </div>
+            
+          </div>
+
+          <div className="flex-1 min-h-0 flex flex-col relative h-full z-10 overflow-hidden">
+            
+            {isProcessing && !showResults && (
+              <div className="absolute inset-0 z-30 flex flex-col items-center justify-center bg-slate-50/60 backdrop-blur-xl animate-fade-in">
+                <div className="relative w-40 h-40 mb-12 flex items-center justify-center">
+                  <div className="absolute inset-0 rounded-full border border-slate-200/60 shadow-[inset_0_0_20px_rgba(99,102,241,0.1)]"></div>
+                  <div className="absolute inset-0 rounded-full border-t-[3px] border-indigo-600 animate-spin" style={{ animationDuration: '2s' }}></div>
+                  <div className="absolute inset-4 rounded-full border-b-[2px] border-sky-400 animate-spin" style={{ animationDirection: 'reverse', animationDuration: '3s' }}></div>
+                  <div className="relative z-10 bg-white/90 shadow-xl rounded-2xl w-16 h-16 flex items-center justify-center border border-white/80 backdrop-blur-md">
+                     <Icon name={internalStage >= 5 ? "Image" : internalStage >= 3 ? "Cpu" : "Database"} className="w-8 h-8 text-indigo-600 animate-pulse-slow" strokeWidth={1.5} />
+                  </div>
+                </div>
+                
+                <div className="text-center space-y-3">
+                  <h3 className="text-[18px] font-extrabold text-slate-800 tracking-tight transition-all duration-300">{STAGE_LOADING_TEXT[internalStage] || "连接核心计算引擎..."}</h3>
+                  <div className="w-64 h-1.5 bg-slate-200/50 rounded-full overflow-hidden mx-auto mt-6 backdrop-blur-sm">
+                    <div className="h-full bg-gradient-to-r from-indigo-500 to-sky-400 transition-all duration-500 ease-out" style={{ width: `${(internalStage / 6) * 100}%` }}></div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {showResults && (
+              <div className="w-full pl-8 pr-[calc(2rem+5px)] md:pl-12 md:pr-[calc(3rem+5px)] pt-8 pb-4 z-20 shrink-0 relative animate-fade-in-down">
+                <div className="results-stage-frame flex flex-col sm:flex-row sm:items-center justify-between gap-6">
+                  
+                  <div ref={resultsStageNavRef} className="results-stage-nav hide-scrollbar" role="tablist" aria-label="结果阶段">
+                    {NEW_STAGES.map((stage) => {
+                      const isActive = activeStageTab === stage.id;
+                      const isClickable = !currentSession.isHalted || stage.id === 'step1';
+                      const isFocusable = isClickable && (isActive || (currentSession.isHalted && stage.id === 'step1'));
+
+                      return (
+                        <button 
+                          key={stage.id}
+                          type="button"
+                          role="tab"
+                          aria-selected={isActive}
+                          disabled={!isClickable}
+                          tabIndex={isFocusable ? 0 : -1}
+                          onKeyDown={handleTabListKeyDown}
+                          onClick={() => { if(isClickable) setActiveStageTab(stage.id); }}
+                          className={`mi-tab mi-tab-stage results-stage-tab
+                            ${isActive 
+                              ? 'results-stage-tab-active' 
+                              : ''}
+                          `}
+                        >
+                          <Icon name={stage.icon} className={`w-4 h-4 mr-2 transition-colors ${isActive ? 'text-white' : 'text-slate-400'}`} />
+                          <span className="text-[13px] font-bold tracking-wide">{stage.name}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                </div>
+              </div>
+            )}
+
+            <div ref={resultScrollRef} className={`flex-1 px-8 md:px-12 pb-10 custom-scrollbar relative z-10 moreimg-main-scroll ${showResults ? 'overflow-y-scroll pt-2' : 'overflow-y-auto pt-8'}`}>
+              <div className="results-stage-frame h-full">
+                
+                {!isProcessing && !showResults && (
+                  <div className="moreimg-empty-state h-full flex flex-col items-center justify-center animate-fade-in -mt-10">
+                    <div className="moreimg-empty-icon w-20 h-20 rounded-[1.5rem] border border-white/80 flex items-center justify-center mb-8 relative">
+                      <div className="absolute inset-0 bg-indigo-50/50 rounded-[1.5rem] opacity-50 blur"></div>
+                      <Icon name="Bot" className="w-10 h-10 text-indigo-500 relative z-10" strokeWidth={1.5} />
+                    </div>
+                    <h2 className="text-[28px] font-extrabold text-slate-900 mb-4 tracking-tight">内容精炼与结构化 <span className="text-indigo-600">Agent</span></h2>
+                    <p className="text-[15px] text-slate-500 mb-12 max-w-lg text-center leading-relaxed">深度重构长文逻辑，后台运算完毕后，一键交付结构化卡片与生产级 Midjourney 视觉指令。</p>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 w-full">
+                      {[{ icon: 'ListChecks', title: '深度事实核查', desc: '全网交叉验证，剔除过时与错误信息。' }, { icon: 'Cpu', title: '逻辑精炼重构', desc: '提炼分论点与核心比喻，生成卡片物料包。' }, { icon: 'Image', title: '视觉指令映射', desc: '色彩、构图全量生成 3:4 画面生图提示词。' }].map((feature, idx) => (
+                        <div key={idx} className="mi-surface mi-surface-panel moreimg-feature-card p-6">
+                          <div className="w-10 h-10 rounded-xl bg-white/80 flex items-center justify-center mb-4 border border-white/80 shadow-sm"><Icon name={feature.icon} className="w-5 h-5 text-indigo-600" /></div>
+                          <h4 className="text-[15px] font-bold text-slate-800 mb-2">{feature.title}</h4>
+                          <p className="text-[13px] text-slate-500 leading-relaxed">{feature.desc}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <ResultsPanel content={resultContent} />
+                <div ref={messagesEndRef} />
+              </div>
+            </div>
+          </div>
+
+          {isHistoryOpen && (
+            <div
+              className="mobile-history-overlay animate-fade-in"
+              onClick={() => setIsHistoryOpen(false)}
+            >
+              <section
+                className="mobile-history-dialog flex flex-col animate-fade-in-down"
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="mobile-history-title"
+                onClick={(event) => event.stopPropagation()}
+              >
+                <div className="mobile-history-dialog-header">
+                  <div>
+                    <h2 id="mobile-history-title" className="flex items-center text-[16px] font-extrabold text-slate-800">
+                      <Icon name="History" className="mr-2 h-5 w-5 text-indigo-600" /> 历史记录
+                    </h2>
+                    <p className="mt-1 text-[11px] text-slate-500">恢复、再次生成或删除本机记录</p>
+                  </div>
+                  <button type="button" onClick={() => setIsHistoryOpen(false)} className="mi-icon-button mi-icon-button-standard sidebar-icon-button" aria-label="关闭历史记录" title="关闭历史记录">
+                    <Icon name="X" className="h-5 w-5" />
+                  </button>
+                </div>
+                <div className="mobile-history-dialog-body custom-scrollbar">
+                  <div className="space-y-3">
+                    {renderHistoryItems({ closeAfterOpen: true, mobile: true })}
+                  </div>
+                </div>
+              </section>
+            </div>
+          )}
+
+          {/* 设置面板弹窗：调整了大小与布局以适应大段 Prompt 配置 */}
+          {isConfigOpen && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 animate-fade-in">
+              <div className="config-dialog flex flex-col animate-fade-in-down">
+                
+                {/* 弹窗 Header */}
+                <div className="config-dialog-header">
+                  <h3 className="text-[16px] font-extrabold text-slate-800 flex items-center">
+                    <Icon name="Settings" className="w-5 h-5 mr-2 text-indigo-600" /> 私有引擎及技能配置
+                  </h3>
+                  <button type="button" onClick={() => setIsConfigOpen(false)} className="mi-icon-button mi-icon-button-standard sidebar-icon-button" aria-label="关闭设置" title="关闭设置">
+                    <Icon name="X" className="w-5 h-5" />
+                  </button>
+                </div>
+                
+                {/* 弹窗 Body (可滚动) */}
+                <div className="config-dialog-body custom-scrollbar">
+                  
+                  <section className="config-section">
+                    <div className="config-section-header">
+                      <div>
+                        <h4 className="config-section-title"><Icon name="MessageSquareText" className="h-4 w-4 text-indigo-600" /> 文本模型</h4>
+                        <p className="config-section-description">用于文章分析、内容重构和提示词生成。系统会根据 Endpoint 自动识别 Responses API 或 Chat Completions。</p>
+                      </div>
+                      <div className="config-section-actions">
+                        <button type="button" onClick={() => handleLoadModels('text')} disabled={configTools.textModels.status === 'loading'} aria-busy={configTools.textModels.status === 'loading'} className="mi-button mi-button-compact config-action-button">
+                          <Icon name={configTools.textModels.status === 'loading' ? 'LoaderCircle' : 'ListFilter'} className={`h-3.5 w-3.5 ${configTools.textModels.status === 'loading' ? 'animate-spin' : ''}`} />
+                          {configTools.textModels.status === 'loading' ? '读取中' : '读取模型'}
+                        </button>
+                        <button type="button" onClick={handleTestTextConnection} disabled={configTools.textTest.status === 'loading'} aria-busy={configTools.textTest.status === 'loading'} className="mi-button mi-button-compact config-action-button">
+                          <Icon name={configTools.textTest.status === 'loading' ? 'LoaderCircle' : 'PlugZap'} className={`h-3.5 w-3.5 ${configTools.textTest.status === 'loading' ? 'animate-spin' : ''}`} />
+                          {configTools.textTest.status === 'loading' ? '测试中' : '测试接口'}
+                        </button>
+                      </div>
+                    </div>
+                    <div className="config-grid">
+                      <div className="config-field config-span-2">
+                        <label className="config-label">接口地址（可填至 /v1）</label>
+                        <input 
+                          type="text"
+                          value={apiConfig.apiUrl}
+                          onChange={(e) => setApiConfig({...apiConfig, apiUrl: e.target.value})}
+                          className="mi-field config-input placeholder-slate-400"
+                        />
+                        <div className="config-hint">实际请求：{resolveApiEndpoint(apiConfig.apiUrl, 'text') || '请填写地址'}；当前协议：{isResponsesApiEndpoint(resolveApiEndpoint(apiConfig.apiUrl, 'text')) ? 'Responses API' : 'Chat Completions'}</div>
+                      </div>
+                      <div className="config-field">
+                        <label className="config-label">模型名称 (Model)</label>
+                        {textModels.length > 0 ? (
+                          <div className="config-select-shell">
+                            <select value={apiConfig.model} onChange={(e) => handleModelSelection('text', e.target.value)} aria-label="选择文本模型" className="mi-field config-input config-select">
+                              {apiConfig.model && !textModels.includes(apiConfig.model) && <option value={apiConfig.model}>{apiConfig.model}</option>}
+                              {textModels.map(model => <option key={model} value={model}>{model}</option>)}
+                              <option value="__manual__">手动填写...</option>
+                            </select>
+                            <Icon name="ChevronDown" className="config-select-icon" />
+                          </div>
+                        ) : (
+                          <input 
+                            type="text" 
+                            value={apiConfig.model}
+                            onChange={(e) => setApiConfig({...apiConfig, model: e.target.value})}
+                            className="mi-field config-input placeholder-slate-400"
+                          />
+                        )}
+                      </div>
+                      <div className="config-field">
+                        <label className="config-label">密钥 (API Key)</label>
+                        <input 
+                          type="password" 
+                          value={apiConfig.apiKey}
+                          onChange={(e) => setApiConfig({...apiConfig, apiKey: e.target.value})}
+                          placeholder="sk-..."
+                          className="mi-field config-input placeholder-slate-400"
+                        />
+                      </div>
+                    </div>
+                    <ConfigStatus state={configTools.textModels} />
+                    <ConfigStatus state={configTools.textTest} />
+                  </section>
+
+                  <section className="config-section">
+                    <div className="config-section-header">
+                      <div>
+                        <h4 className="config-section-title"><Icon name="SlidersHorizontal" className="h-4 w-4 text-indigo-600" /> 加工偏好</h4>
+                        <p className="config-section-description">MoreImg v6 核心规则和 JSON 协议已内置。这里仅调整内容表达，不会破坏页面读取。</p>
+                      </div>
+                    </div>
+                    <div className="mi-feedback mi-feedback-info config-preference-note">
+                      <Icon name="ShieldCheck" className="mt-0.5 h-4 w-4 shrink-0 text-indigo-600" />
+                      <span>每次加工仍只请求一次文本 API；固定生成封面、正文和封底。核心规则不可编辑。</span>
+                    </div>
+                    <div className="config-grid">
+                      <div className="config-field">
+                        <label className="config-label">精修方式</label>
+                        <div className="config-select-shell">
+                          <select value={apiConfig.processingPreferences?.refinement || 'standard'} onChange={(e) => setApiConfig(prev => ({ ...prev, processingPreferences: { ...createDefaultProcessingPreferences(), ...prev.processingPreferences, refinement: e.target.value } }))} className="mi-field config-input config-select">
+                            <option value="standard">标准精修</option>
+                            <option value="light">轻度整理</option>
+                          </select>
+                          <Icon name="ChevronDown" className="config-select-icon" />
+                        </div>
+                      </div>
+                      <div className="config-field">
+                        <label className="config-label">卡片总页数</label>
+                        <div className="config-select-shell">
+                          <select value={apiConfig.processingPreferences?.pageCount || 'auto'} onChange={(e) => setApiConfig(prev => ({ ...prev, processingPreferences: { ...createDefaultProcessingPreferences(), ...prev.processingPreferences, pageCount: e.target.value } }))} className="mi-field config-input config-select">
+                            <option value="auto">自动决定</option>
+                            {[3,4,5,6,7,8,9].map(count => <option key={count} value={String(count)}>{count} 页</option>)}
+                          </select>
+                          <Icon name="ChevronDown" className="config-select-icon" />
+                        </div>
+                      </div>
+                      <div className="config-field">
+                        <label className="config-label">内容口吻</label>
+                        <div className="config-select-shell">
+                          <select value={apiConfig.processingPreferences?.tone || 'preserve'} onChange={(e) => setApiConfig(prev => ({ ...prev, processingPreferences: { ...createDefaultProcessingPreferences(), ...prev.processingPreferences, tone: e.target.value } }))} className="mi-field config-input config-select">
+                            <option value="preserve">尽量保留原文</option>
+                            <option value="concise">更简洁克制</option>
+                            <option value="conversational">更口语自然</option>
+                          </select>
+                          <Icon name="ChevronDown" className="config-select-icon" />
+                        </div>
+                      </div>
+                      <div className="config-field">
+                        <label className="config-label">标题处理</label>
+                        <label className="mi-field config-checkbox">
+                          <input type="checkbox" checked={Boolean(apiConfig.processingPreferences?.preserveTitle)} onChange={(e) => setApiConfig(prev => ({ ...prev, processingPreferences: { ...createDefaultProcessingPreferences(), ...prev.processingPreferences, preserveTitle: e.target.checked } }))} />
+                          <span>优先保留原文标题</span>
+                        </label>
+                      </div>
+                      <div className="config-field config-span-2">
+                        <label className="config-label">补充要求（可选）</label>
+                        <textarea value={apiConfig.processingPreferences?.customInstruction || ''} onChange={(e) => setApiConfig(prev => ({ ...prev, processingPreferences: { ...createDefaultProcessingPreferences(), ...prev.processingPreferences, customInstruction: e.target.value } }))} className="mi-field config-preference-textarea" placeholder="例如：保留第一人称；标题不要太营销；正文尽量克制。" spellCheck="false" />
+                      </div>
+                    </div>
+                    <p className="config-hint">API Key 和加工偏好仅保存在当前浏览器 localStorage，不会上传到作者服务器。</p>
+                  </section>
+
+                  <section className="config-section">
+                    <div className="config-section-header">
+                      <div>
+                        <h4 className="config-section-title"><Icon name="Image" className="h-4 w-4 text-indigo-600" /> 图片模型</h4>
+                        <p className="config-section-description">用于无字主视觉和 AI 整图。读取模型失败时仍可手动填写，正式生图就是最终接口验证。</p>
+                      </div>
+                      <div className="config-section-actions">
+                        <button type="button" onClick={() => handleLoadModels('image')} disabled={configTools.imageModels.status === 'loading'} aria-busy={configTools.imageModels.status === 'loading'} className="mi-button mi-button-compact config-action-button">
+                          <Icon name={configTools.imageModels.status === 'loading' ? 'LoaderCircle' : 'ListFilter'} className={`h-3.5 w-3.5 ${configTools.imageModels.status === 'loading' ? 'animate-spin' : ''}`} />
+                          {configTools.imageModels.status === 'loading' ? '读取中' : '读取模型'}
+                        </button>
+                      </div>
+                    </div>
+                    <div className="config-grid">
+                      <div className="config-field config-span-2">
+                        <label className="config-label">图片接口地址（可填至 /v1）</label>
+                        <input type="text" value={apiConfig.imageApiUrl} onChange={(e) => setApiConfig({...apiConfig, imageApiUrl: e.target.value})} placeholder="https://api.openai.com/v1 或完整图片地址" className="mi-field config-input" />
+                        <div className="config-hint">实际请求：{resolveApiEndpoint(apiConfig.imageApiUrl, 'image') || '请填写地址'}</div>
+                      </div>
+                      <div className="config-field">
+                        <label className="config-label">图片模型</label>
+                        {imageModels.length > 0 ? (
+                          <div className="config-select-shell">
+                            <select value={apiConfig.imageModel} onChange={(e) => handleModelSelection('image', e.target.value)} aria-label="选择图片模型" className="mi-field config-input config-select">
+                              {apiConfig.imageModel && !imageModels.includes(apiConfig.imageModel) && <option value={apiConfig.imageModel}>{apiConfig.imageModel}</option>}
+                              {imageModels.map(model => <option key={model} value={model}>{model}</option>)}
+                              <option value="__manual__">手动填写...</option>
+                            </select>
+                            <Icon name="ChevronDown" className="config-select-icon" />
+                          </div>
+                        ) : (
+                          <input type="text" value={apiConfig.imageModel} onChange={(e) => setApiConfig({...apiConfig, imageModel: e.target.value})} placeholder="gpt-image-1" className="mi-field config-input" />
+                        )}
+                      </div>
+                      <div className="config-field">
+                        <label className="config-label">图片尺寸</label>
+                        <input type="text" value={apiConfig.imageSize} onChange={(e) => setApiConfig({...apiConfig, imageSize: e.target.value})} placeholder="768x1024" className="mi-field config-input" />
+                      </div>
+                      <div className="config-field config-span-2">
+                        <label className="config-label">图片 API Key</label>
+                        <input type="password" value={apiConfig.imageApiKey} onChange={(e) => setApiConfig({...apiConfig, imageApiKey: e.target.value})} placeholder="sk-..." className="mi-field config-input" />
+                      </div>
+                    </div>
+                    <ConfigStatus state={configTools.imageModels} />
+                  </section>
+
+                  <section className="config-section">
+                    <details className="mi-surface mi-surface-card image-diagnostic">
+                      <summary>最近一次生图诊断<span>{lastImageDiagnostic?.updatedAt ? new Date(lastImageDiagnostic.updatedAt).toLocaleString() : '暂无记录'}</span></summary>
+                      {lastImageDiagnostic ? (
+                        <dl className="image-diagnostic-grid">
+                          {[
+                            ['请求方式', lastImageDiagnostic.requestMode],
+                            ['请求接口', lastImageDiagnostic.endpointPath],
+                            ['请求格式', lastImageDiagnostic.requestedFormat],
+                            ['实际返回', lastImageDiagnostic.actualFormat],
+                            ['图片来源', lastImageDiagnostic.imageHost],
+                            ['保存方式', lastImageDiagnostic.storageBackend],
+                            ['保存结果', lastImageDiagnostic.storageStatus],
+                            ['刷新恢复', lastImageDiagnostic.restoreStatus],
+                            ['失败原因', lastImageDiagnostic.failureReason || '无']
+                          ].map(([label, value]) => <div className="image-diagnostic-item" key={label}><dt>{label}</dt><dd>{value || '未记录'}</dd></div>)}
+                        </dl>
+                      ) : <p className="image-diagnostic-empty">完成一次生图后，这里会显示脱敏后的请求与保存结果。</p>}
+                    </details>
+                  </section>
+
+                </div>
+
+                {/* 弹窗 Footer */}
+                <div className="config-dialog-footer">
+                  <button 
+                    onClick={handleSaveConfig}
+                    className="mi-button mi-button-prominent visual-button visual-button-primary w-full"
+                  >
+                    保存并应用配置
+                  </button>
+                </div>
+
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    }
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
+  </script>
+</body>
+</html>

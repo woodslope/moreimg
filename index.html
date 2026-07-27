@@ -8,16 +8,14 @@
   <link rel="icon" href="data:,">
   <title>一文多图</title>
   
-  <!-- 导出卡使用项目内置的 OFL 开源字体，确保 GitHub Pages 与本地排版一致 -->
-  <link rel="stylesheet" href="fonts/noto-sans-sc.css">
-  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="styles.css?v=326cae5b0233">
 
   <!-- React & ReactDOM -->
-  <script src="vendor/react.js"></script>
-  <script src="vendor/react-dom.js"></script>
+  <script src="vendor/react.js?v=d949f1c3687a"></script>
+  <script src="vendor/react-dom.js?v=35f4f974f4b2"></script>
 
-  <!-- Lucide Icons -->
-  <script src="vendor/lucide.js"></script>
+  <!-- 构建时只保留页面实际使用的 Lucide 图标 -->
+  <script src="vendor/lucide-moreimg.js?v=dc142db48914"></script>
 
   <style>
     /* 全局滚动条优化 */
@@ -104,13 +102,13 @@
     .mi-empty-state-inline { width: 100%; height: 100%; border: 0; border-radius: 0; background: transparent; }
     .mi-empty-state-icon { display: flex; width: 40px; height: 40px; flex: 0 0 auto; align-items: center; justify-content: center; border-radius: 10px; background: #eef2ff; color: #4f46e5; }
     .mi-empty-state-icon-large { width: 48px; height: 48px; border-radius: 12px; }
-    .mi-feedback { display: flex; align-items: flex-start; gap: 8px; border: 1px solid transparent; border-left-width: 3px; border-radius: 10px; padding: 10px 12px; font-size: 11px; line-height: 1.6; }
+    .mi-feedback { display: flex; align-items: flex-start; gap: 8px; border: 1px solid transparent; border-radius: 10px; padding: 10px 12px; font-size: 11px; line-height: 1.6; }
     .mi-feedback-info { border-color: var(--mi-feedback-info-border); background: var(--mi-feedback-info-bg); color: var(--mi-feedback-info-text); }
     .mi-feedback-warning { border-color: var(--mi-feedback-warning-border); background: var(--mi-feedback-warning-bg); color: var(--mi-feedback-warning-text); }
     .mi-feedback-error { border-color: var(--mi-feedback-error-border); background: var(--mi-feedback-error-bg); color: var(--mi-feedback-error-text); }
     .mi-feedback-success { border-color: var(--mi-feedback-success-border); background: var(--mi-feedback-success-bg); color: var(--mi-feedback-success-text); }
     .mi-feedback-neutral { border-color: var(--mi-feedback-neutral-border); background: var(--mi-feedback-neutral-bg); color: var(--mi-feedback-neutral-text); }
-    .mi-toast { position: fixed; top: 24px; right: 24px; z-index: 50; display: grid; width: min(420px, calc(100vw - 48px)); grid-template-columns: 32px minmax(0, 1fr) 32px; align-items: center; gap: 10px; border-left-width: 1px; border-radius: 16px; padding: 12px; box-shadow: 0 12px 34px rgba(15,23,42,.14); backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px); }
+    .mi-toast { position: fixed; top: 24px; right: 24px; z-index: 50; display: grid; width: min(420px, calc(100vw - 48px)); grid-template-columns: 32px minmax(0, 1fr) 32px; align-items: center; gap: 10px; border-radius: 16px; padding: 12px; box-shadow: 0 12px 34px rgba(15,23,42,.14); backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px); }
     .mi-toast-icon { display: grid; width: 32px; height: 32px; place-items: center; border-radius: 10px; background: rgba(255,255,255,.74); }
     .mi-toast-message { min-width: 0; overflow-wrap: anywhere; font-size: 13px; font-weight: 700; line-height: 1.5; }
     .mi-toast-dismiss { border: 1px solid transparent; background: transparent; color: currentColor; opacity: .72; }
@@ -145,7 +143,7 @@
     .processing-notice-title { color: inherit; font-size: 13px; font-weight: 800; line-height: 1.45; }
     .processing-notice-status { color: inherit; font-size: 11px; font-weight: 700; line-height: 1.5; white-space: nowrap; opacity: .84; }
     .processing-notice-message { margin: 3px 0 0; color: inherit; font-size: 12px; line-height: 1.65; }
-    .visual-panel-notice { border-right-width: 0; border-left-width: 0; border-radius: 0; padding: 8px 18px; }
+    .visual-panel-notice { align-items: center; margin: 12px 18px 0; border: 1px solid rgba(99,102,241,.24); border-radius: 8px; padding: 8px 12px; background: rgba(238,242,255,.58); color: #4338ca; }
     .visual-workspace-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(280px, 340px); align-items: stretch; }
     .visual-results-column { display: flex; min-width: 0; flex-direction: column; padding: 22px; }
     .visual-prompt-column { display: grid; min-width: 0; align-content: start; grid-template-rows: repeat(2, 220px); gap: 24px; border-left: 1px solid var(--mi-border); padding: 22px 20px; }
@@ -203,6 +201,9 @@
     .results-stage-tab-active { background: rgba(79,70,229,.9); color: #fff; box-shadow: 0 4px 10px rgba(99,102,241,.2); }
     .results-stage-tab-active:hover { background: #4f46e5; color: #fff; }
     .sidebar-brand-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+    .sidebar-brand-copy { display: flex; min-width: 0; flex-direction: column; justify-content: center; gap: 4px; }
+    .sidebar-brand-name { color: #1e293b; font-size: 20px; font-weight: 800; line-height: 1; letter-spacing: -.025em; }
+    .sidebar-brand-en { color: #94a3b8; font-size: 11px; font-weight: 700; line-height: 1; letter-spacing: .08em; }
     .sidebar-header-actions { display: flex; flex-shrink: 0; align-items: center; gap: 8px; }
     .mobile-history-trigger { gap: 6px; border-color: rgba(255,255,255,.8); background: #fff; color: #64748b; font-size: 12px; font-weight: 750; box-shadow: 0 1px 2px rgba(15,23,42,.05); }
     .mobile-history-trigger:hover { border-color: rgba(99,102,241,.32); background: #fff; color: #4f46e5; }
@@ -384,6 +385,6 @@
 </head>
 <body class="antialiased text-slate-800 bg-slate-50">
   <div id="root"></div>
-  <script src="app.js?v=bcb8fccb602c" defer></script>
+  <script src="app.js?v=b28f179df547" defer></script>
 </body>
 </html>

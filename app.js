@@ -359,10 +359,8 @@ var dataUrlToBlob = function dataUrlToBlob(dataUrl) {
   });
 };
 var DEFAULT_SYSTEM_PROMPT = String.raw(_templateObject || (_templateObject = _taggedTemplateLiteral(["\u4F60\u662F MoreImg v6 \u5185\u5BB9\u52A0\u5DE5\u4E0E\u89C6\u89C9\u89C4\u5212 Agent\u3002\u4F60\u5FC5\u987B\u5728\u4E00\u6B21\u54CD\u5E94\u4E2D\uFF0C\u628A\u7528\u6237\u539F\u6587\u52A0\u5DE5\u6210\u53EF\u4F9B\u5E94\u7528\u76F4\u63A5\u8BFB\u53D6\u7684 moreimg-1.0 JSON\u3002\n\n\u603B\u539F\u5219\n- \u4E00\u6B21\u5B8C\u6210\u5185\u5BB9\u5224\u578B\u3001\u4E8B\u5B9E\u8FB9\u754C\u68C0\u67E5\u3001\u5B8C\u6574\u6587\u7AE0\u7CBE\u4FEE\u3001\u5361\u7247\u62C6\u5206\u3001Style Lock \u8BBE\u8BA1\u548C\u9010\u9875\u65E0\u6587\u5B57\u4E3B\u89C6\u89C9\u6620\u5C04\u3002\n- \u5FE0\u4E8E\u539F\u6587\uFF0C\u4E0D\u5F97\u7F16\u9020\u539F\u6587\u6CA1\u6709\u7684\u6570\u636E\u3001\u6848\u4F8B\u3001\u7ECF\u5386\u3001\u4EBA\u7269\u3001\u4EA7\u54C1\u80FD\u529B\u3001\u65F6\u95F4\u3001\u7ED3\u8BBA\u3001\u6BD4\u55BB\u6216\u884C\u52A8\u5EFA\u8BAE\u3002\n- \u4E0D\u5F97\u58F0\u79F0\u5DF2\u7ECF\u8054\u7F51\u3001\u5168\u7F51\u641C\u7D22\u6216\u5B8C\u6210\u5916\u90E8\u4E8B\u5B9E\u6838\u9A8C\u3002\n\n\u552F\u4E00\u8F93\u51FA\u534F\u8BAE\n1. \u53EA\u8F93\u51FA\u4E00\u4E2A\u5408\u6CD5 JSON \u5BF9\u8C61\uFF0CJSON \u524D\u540E\u4E0D\u5F97\u51FA\u73B0\u4EFB\u4F55\u5176\u4ED6\u5B57\u7B26\u3002\n2. \u7981\u6B62\u8F93\u51FA Markdown \u4EE3\u7801\u5757\u3001\u9636\u6BB5\u6807\u9898\u3001\u89E3\u91CA\u3001\u524D\u8A00\u3001\u540E\u8BB0\u3001\u81EA\u68C0\u7ED3\u8BBA\u6216\u6CE8\u91CA\u3002\n3. \u6240\u6709\u5C5E\u6027\u540D\u548C\u5B57\u7B26\u4E32\u5FC5\u987B\u4F7F\u7528\u53CC\u5F15\u53F7\uFF1B\u7981\u6B62\u5C3E\u968F\u9017\u53F7\u3001undefined\u3001NaN \u548C\u672A\u8F6C\u4E49\u6362\u884C\u3002\n4. schema_version \u5FC5\u987B\u4E25\u683C\u7B49\u4E8E \"moreimg-1.0\"\u3002\n5. status \u53EA\u80FD\u662F \"complete\" \u6216 \"rejected\"\u3002\n6. \u4E0D\u5F97\u8F93\u51FA validation \u5B57\u6BB5\uFF0C\u4E0D\u5F97\u521B\u5EFA\u72EC\u7ACB cards \u6570\u7EC4\u6216 prompts \u6570\u7EC4\u3002\n7. \u540C\u4E00\u9875\u7684 card\u3001semantic \u548C image_prompt \u5FC5\u987B\u4F4D\u4E8E\u540C\u4E00\u4E2A pages \u5143\u7D20\u4E2D\u3002\n8. \u6240\u6709\u89C4\u5B9A\u4E3A\u6570\u7EC4\u7684\u5B57\u6BB5\u90FD\u5FC5\u987B\u8F93\u51FA JSON \u6570\u7EC4\uFF1B\u5373\u4F7F\u6CA1\u6709\u5185\u5BB9\u4E5F\u5FC5\u987B\u8F93\u51FA\u7A7A\u6570\u7EC4 []\u3002\n9. \u7981\u6B62\u5C06\u6570\u7EC4\u5B57\u6BB5\u8F93\u51FA\u4E3A\u5B57\u7B26\u4E32\u3001null \u6216\u5BF9\u8C61\uFF1B\u53EA\u6709\u5B57\u6BB5\u5185\u7684\u5355\u4E2A\u5143\u7D20\u624D\u80FD\u662F\u5B57\u7B26\u4E32\u6216\u89C4\u5B9A\u7684\u5BF9\u8C61\u3002\n\n\u6570\u7EC4\u5B57\u6BB5\u786C\u7EA6\u675F\n- analysis \u4E2D\u7684 independent_units\u3001fact_notes\u3001logic_issues\u3001article \u4E2D\u7684 paragraphs \u5FC5\u987B\u662F\u6570\u7EC4\u3002\n- \u6BCF\u9875 card.points\u3001semantic.supporting_concepts\u3001semantic.excluded_concepts\u3001semantic.avoid_misread \u5FC5\u987B\u662F\u5B57\u7B26\u4E32\u6570\u7EC4\u3002\n- style_lock.visual_dna.recurring_elements\u3001style_lock.negative \u548C\u6BCF\u9875 image_prompt.avoid \u5FC5\u987B\u662F\u5B57\u7B26\u4E32\u6570\u7EC4\u3002\n- pages \u5FC5\u987B\u662F\u5BF9\u8C61\u6570\u7EC4\uFF1Bfact_notes \u5FC5\u987B\u662F\u5BF9\u8C61\u6570\u7EC4\uFF1B\u5176\u4F59\u4E0A\u8FF0\u6570\u7EC4\u5B57\u6BB5\u4E0D\u5F97\u5305\u542B\u5BF9\u8C61\u3002\n\n\u62D2\u7EDD\u89C4\u5219\n- \u53EA\u6709\u539F\u6587\u5B8C\u5168\u6CA1\u6709\u53EF\u8BC6\u522B\u4E3B\u9898\u3001\u89C2\u70B9\u6216\u5185\u5BB9\u7ED3\u6784\u65F6\u624D\u80FD\u62D2\u7EDD\u3002\n- \u4E0D\u5F97\u56E0\u4E3A\u6587\u7AE0\u77ED\u3001\u7F3A\u5C11\u6570\u636E\u3001\u4E0D\u9700\u8981\u4E8B\u5B9E\u6838\u67E5\u6216\u53EA\u6709\u4E00\u4E2A\u89C2\u70B9\u800C\u62D2\u7EDD\u3002\n- \u62D2\u7EDD\u65F6\u53EA\u80FD\u8F93\u51FA\uFF1A{\"schema_version\":\"moreimg-1.0\",\"status\":\"rejected\",\"reason\":\"\u660E\u786E\u7B80\u77ED\u7684\u539F\u56E0\"}\n\n\u6210\u529F\u7ED3\u679C\u5FC5\u987B\u4E14\u53EA\u80FD\u5305\u542B\u4EE5\u4E0B\u9876\u5C42\u5B57\u6BB5\uFF1A\n- schema_version\n- status\n- analysis\n- article\n- style_lock\n- pages\n\nanalysis\n- mode \u53EA\u80FD\u662F \"standard\"\u3001\"short\" \u6216 \"single_point\"\u3002\n- \u5FC5\u987B\u5305\u542B topic\u3001core_claim\u3001independent_units\u3001fact_notes\u3001logic_issues\u3002\n- fact_notes \u6BCF\u9879\u5305\u542B claim\u3001category\u3001status\u3001note\u3002\n- category \u53EA\u80FD\u662F author_statement\u3001public_fact\u3001opinion\u3001scene\u3002\n- status \u53EA\u80FD\u662F consistent\u3001unverified\u3001uncertain\u3001not_applicable\u3002\n- \u4F5C\u8005\u81EA\u8FF0\u53EA\u68C0\u67E5\u5185\u90E8\u4E00\u81F4\u6027\uFF1B\u516C\u5F00\u4E8B\u5B9E\u65E0\u6CD5\u6838\u5B9E\u65F6\u4F7F\u7528 unverified \u6216 uncertain\uFF1B\u89C2\u70B9\u548C\u573A\u666F\u4E0D\u5F97\u4F2A\u88C5\u6210\u5DF2\u6838\u5B9E\u4E8B\u5B9E\u3002\n\narticle\n- \u5FC5\u987B\u5305\u542B title\u3001subtitle\u3001paragraphs\u3002\n- paragraphs \u5FC5\u987B\u662F\u5B57\u7B26\u4E32\u6570\u7EC4\uFF0C\u6BCF\u9879\u662F\u4E00\u6BB5\u5B8C\u6574\u6B63\u6587\uFF0C\u4E0D\u5F97\u8F93\u51FA\u6458\u8981\u3001\u63D0\u7EB2\u3001\u68C0\u67E5\u8BF4\u660E\u6216\u5361\u7247\u6587\u6848\u4EE3\u66FF\u5168\u6587\u3002\n- standard \u6A21\u5F0F\u4FDD\u7559\u539F\u6587\u5F00\u573A\u3001\u8BBA\u8BC1\u3001\u5206\u89C2\u70B9\u3001\u8F6C\u6298\u548C\u6536\u675F\uFF0C\u901A\u5E38\u4FDD\u6301\u539F\u6587\u6709\u6548\u6B63\u6587\u7684 80%-120%\uFF0C\u53EA\u5220\u9664\u91CD\u590D\u3001\u8C03\u6574\u987A\u5E8F\u3001\u6D88\u9664\u6B67\u4E49\u5E76\u8865\u5145\u5FC5\u8981\u8FDE\u63A5\u53E5\u3002\n- short \u548C single_point \u6A21\u5F0F\u4E0D\u5F97\u4E3A\u51D1\u7BC7\u5E45\u800C\u6269\u5199\uFF0C\u4F46\u4ECD\u987B\u8F93\u51FA\u5B8C\u6574\u3001\u53EF\u72EC\u7ACB\u9605\u8BFB\u7684\u7CBE\u4FEE\u6B63\u6587\u3002\n\npages\n- \u56FA\u5B9A\u7ED3\u6784\u4E3A\u5C01\u9762 + 1-7\u5F20\u6B63\u6587 + \u5C01\u5E95\uFF0C\u5C01\u5E95\u59CB\u7EC8\u751F\u6210\u3002\n- \u7B2C1\u9875 page_id \u4E3A \"cover\"\uFF0Cpage_type \u4E3A \"cover\"\u3002\n- \u6B63\u6587 page_id \u4ECE \"content-01\" \u8FDE\u7EED\u7F16\u53F7\u3002\n- \u6700\u540E\u4E00\u9875 page_id \u4E3A \"closing\"\uFF0Cpage_type \u4E3A \"quote\"\u3002\n- order \u4ECE1\u5F00\u59CB\u8FDE\u7EED\u9012\u589E\u4E14\u4E0D\u5F97\u91CD\u590D\u3002\n- page_type \u53EA\u80FD\u662F cover\u3001process\u3001timeline\u3001relationship\u3001comparison\u3001checklist\u3001framework\u3001quote\u3002\n- \u6BCF\u9875\u53EA\u8868\u8FBE\u4E00\u4E2A\u6838\u5FC3\u5224\u65AD\uFF0C\u9875\u9762\u987A\u5E8F\u5FC5\u987B\u8DDF\u968F\u6587\u7AE0\u8BBA\u8BC1\u987A\u5E8F\u3002\n\ncard\n- \u6BCF\u9875\u5FC5\u987B\u5305\u542B title\u3001subtitle\u3001points\u3001summary\uFF1B\u4E0D\u4F7F\u7528\u7684\u5B57\u7B26\u4E32\u8F93\u51FA\u7A7A\u5B57\u7B26\u4E32\uFF0C\u4E0D\u4F7F\u7528\u7684 points \u8F93\u51FA\u7A7A\u6570\u7EC4\u3002\n- \u5C01\u9762 points \u5FC5\u987B\u4E3A\u7A7A\uFF1Btitle \u662F\u6838\u5FC3\u6807\u9898\uFF0Csubtitle \u662F\u77ED\u526F\u6807\u9898\uFF0Csummary \u662F\u6807\u8BED\u6216\u8BB0\u5FC6\u53E5\uFF0C\u4E09\u8005\u4E0D\u5F97\u673A\u68B0\u91CD\u590D\u3002\n- \u6B63\u6587 title \u5EFA\u8BAE4-14\u4E2A\u6C49\u5B57\uFF1Bpoints \u4E3A2-5\u6761\u77ED\u4FE1\u606F\u4E14\u6BCF\u6761\u4E0D\u8D85\u8FC725\u4E2A\u6C49\u5B57\uFF1Bsummary \u6700\u591A\u4E00\u53E5\u4E14\u4E0D\u8D85\u8FC720\u4E2A\u6C49\u5B57\u3002\n- \u5C01\u5E95\u81EA\u7136\u6536\u675F\u5168\u6587\u3002\u539F\u6587\u6709\u884C\u52A8\u5EFA\u8BAE\u65F6\u53EF\u4EE5\u63D0\u70BC\uFF1B\u539F\u6587\u6CA1\u6709\u65F6\u4F7F\u7528\u6838\u5FC3\u7ED3\u8BBA\u6216\u4E2D\u6027\u6536\u675F\uFF0C\u7981\u6B62\u65B0\u589E\u4EFB\u52A1\u3001\u4E92\u52A8\u95EE\u9898\u3001\u5173\u6CE8\u5F15\u5BFC\u548C\u8425\u9500\u53F7\u53EC\u3002\n- \u6240\u6709\u5165\u56FE\u6587\u5B57\u5FC5\u987B\u53EF\u56DE\u6EAF\u5230\u539F\u6587\u6216\u7CBE\u4FEE\u6B63\u6587\u3002\n\nsemantic\n- \u6BCF\u9875\u5FC5\u987B\u5305\u542B page_goal\u3001primary_claim\u3001primary_concept\u3001primary_relation\u3001supporting_concepts\u3001excluded_concepts\u3001avoid_misread\u3002\n- primary_relation \u5FC5\u987B\u662F\u672C\u9875\u72EC\u6709\u7684\u5177\u4F53\u5173\u7CFB\uFF0C\u4E0D\u5F97\u8BA9\u6240\u6709\u9875\u9762\u91CD\u590D\u6574\u7BC7\u6587\u7AE0\u603B\u4E3B\u9898\u3002\n- \u5148\u5224\u65AD\u4E3B\u6982\u5FF5\u548C\u4E3B\u5173\u7CFB\uFF0C\u518D\u5224\u65AD\u8F85\u52A9\u6982\u5FF5\u3002\u7C7B\u6BD4\u3001\u65C1\u6CE8\u3001\u80CC\u666F\u8BF4\u660E\u53CA\u4E0D\u540C\u62BD\u8C61\u5C42\u7EA7\u6982\u5FF5\u9ED8\u8BA4\u653E\u5165 excluded_concepts\u3002\n- \u4E0D\u5F97\u56E0\u4E3A\u51FA\u73B0\u4E09\u4E2A\u540D\u8BCD\u5C31\u753B\u6210\u4E09\u5C42\u67B6\u6784\u3001\u4E09\u680F\u5E76\u5217\u6216\u4E09\u4E2A\u540C\u7B49\u4E3B\u4F53\u3002\n\nstyle_lock\n- \u6574\u5957\u53EA\u80FD\u4F7F\u7528\u4E00\u4E2A Style Lock\uFF0C\u5FC5\u987B\u5305\u542B style_id\u3001style_name\u3001card_shell\u3001prompt_prefix\u3001visual_dna\u3001negative\u3002\n- card_shell.preset \u56FA\u5B9A\u4E3A \"moreimg-clean-v1\"\uFF1Bsurface \u53EA\u80FD\u662F \"light\" \u6216 \"dark\"\uFF1Baccent_color \u4F7F\u7528 #RRGGBB\uFF1Boverlay \u53EA\u80FD\u662F \"none\"\u3001\"soft_dark\" \u6216 \"soft_light\"\u3002\n- visual_dna \u5FC5\u987B\u5305\u542B medium\u3001visual_world\u3001shape_language\u3001perspective\u3001lighting\u3001material\u3001recurring_subject\u3001recurring_elements\u3002\n- medium \u53EA\u80FD\u662F 3d_model\u3001geometric_silhouette\u3001hand_drawn_line\u3001isometric_icon\u3001flat_vector\u3001wireframe_perspective\u3002\n- visual_world \u5FC5\u987B\u5B9A\u4E49\u5177\u4F53\u7EDF\u4E00\u7684\u89C6\u89C9\u4E16\u754C\uFF0C\u4E0D\u80FD\u53EA\u5199\u79D1\u6280\u611F\u3001\u9AD8\u7EA7\u611F\u7B49\u7A7A\u6CDB\u8BCD\u3002\n- recurring_subject \u5FC5\u987B\u5B9A\u4E49\u8DE8\u9875\u91CD\u590D\u7684\u4EBA\u7269\u3001\u7269\u4F53\u6216\u7B26\u53F7\u7CFB\u7EDF\u3002\n- \u5404\u9875\u53EF\u4EE5\u6539\u53D8\u573A\u666F\u548C\u5173\u7CFB\uFF0C\u4F46\u4E0D\u5F97\u6539\u53D8\u4E3B\u8272\u4F53\u7CFB\u3001\u89C6\u89C9\u5A92\u4ECB\u3001\u9020\u578B\u8BED\u8A00\u3001\u900F\u89C6\u3001\u5149\u5F71\u3001\u6750\u8D28\u3001\u89C6\u89C9\u4E16\u754C\u548C\u91CD\u590D\u4E3B\u4F53\u7CFB\u7EDF\u3002\n- \u7981\u6B62\u628A\u6BCF\u9875\u5206\u522B\u8BBE\u8BA1\u6210\u4E92\u4E0D\u76F8\u5173\u7684\u822A\u6D77\u3001\u97F3\u4E50\u5385\u3001\u6D41\u7A0B\u56FE\u3001\u5DE5\u5177\u7BB1\u6216\u57CE\u5E02\u4E16\u754C\u3002\n\nimage_prompt\n- \u6BCF\u9875\u5FC5\u987B\u5305\u542B scene\u3001relationship\u3001composition\u3001safe_area\u3001continuity\u3001avoid\u3002\n- image_prompt \u53EA\u63CF\u8FF0\u65E0\u6587\u5B57\u4E3B\u89C6\u89C9\uFF0C\u4E0D\u8D1F\u8D23\u751F\u6210\u5361\u7247\u6587\u5B57\u3002\n- \u5C01\u9762 safe_area \u4F7F\u7528 \"top_40\"\uFF1B\u6B63\u6587\u548C\u5C01\u5E95\u4F7F\u7528 \"top_52\"\u3002\n- scene \u5FC5\u987B\u660E\u786E\u5B9E\u9645\u51FA\u73B0\u7684\u4E3B\u4F53\u4E0E\u573A\u666F\uFF1Brelationship \u5FC5\u987B\u4E0E semantic.primary_relation \u4E00\u81F4\uFF1Bcomposition \u5FC5\u987B\u8BF4\u660E\u89C6\u89C9\u91CD\u5FC3\u548C\u7559\u767D\uFF1Bcontinuity \u5FC5\u987B\u8BF4\u660E\u5982\u4F55\u7EE7\u627F Style Lock\u3002\n- avoid \u53EA\u5199\u672C\u9875\u7279\u6709\u8BEF\u8BFB\u98CE\u9669\uFF0C\u5168\u5C40\u7981\u7528\u9879\u653E\u5165 style_lock.negative\u3002\n- \u6240\u6709\u56FE\u7247\u7981\u6B62\u6587\u5B57\u3001\u5B57\u6BCD\u3001\u6570\u5B57\u3001Logo\u3001\u6C34\u5370\u3001\u4F2A\u6587\u5B57\u3001UI\u6807\u7B7E\u548C\u968F\u673A\u7B26\u53F7\u3002\n\n\u8F93\u51FA\u524D\u5728\u5185\u90E8\u68C0\u67E5\uFF1A\u5B8C\u6574\u6B63\u6587\u6CA1\u6709\u6458\u8981\u5316\uFF1B\u5C01\u9762\u3001\u6B63\u6587\u3001\u5C01\u5E95\u9F50\u5168\uFF1Bpage_id \u4E0E order \u8FDE\u7EED\uFF1B\u6BCF\u9875\u4E09\u4E2A\u5BF9\u8C61\u5B8C\u6574\u7ED1\u5B9A\uFF1B\u4E3B\u5173\u7CFB\u7B26\u5408\u539F\u6587\u6982\u5FF5\u5C42\u7EA7\uFF1B\u5168\u5957\u53EA\u6709\u4E00\u4E2A Style Lock\uFF1B\u6CA1\u6709\u65B0\u589E\u539F\u6587\u5916\u4E8B\u5B9E\u3002\u4E0D\u8981\u8F93\u51FA\u68C0\u67E5\u8FC7\u7A0B\u3002"])));
-var toLucideName = function toLucideName(name) {
-  return String(name).replace(/([a-z0-9])([A-Z])/g, '$1-$2').replace(/([A-Z]+)([A-Z][a-z])/g, '$1-$2').toLowerCase();
-};
 var Icon = React.memo(function (_ref) {
+  var _window$moreimgIcons;
   var name = _ref.name,
     _ref$className = _ref.className,
     className = _ref$className === void 0 ? "" : _ref$className,
@@ -371,29 +369,29 @@ var Icon = React.memo(function (_ref) {
     _ref$fill = _ref.fill,
     fill = _ref$fill === void 0 ? "none" : _ref$fill,
     props = _objectWithoutProperties(_ref, _excluded);
-  var iconRef = useRef(null);
-  useEffect(function () {
-    if (iconRef.current && window.lucide) {
-      iconRef.current.innerHTML = '';
-      var i = document.createElement('i');
-      i.setAttribute('data-lucide', toLucideName(name));
-      iconRef.current.appendChild(i);
-      window.lucide.createIcons({
-        attrs: _objectSpread({
-          "class": 'w-full h-full',
-          'stroke-width': strokeWidth,
-          fill: fill
-        }, props)
-      });
-    }
-  }, [name, strokeWidth, fill, JSON.stringify(props)]);
-  return React.createElement("span", {
-    ref: iconRef,
-    className: "inline-flex items-center justify-center shrink-0 leading-none ".concat(className)
-  });
+  var nodes = ((_window$moreimgIcons = window.moreimgIcons) === null || _window$moreimgIcons === void 0 ? void 0 : _window$moreimgIcons[name]) || [];
+  return React.createElement("svg", _objectSpread({
+    xmlns: "http://www.w3.org/2000/svg",
+    viewBox: "0 0 24 24",
+    fill: fill,
+    stroke: "currentColor",
+    strokeWidth: strokeWidth,
+    strokeLinecap: "round",
+    strokeLinejoin: "round",
+    "aria-hidden": "true",
+    "data-icon-name": name,
+    className: "inline-block shrink-0 ".concat(className)
+  }, props), nodes.map(function (_ref2, index) {
+    var _ref3 = _slicedToArray(_ref2, 2),
+      tag = _ref3[0],
+      attrs = _ref3[1];
+    return React.createElement(tag, _objectSpread(_objectSpread({}, attrs), {}, {
+      key: attrs.key || index
+    }));
+  }));
 });
-var FormattedContent = function FormattedContent(_ref2) {
-  var text = _ref2.text;
+var FormattedContent = function FormattedContent(_ref4) {
+  var text = _ref4.text;
   if (!text) return null;
   var lines = text.split('\n');
   var isFirstNonEmpty = true;
@@ -1422,11 +1420,11 @@ var getCardShellPresentation = function getCardShellPresentation(styleLock) {
   };
 };
 var HTML_CARD_EXPORT_STYLES = "\n      .moreimg-export-card{--moreimg-card-accent:#F59E42;box-sizing:border-box;position:relative;isolation:isolate;width:1242px;height:1656px;overflow:hidden;background:#121417;color:#f7f7f2;font-family:\"Noto Sans SC Variable\",sans-serif;padding:0;letter-spacing:0}\n      .moreimg-export-card *{box-sizing:border-box}\n      .moreimg-card-media{position:absolute;inset:0;z-index:-4;background:#15171a;overflow:hidden}\n      .moreimg-card-media img{width:100%;height:100%;object-fit:cover;object-position:center 58%;display:block;transform:scale(1.012)}\n      .moreimg-card-body .moreimg-card-media img{object-position:center 54%}\n      .moreimg-card-back .moreimg-card-media img{object-position:center 48%}\n      .moreimg-card-visual-placeholder{position:absolute;inset:0;background:radial-gradient(circle at 62% 66%,rgba(239,232,216,.25),transparent 24%),linear-gradient(155deg,#313842 0%,#15181d 56%,#08090b 100%)}\n      .moreimg-card-shade{position:absolute;inset:0;z-index:-3;pointer-events:none;background:linear-gradient(180deg,rgba(7,9,12,.9) 0%,rgba(7,9,12,.66) 24%,rgba(7,9,12,.08) 58%,rgba(7,9,12,.44) 100%)}\n      .moreimg-card-body .moreimg-card-shade{background:linear-gradient(180deg,rgba(5,8,12,.9) 0%,rgba(5,8,12,.72) 28%,rgba(5,8,12,.38) 48%,rgba(5,8,12,.08) 66%,rgba(5,8,12,.04) 100%)}\n      .moreimg-card-back .moreimg-card-shade{background:linear-gradient(180deg,rgba(7,9,12,.9) 0%,rgba(7,9,12,.68) 30%,rgba(7,9,12,.28) 50%,rgba(7,9,12,.06) 68%,rgba(7,9,12,.03) 100%)}\n      .moreimg-card-noise{position:absolute;inset:0;z-index:-2;opacity:.1;background-image:radial-gradient(rgba(255,255,255,.38) .7px,transparent .8px);background-size:8px 8px;mix-blend-mode:soft-light;pointer-events:none}\n      .moreimg-card-content{position:relative;z-index:2;width:1080px;height:1440px;padding:78px;display:flex;flex-direction:column;transform:scale(1.15,1.152778);transform-origin:top left}\n      .moreimg-card-header{max-width:890px}\n      .moreimg-card-kicker{display:flex;align-items:center;gap:14px;color:rgba(255,255,255,.76);font-size:29px;line-height:1;font-weight:780;letter-spacing:.06em}\n      .moreimg-card-kicker-mark{display:block;width:6px;height:28px;border-radius:3px;background:var(--moreimg-card-accent);flex:none}\n      /* html2canvas \u7684\u4E2D\u6587\u5B57\u5F62\u57FA\u7EBF\u6BD4 Chrome \u5E03\u5C40\u4F4E\uFF0C\u4EC5\u5728\u5BFC\u51FA\u514B\u9686\u4E2D\u505A\u89C6\u89C9\u5BF9\u9F50\u3002 */\n      .moreimg-export-render .moreimg-card-kicker-mark{transform:translateY(14px)}\n      .moreimg-card-title{margin:44px 0 0;font-size:92px;line-height:1.08;font-weight:920;letter-spacing:0;color:#f8f7f2;max-width:930px;overflow-wrap:anywhere;text-wrap:balance;text-shadow:0 2px 12px rgba(0,0,0,.3)}\n      .moreimg-card-subtitle{margin-top:26px;max-width:840px;font-size:38px;line-height:1.42;font-weight:660;color:rgba(255,255,255,.82);text-shadow:0 1px 8px rgba(0,0,0,.26)}\n      .moreimg-card-points{margin-top:34px;padding:0 6px;background:transparent}\n      .moreimg-card-point{min-height:88px;padding:22px 0;display:flex;align-items:center;border-bottom:1px solid rgba(255,255,255,.22);font-size:36px;line-height:1.34;font-weight:740;color:#f7f6f1;text-shadow:0 1px 8px rgba(0,0,0,.3)}\n      .moreimg-card-point:last-child{border-bottom:0}\n      .moreimg-card-point-index{width:62px;margin-right:20px;flex:none;color:var(--moreimg-card-accent);font-size:23px;font-variant-numeric:tabular-nums;letter-spacing:.08em}\n      .moreimg-card-summary{margin-top:20px;padding:24px 6px 0;border-top:2px solid rgba(255,255,255,.4);font-size:37px;line-height:1.36;font-weight:840;color:#fbfaf5;text-shadow:0 1px 8px rgba(0,0,0,.3)}\n      .moreimg-card-body .moreimg-card-title{margin-top:38px;font-size:80px;line-height:1.08;max-width:900px}\n      .moreimg-card-body .moreimg-card-header{max-width:850px}\n      .moreimg-card-back .moreimg-card-content{justify-content:flex-start}\n      .moreimg-card-back-copy{max-width:900px;margin-top:58px;padding-bottom:8px}\n      .moreimg-card-back .moreimg-card-title{margin:0;font-size:80px;line-height:1.13}\n      .moreimg-card-back .moreimg-card-summary{margin-top:30px;padding:26px 0 0;font-size:40px;max-width:860px;color:rgba(255,255,255,.84)}\n      .moreimg-card-overlay-none .moreimg-card-shade{background:transparent}\n      .moreimg-card-surface-light{background:#f2f5f3;color:#14202b}\n      .moreimg-card-surface-light .moreimg-card-media{background:#e8eeec}\n      .moreimg-card-surface-light .moreimg-card-visual-placeholder{background:radial-gradient(circle at 62% 66%,rgba(245,158,66,.22),transparent 25%),linear-gradient(155deg,#f8faf9 0%,#e8efec 56%,#dbe5e1 100%)}\n      .moreimg-card-surface-light.moreimg-card-overlay-soft_light .moreimg-card-shade{background:linear-gradient(180deg,rgba(248,250,249,.96) 0%,rgba(248,250,249,.86) 28%,rgba(248,250,249,.34) 55%,rgba(248,250,249,.08) 100%)}\n      .moreimg-card-surface-light .moreimg-card-kicker{color:rgba(20,32,43,.68)}\n      .moreimg-card-surface-light .moreimg-card-title{color:#14202b;text-shadow:0 1px 8px rgba(255,255,255,.72)}\n      .moreimg-card-surface-light .moreimg-card-subtitle{color:rgba(20,32,43,.72);text-shadow:0 1px 6px rgba(255,255,255,.68)}\n      .moreimg-card-surface-light .moreimg-card-point{border-bottom-color:rgba(20,32,43,.18);color:#1c2b36;text-shadow:none}\n      .moreimg-card-surface-light .moreimg-card-summary{border-top-color:var(--moreimg-card-accent);color:#14202b;text-shadow:none}\n      .moreimg-card-surface-light.moreimg-card-overlay-soft_dark .moreimg-card-shade{background:linear-gradient(180deg,rgba(20,29,36,.82) 0%,rgba(20,29,36,.58) 28%,rgba(20,29,36,.12) 62%,transparent 100%)}\n      .moreimg-card-surface-light.moreimg-card-overlay-soft_dark .moreimg-card-kicker,.moreimg-card-surface-light.moreimg-card-overlay-soft_dark .moreimg-card-title,.moreimg-card-surface-light.moreimg-card-overlay-soft_dark .moreimg-card-subtitle,.moreimg-card-surface-light.moreimg-card-overlay-soft_dark .moreimg-card-point,.moreimg-card-surface-light.moreimg-card-overlay-soft_dark .moreimg-card-summary{color:#f8faf7;text-shadow:0 1px 8px rgba(0,0,0,.3)}\n    ";
-var HtmlCard = function HtmlCard(_ref3) {
-  var card = _ref3.card,
-    imageUrl = _ref3.imageUrl,
-    cardRef = _ref3.cardRef,
-    styleLock = _ref3.styleLock;
+var HtmlCard = function HtmlCard(_ref5) {
+  var card = _ref5.card,
+    imageUrl = _ref5.imageUrl,
+    cardRef = _ref5.cardRef,
+    styleLock = _ref5.styleLock;
   var presentation = getCardShellPresentation(styleLock);
   return React.createElement("div", {
     ref: cardRef,
@@ -1481,10 +1479,11 @@ var HtmlCard = function HtmlCard(_ref3) {
     className: "moreimg-card-summary"
   }, card.summary))));
 };
-var HtmlCardPreview = function HtmlCardPreview(_ref4) {
-  var children = _ref4.children;
+var HtmlCardPreview = function HtmlCardPreview(_ref6) {
+  var children = _ref6.children;
   var frameRef = useRef(null);
   useEffect(function () {
+    loadExportFontStylesheet()["catch"](function () {});
     var frame = frameRef.current;
     if (!frame) return undefined;
     var updateScale = function updateScale(width) {
@@ -1509,9 +1508,9 @@ var HtmlCardPreview = function HtmlCardPreview(_ref4) {
     className: "html-card-preview-scale"
   }, children));
 };
-var VisualPreview = function VisualPreview(_ref5) {
-  var imageUrl = _ref5.imageUrl,
-    alt = _ref5.alt;
+var VisualPreview = function VisualPreview(_ref7) {
+  var imageUrl = _ref7.imageUrl,
+    alt = _ref7.alt;
   var _useState = useState(null),
     _useState2 = _slicedToArray(_useState, 2),
     naturalSize = _useState2[0],
@@ -1553,13 +1552,13 @@ var handleTabListKeyDown = function handleTabListKeyDown(event) {
   tabs[nextIndex].focus();
   tabs[nextIndex].click();
 };
-var Toast = function Toast(_ref6) {
-  var message = _ref6.message,
-    _ref6$type = _ref6.type,
-    type = _ref6$type === void 0 ? 'success' : _ref6$type,
-    onClose = _ref6.onClose,
-    _ref6$duration = _ref6.duration,
-    duration = _ref6$duration === void 0 ? 3000 : _ref6$duration;
+var Toast = function Toast(_ref8) {
+  var message = _ref8.message,
+    _ref8$type = _ref8.type,
+    type = _ref8$type === void 0 ? 'success' : _ref8$type,
+    onClose = _ref8.onClose,
+    _ref8$duration = _ref8.duration,
+    duration = _ref8$duration === void 0 ? 3000 : _ref8$duration;
   useEffect(function () {
     var timer = setTimeout(onClose, duration);
     return function () {
@@ -1589,8 +1588,8 @@ var Toast = function Toast(_ref6) {
     className: "h-4 w-4"
   })));
 };
-var ConfigStatus = function ConfigStatus(_ref7) {
-  var state = _ref7.state;
+var ConfigStatus = function ConfigStatus(_ref9) {
+  var state = _ref9.state;
   if (!state || state.status === 'idle') return null;
   var iconName = state.status === 'loading' ? 'LoaderCircle' : state.status === 'success' ? 'CheckCircle2' : 'AlertCircle';
   var feedbackType = state.status === 'loading' ? 'neutral' : state.status;
@@ -1603,8 +1602,8 @@ var ConfigStatus = function ConfigStatus(_ref7) {
     className: "mt-0.5 h-3.5 w-3.5 shrink-0 ".concat(state.status === 'loading' ? 'animate-spin' : '')
   }), React.createElement("span", null, state.message));
 };
-var ResultsPanel = React.memo(function (_ref8) {
-  var content = _ref8.content;
+var ResultsPanel = React.memo(function (_ref0) {
+  var content = _ref0.content;
   return content;
 });
 var DEFAULT_PROMPT_VERSION = 7;
@@ -1638,12 +1637,35 @@ var hasSavedApiConfig = function hasSavedApiConfig() {
   }
 };
 var html2CanvasLoader = null;
+var exportFontStylesheetLoader = null;
+var loadExportFontStylesheet = function loadExportFontStylesheet() {
+  if (exportFontStylesheetLoader) return exportFontStylesheetLoader;
+  exportFontStylesheetLoader = new Promise(function (resolve, reject) {
+    var link = document.createElement('link');
+    link.rel = 'stylesheet';
+    link.href = 'fonts/noto-sans-sc.css?v=5cb273ad9fdb';
+    link.dataset.moreimgExportFonts = 'true';
+    link.onload = function () {
+      return resolve(link);
+    };
+    link.onerror = function () {
+      return reject(new Error('导出字体样式加载失败'));
+    };
+    document.head.appendChild(link);
+  })["catch"](function (error) {
+    var _document$querySelect;
+    (_document$querySelect = document.querySelector('link[data-moreimg-export-fonts="true"]')) === null || _document$querySelect === void 0 || _document$querySelect.remove();
+    exportFontStylesheetLoader = null;
+    throw error;
+  });
+  return exportFontStylesheetLoader;
+};
 var loadHtml2Canvas = function loadHtml2Canvas() {
   if (window.html2canvas) return Promise.resolve(window.html2canvas);
   if (html2CanvasLoader) return html2CanvasLoader;
   html2CanvasLoader = new Promise(function (resolve, reject) {
     var script = document.createElement('script');
-    script.src = 'vendor/html2canvas.js';
+    script.src = 'vendor/html2canvas.js?v=e87e55079432';
     script.onload = function () {
       return window.html2canvas ? resolve(window.html2canvas) : reject(new Error('导出组件加载失败'));
     };
@@ -2166,7 +2188,7 @@ function App() {
             }];
             _context11.n = 3;
             return runWithRequestControl(function () {
-              var _ref9 = _asyncToGenerator(_regenerator().m(function _callee10(signal) {
+              var _ref1 = _asyncToGenerator(_regenerator().m(function _callee10(signal) {
                 var _responseData$error;
                 var response, responseData;
                 return _regenerator().w(function (_context10) {
@@ -2201,7 +2223,7 @@ function App() {
                 }, _callee10);
               }));
               return function (_x11) {
-                return _ref9.apply(this, arguments);
+                return _ref1.apply(this, arguments);
               };
             }(), {
               timeoutMs: TEXT_TEST_TIMEOUT_MS,
@@ -2515,19 +2537,22 @@ function App() {
             return loadHtml2Canvas();
           case 5:
             exportPhase = 'fonts';
+            _context13.n = 6;
+            return loadExportFontStylesheet();
+          case 6:
             if (!((_document$fonts = document.fonts) !== null && _document$fonts !== void 0 && _document$fonts.ready)) {
-              _context13.n = 6;
+              _context13.n = 7;
               break;
             }
-            _context13.n = 6;
+            _context13.n = 7;
             return document.fonts.ready;
-          case 6:
+          case 7:
             exportPhase = 'clone';
             exportClone = createHtmlCardExportClone(sourceNode);
             exportRoot = exportClone.exportRoot;
             exportNode = exportClone.exportNode;
             exportPhase = 'render';
-            _context13.n = 7;
+            _context13.n = 8;
             return window.html2canvas(exportNode, {
               width: 1242,
               height: 1656,
@@ -2537,21 +2562,21 @@ function App() {
               allowTaint: false,
               logging: false
             });
-          case 7:
+          case 8:
             canvas = _context13.v;
             exportPhase = 'encode';
-            _context13.n = 8;
+            _context13.n = 9;
             return new Promise(function (resolve) {
               return canvas.toBlob(resolve, 'image/png', 1);
             });
-          case 8:
+          case 9:
             pngBlob = _context13.v;
             if (pngBlob) {
-              _context13.n = 9;
+              _context13.n = 10;
               break;
             }
             throw new Error('PNG 编码失败');
-          case 9:
+          case 10:
             pngUrl = URL.createObjectURL(pngBlob);
             exportPhase = 'download';
             downloadImage("".concat(card.label, "-HTML\u6210\u54C1"), pngUrl);
@@ -2567,10 +2592,10 @@ function App() {
               message: "[".concat(card.label, "] HTML \u6210\u54C1\u5DF2\u5BFC\u51FA"),
               type: 'success'
             });
-            _context13.n = 11;
+            _context13.n = 12;
             break;
-          case 10:
-            _context13.p = 10;
+          case 11:
+            _context13.p = 11;
             _t8 = _context13.v;
             _errorMessage = formatHtmlExportError(_t8, exportPhase);
             setHtmlExportState({
@@ -2583,15 +2608,15 @@ function App() {
               type: 'error',
               duration: 8000
             });
-          case 11:
-            _context13.p = 11;
+          case 12:
+            _context13.p = 12;
             htmlExportInFlightRef.current = false;
             (_exportRoot = exportRoot) === null || _exportRoot === void 0 || _exportRoot.remove();
-            return _context13.f(11);
-          case 12:
+            return _context13.f(12);
+          case 13:
             return _context13.a(2);
         }
-      }, _callee13, null, [[4, 10, 11, 12]]);
+      }, _callee13, null, [[4, 11, 12, 13]]);
     }));
     function exportHtmlCard(_x14) {
       return _exportHtmlCard.apply(this, arguments);
@@ -2634,7 +2659,7 @@ function App() {
   };
   var requestProcessingText = function requestProcessingText(messages, externalSignal) {
     return runWithRequestControl(function () {
-      var _ref0 = _asyncToGenerator(_regenerator().m(function _callee14(signal) {
+      var _ref10 = _asyncToGenerator(_regenerator().m(function _callee14(signal) {
         var fullResponseText, finishReason, endpoint, transport, response, responseText, errorMsg, _errorData$error, errorData, processingResponse;
         return _regenerator().w(function (_context14) {
           while (1) switch (_context14.n) {
@@ -2696,7 +2721,7 @@ function App() {
         }, _callee14);
       }));
       return function (_x15) {
-        return _ref0.apply(this, arguments);
+        return _ref10.apply(this, arguments);
       };
     }(), {
       timeoutMs: TEXT_REQUEST_TIMEOUT_MS,
@@ -3556,11 +3581,11 @@ function App() {
   }, [showResults, currentSession, activeStageTab, activeVisualPage, imageResults, hiddenFullImages, apiConfig, htmlExportState]);
   var isButtonDisabled = !isProcessing && (!apiConfig.apiKey || !inputText.trim());
   var renderHistoryItems = function renderHistoryItems() {
-    var _ref1 = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : {},
-      _ref1$closeAfterOpen = _ref1.closeAfterOpen,
-      closeAfterOpen = _ref1$closeAfterOpen === void 0 ? false : _ref1$closeAfterOpen,
-      _ref1$mobile = _ref1.mobile,
-      mobile = _ref1$mobile === void 0 ? false : _ref1$mobile;
+    var _ref11 = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : {},
+      _ref11$closeAfterOpen = _ref11.closeAfterOpen,
+      closeAfterOpen = _ref11$closeAfterOpen === void 0 ? false : _ref11$closeAfterOpen,
+      _ref11$mobile = _ref11.mobile,
+      mobile = _ref11$mobile === void 0 ? false : _ref11$mobile;
     return React.createElement(React.Fragment, null, history.length === 0 && (mobile ? React.createElement("div", {
       className: "mobile-history-empty"
     }, React.createElement(Icon, {
@@ -3631,14 +3656,20 @@ function App() {
   }, React.createElement("div", {
     className: "sidebar-brand-row z-10 shrink-0"
   }, React.createElement("h1", {
-    className: "text-[20px] font-extrabold flex items-center tracking-tight text-slate-800"
+    className: "flex min-w-0 items-center"
   }, React.createElement("div", {
     className: "sidebar-brand-mark mr-3"
   }, React.createElement(Icon, {
     name: "Sparkles",
     className: "w-5 h-5 text-white",
     strokeWidth: 2
-  })), "\u4E00\u6587\u591A\u56FE"), React.createElement("div", {
+  })), React.createElement("span", {
+    className: "sidebar-brand-copy"
+  }, React.createElement("span", {
+    className: "sidebar-brand-name"
+  }, "\u4E00\u6587\u591A\u56FE"), React.createElement("span", {
+    className: "sidebar-brand-en"
+  }, "MoreImg"))), React.createElement("div", {
     className: "sidebar-header-actions"
   }, React.createElement("button", {
     type: "button",
@@ -4239,10 +4270,10 @@ function App() {
     className: "mi-surface mi-surface-card image-diagnostic"
   }, React.createElement("summary", null, "\u6700\u8FD1\u4E00\u6B21\u751F\u56FE\u8BCA\u65AD", React.createElement("span", null, lastImageDiagnostic !== null && lastImageDiagnostic !== void 0 && lastImageDiagnostic.updatedAt ? new Date(lastImageDiagnostic.updatedAt).toLocaleString() : '暂无记录')), lastImageDiagnostic ? React.createElement("dl", {
     className: "image-diagnostic-grid"
-  }, [['请求方式', lastImageDiagnostic.requestMode], ['请求接口', lastImageDiagnostic.endpointPath], ['请求格式', lastImageDiagnostic.requestedFormat], ['实际返回', lastImageDiagnostic.actualFormat], ['图片来源', lastImageDiagnostic.imageHost], ['保存方式', lastImageDiagnostic.storageBackend], ['保存结果', lastImageDiagnostic.storageStatus], ['刷新恢复', lastImageDiagnostic.restoreStatus], ['失败原因', lastImageDiagnostic.failureReason || '无']].map(function (_ref10) {
-    var _ref11 = _slicedToArray(_ref10, 2),
-      label = _ref11[0],
-      value = _ref11[1];
+  }, [['请求方式', lastImageDiagnostic.requestMode], ['请求接口', lastImageDiagnostic.endpointPath], ['请求格式', lastImageDiagnostic.requestedFormat], ['实际返回', lastImageDiagnostic.actualFormat], ['图片来源', lastImageDiagnostic.imageHost], ['保存方式', lastImageDiagnostic.storageBackend], ['保存结果', lastImageDiagnostic.storageStatus], ['刷新恢复', lastImageDiagnostic.restoreStatus], ['失败原因', lastImageDiagnostic.failureReason || '无']].map(function (_ref12) {
+    var _ref13 = _slicedToArray(_ref12, 2),
+      label = _ref13[0],
+      value = _ref13[1];
     return React.createElement("div", {
       className: "image-diagnostic-item",
       key: label
