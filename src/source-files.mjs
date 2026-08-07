@@ -1,0 +1,20 @@
+export const sourceFiles = [
+  'runtime.js',
+  'storage.js',
+  'prompt.js',
+  'components/formatting.jsx',
+  'core/processing.js',
+  'core/package.js',
+  'core/api.js',
+  'core/cards.js',
+  'components/cards.jsx',
+  'components/feedback.jsx',
+  'components/history.jsx',
+  'components/sidebar.jsx',
+  'components/main-workspace.jsx',
+  'components/settings-dialog.jsx',
+  'components/app-view.jsx',
+  'core/config.js',
+  'hooks/use-result-content.jsx',
+  'app.jsx'
+];

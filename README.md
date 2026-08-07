@@ -2,15 +2,46 @@
 
 来源：<https://github.com/woodslope/moreimg>
 
-本目录保留原项目的单文件应用结构，仅将 React、ReactDOM、Babel、Lucide 和 Tailwind 的运行时 CDN 依赖改为本地文件，避免公开 CDN 或 GitHub Pages 网络不稳定时无法启动。
+本目录保留原项目无需脚手架即可运行的静态应用方式，并将 React、ReactDOM、Babel、Lucide 和 Tailwind 的运行时 CDN 依赖改为本地文件，避免公开 CDN 或 GitHub Pages 网络不稳定时无法启动。
 
-`src.html` 是 JSX 源码，`build.mjs` 使用本地 Babel 生成浏览器直接加载的 `index.html` 与 `app.js`。构建时同时从 Lucide 生成项目实际使用的图标子集，运行时页面不再加载 Babel 或完整 Lucide 包。
+可编辑源码位于 `src/`：`template.html` 保存页面外壳，`core/` 保存解析、协议、请求与卡片逻辑，`components/` 保存 React 组件，`app.jsx` 负责应用状态和页面装配。`build.mjs` 会先聚合生成兼容测试与审计工具的 `src.html`，再使用本地 Babel 生成浏览器直接加载的 `index.html` 与 `app.js`。构建时同时从 Lucide 生成项目实际使用的图标子集，运行时页面不再加载 Babel 或完整 Lucide 包。
+
+`src.html`、`index.html`、`app.js` 和 `vendor/lucide-moreimg.js` 均为构建产物，不应直接修改。
+
+## 源码结构
+
+```text
+src/
+├── template.html          # HTML 外壳和页面样式
+├── source-files.mjs       # 构建时的模块顺序清单
+├── runtime.js             # React hooks 运行时绑定
+├── storage.js             # IndexedDB、历史记录和图片存储
+├── prompt.js              # MoreImg 默认系统提示词
+├── core/
+│   ├── processing.js      # 加工阶段、质量判断和请求控制
+│   ├── package.js         # moreimg-1.0 校验与提示词拼合
+│   ├── api.js             # 接口地址、请求体和流式响应
+│   ├── cards.js           # 卡片数据转换与视觉提示词
+│   └── config.js          # 配置迁移和导出依赖
+├── hooks/
+│   └── use-result-content.jsx # 结果阶段内容与操作区装配
+├── components/
+│   ├── app-view.jsx       # 页面外壳与顶层视图组合
+│   ├── sidebar.jsx        # 桌面侧栏与窄屏历史入口
+│   ├── main-workspace.jsx # 输入区、进度区和结果工作台
+│   ├── history.jsx        # 历史记录列表与弹窗
+│   ├── settings-dialog.jsx # 文本和图片接口设置
+│   └── …                  # 格式化、卡片和反馈组件
+└── app.jsx                # 应用状态、请求和页面控制
+
+tests/                     # Node、Python 和浏览器回归测试
+```
 
 本地服务会对 HTML、CSS 和 JavaScript 响应启用 gzip；构建产物中的静态资源带内容哈希，可使用长期不变缓存。导出卡字体样式仅在卡片预览或导出时加载。
 
-提示词相关改动先阅读 [`提示词数据流契约.md`](./提示词数据流契约.md)。该文档区分文本 AI 生成的页面语义、Style Lock、逐页视觉语义，以及前端仅负责的图片执行提示词拼合与 HTML 外壳映射。
+提示词相关改动先阅读 [`提示词数据流契约.md`](./docs/提示词数据流契约.md)。该文档区分文本 AI 生成的页面语义、Style Lock、逐页视觉语义，以及前端仅负责的图片执行提示词拼合与 HTML 外壳映射。
 
-模型、系统提示词、Schema、解析或正文质量门变化后，按 [`SEMANTIC_QUALITY_CHECKLIST.md`](./SEMANTIC_QUALITY_CHECKLIST.md) 使用三类黄金样本做发布前语义回归。普通 UI、图片或导出调整不需要重复消耗文本 API。
+模型、系统提示词、Schema、解析或正文质量门变化后，按 [`SEMANTIC_QUALITY_CHECKLIST.md`](./docs/SEMANTIC_QUALITY_CHECKLIST.md) 使用三类黄金样本做发布前语义回归。普通 UI、图片或导出调整不需要重复消耗文本 API。
 
 ## 构建
 
@@ -57,7 +88,7 @@ pnpm run check:moreimg
 可重复的 Chrome 端到端验证（使用临时浏览器数据和本地假接口，不读取真实 API Key）：
 
 ```bash
-node moreimg/browser-e2e.test.mjs
+node moreimg/tests/browser-e2e.test.mjs
 ```
 
 该脚本会在真实 Chrome 中验证空输入拦截，依次加工 20、600、2000、5000 字输入，再执行“生成主视觉 → 刷新恢复 → 导出 HTML PNG”，并检查导出图片为 1242×1656 且内容覆盖整幅画布。JSON 校验测试另外覆盖 599 和 10000 字边界。测试使用本地假接口，不验证真实模型对长文的语义质量。默认寻找本机 Chrome，也可通过 `MOREIMG_CHROME_PATH` 指定其他 Chrome/Chromium 可执行文件。
