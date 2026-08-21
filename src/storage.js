@@ -117,7 +117,8 @@
     const toHistoryIndex = (record) => ({
       id: record.id,
       title: record.title,
-      date: record.date
+      date: record.date,
+      isDemo: Boolean(record.isDemo)
     });
 
     const saveSessionRecord = async (record) => {
@@ -143,6 +144,42 @@
       return record;
     };
 
+    const filterExistingHistoryIndex = async (historyIndex) => {
+      const entries = Array.isArray(historyIndex) ? historyIndex.filter(item => item?.id) : [];
+      if (!entries.length) return [];
+      const database = await openImageDatabase();
+      const records = await new Promise((resolve, reject) => {
+        const transaction = database.transaction(SESSION_STORE_NAME, 'readonly');
+        const store = transaction.objectStore(SESSION_STORE_NAME);
+        const results = [];
+        let completed = 0;
+        entries.forEach((entry, index) => {
+          const request = store.get(entry.id);
+          request.onsuccess = () => {
+            results[index] = request.result || null;
+            completed += 1;
+            if (completed === entries.length) resolve(results);
+          };
+          request.onerror = () => reject(request.error);
+        });
+        transaction.onerror = () => reject(transaction.error);
+      });
+      database.close();
+      return entries.filter((_, index) => records[index]);
+    };
+
+    const hasAnySessionRecords = async () => {
+      const database = await openImageDatabase();
+      const count = await new Promise((resolve, reject) => {
+        const transaction = database.transaction(SESSION_STORE_NAME, 'readonly');
+        const request = transaction.objectStore(SESSION_STORE_NAME).count();
+        request.onsuccess = () => resolve(request.result || 0);
+        request.onerror = () => reject(request.error);
+      });
+      database.close();
+      return count > 0;
+    };
+
     const deleteSessionRecord = async (id) => {
       const database = await openImageDatabase();
       await new Promise((resolve, reject) => {
@@ -155,7 +192,7 @@
     };
 
     const migrateLegacyHistory = async (legacyHistory) => {
-      const records = Array.isArray(legacyHistory) ? legacyHistory.filter(item => item?.id && item?.sessionData) : [];
+      const records = Array.isArray(legacyHistory) ? legacyHistory.filter(item => item?.id && item?.sessionData).slice(0, HISTORY_LIMIT) : [];
       await Promise.all(records.map(saveSessionRecord));
       return records.map(toHistoryIndex);
     };

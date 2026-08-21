@@ -31,6 +31,7 @@ const HistoryItems = ({ history, isProcessing, activeHistoryId, showResults, set
         >
           <div className={`text-[13px] font-bold truncate flex items-center ${activeHistoryId === item.id && showResults ? 'text-indigo-600' : 'text-slate-700'}`}>
             {item.title || '未命名'}
+            {item.isDemo && <span className="ml-1.5 shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-600 border border-amber-200">示例</span>}
           </div>
           <div className="mt-1.5 font-mono text-[11px] text-slate-400">{item.date}</div>
         </button>
@@ -66,7 +67,7 @@ const HistoryItems = ({ history, isProcessing, activeHistoryId, showResults, set
 );
 
 
-const MobileHistoryDialog = ({ isHistoryOpen, setIsHistoryOpen, history, isProcessing, activeHistoryId, showResults, loadHistoryItem, retryHistoryItem, deleteHistoryItem }) => (
+const MobileHistoryDialog = ({ isHistoryOpen, setIsHistoryOpen, history, isProcessing, activeHistoryId, showResults, loadHistoryItem, retryHistoryItem, deleteHistoryItem, loadDemoRecord }) => (
   isHistoryOpen && (
   <div
     className="mobile-history-overlay animate-fade-in"
@@ -84,7 +85,19 @@ const MobileHistoryDialog = ({ isHistoryOpen, setIsHistoryOpen, history, isProce
           <h2 id="mobile-history-title" className="flex items-center text-[16px] font-extrabold text-slate-800">
             <Icon name="History" className="mr-2 h-5 w-5 text-indigo-600" /> 历史记录
           </h2>
-          <p className="mt-1 text-[11px] text-slate-500">恢复、再次生成或删除本机记录</p>
+          <div className="mt-1 flex items-center gap-2">
+            <p className="text-[11px] text-slate-500">恢复、再次生成或删除本机记录</p>
+            <button
+              type="button"
+              onClick={loadDemoRecord}
+              disabled={isProcessing}
+              className="text-[11px] font-bold text-slate-400 hover:text-slate-500 transition-colors disabled:opacity-40"
+              aria-label="载入示例记录，查看应用完整能力"
+              title="载入示例记录（含视觉生成与对比），不消耗 API"
+            >
+              载入示例
+            </button>
+          </div>
         </div>
         <button type="button" onClick={() => setIsHistoryOpen(false)} className="mi-icon-button mi-icon-button-standard sidebar-icon-button" aria-label="关闭历史记录" title="关闭历史记录">
           <Icon name="X" className="h-5 w-5" />

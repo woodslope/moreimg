@@ -1,4 +1,4 @@
-const AppSidebar = ({ history, isProcessing, activeHistoryId, showResults, setIsHistoryOpen, setIsConfigOpen, inputText, setInputText, handleStopProcessing, handleStartProcessing, isButtonDisabled, loadHistoryItem, retryHistoryItem, deleteHistoryItem }) => (
+const AppSidebar = ({ history, isProcessing, activeHistoryId, showResults, setIsHistoryOpen, setIsConfigOpen, inputText, setInputText, handleStopProcessing, handleStartProcessing, isButtonDisabled, loadHistoryItem, retryHistoryItem, deleteHistoryItem, loadDemoRecord }) => (
 <div className="moreimg-sidebar w-full md:w-[320px] h-auto md:h-full flex-shrink-0 flex flex-col bg-white/60 md:bg-white/40 backdrop-blur-3xl border-b md:border-b-0 md:border-r border-white/60 shadow-sm md:shadow-[8px_0_32px_rgba(31,38,135,0.05)] z-20 p-4 md:p-6 relative">
 
   <div className="sidebar-brand-row z-10 shrink-0">
@@ -57,8 +57,18 @@ const AppSidebar = ({ history, isProcessing, activeHistoryId, showResults, setIs
   </button>
 
   <div className="moreimg-history hidden md:flex mt-10 flex-1 relative shrink-0 flex-col min-h-0">
-    <div className="flex items-center text-[12px] font-bold text-slate-400 mb-4 tracking-wide uppercase shrink-0">
-      历史记录
+    <div className="flex items-center justify-between mb-4 shrink-0">
+      <div className="text-[12px] font-bold text-amber-600 tracking-wide uppercase">历史记录</div>
+      <button
+        type="button"
+        onClick={loadDemoRecord}
+        disabled={isProcessing}
+        className="text-[11px] font-bold text-slate-400 hover:text-slate-500 transition-colors disabled:opacity-40"
+        aria-label="载入示例记录，查看应用完整能力"
+        title="载入示例记录（含视觉生成与对比），不消耗 API"
+      >
+        载入示例
+      </button>
     </div>
     <div className="space-y-3 overflow-y-auto custom-scrollbar flex-1 pb-4 pr-1">
       <HistoryItems {...{ history, isProcessing, activeHistoryId, showResults, setIsHistoryOpen, loadHistoryItem, retryHistoryItem, deleteHistoryItem }} />

@@ -44,6 +44,9 @@
       });
       const messagesEndRef = useRef(null);
       const processingAbortRef = useRef(null);
+      const historyLoadTokenRef = useRef(0);
+      const imageAbortControllersRef = useRef(new Map());
+      const demoLoadInFlightRef = useRef(false);
       const imageObjectUrlsRef = useRef([]);
       const htmlCardRefs = useRef({});
       const htmlExportInFlightRef = useRef(false);
@@ -118,9 +121,15 @@
           .catch(error => setToast({ message: `画面焦点保存失败: ${error.message}`, type: 'error' }));
       };
 
-      const restoreSessionImages = async (sessionId) => {
+      const abortImageRequests = () => {
+        imageAbortControllersRef.current.forEach(controller => controller.abort());
+        imageAbortControllersRef.current.clear();
+      };
+
+      const restoreSessionImages = async (sessionId, requestToken) => {
         try {
           const storedImages = await loadSessionImages(sessionId);
+          if (requestToken !== historyLoadTokenRef.current) return;
           const nextResults = {};
           storedImages.forEach(item => {
             const imageUrl = URL.createObjectURL(item.blob);
@@ -134,6 +143,7 @@
             });
           }
         } catch (error) {
+          if (requestToken !== historyLoadTokenRef.current) return;
           if (loadLastImageDiagnostic()?.sessionId === sessionId) {
             saveLastImageDiagnostic({ restoreStatus: '失败', failureReason: getDiagnosticFailureReason(error, 'restore') });
           }
@@ -148,15 +158,43 @@
           if (savedHistory) {
             try {
               const parsedHistory = JSON.parse(savedHistory);
-              if (isActive && Array.isArray(parsedHistory)) setHistory(parsedHistory);
+              if (!Array.isArray(parsedHistory)) throw new Error('历史索引格式无效');
+              const candidateHistory = parsedHistory.filter(item => item?.id && item?.title !== undefined).slice(0, HISTORY_LIMIT);
+              const reconciledHistory = await filterExistingHistoryIndex(candidateHistory);
+              if (isActive) {
+                setHistory(reconciledHistory);
+                if (reconciledHistory.length !== candidateHistory.length) {
+                  localStorage.setItem(HISTORY_INDEX_KEY, JSON.stringify(reconciledHistory));
+                }
+              }
+              return;
             } catch {
               localStorage.removeItem(HISTORY_INDEX_KEY);
             }
-            return;
           }
 
           const legacyValue = localStorage.getItem(LEGACY_HISTORY_KEY);
-          if (!legacyValue) return;
+          if (!legacyValue) {
+            // 首次启动：预置一条示例记录，让第一次使用的人直接查看完整能力（含视觉生成与成品对比）
+            try {
+              const existingDemo = await loadSessionRecord(DEMO_SESSION_ID).catch(() => null);
+              if (existingDemo?.isDemo) {
+                const demoIndex = [toHistoryIndex(existingDemo)];
+                if (isActive) setHistory(demoIndex);
+                localStorage.setItem(HISTORY_INDEX_KEY, JSON.stringify(demoIndex));
+              } else if (shouldSeedDemo() && !(await hasAnySessionRecords())) {
+                const demoRecord = await seedDemoHistory();
+                if (isActive) {
+                  const demoIndex = [toHistoryIndex(demoRecord)];
+                  setHistory(demoIndex);
+                  localStorage.setItem(HISTORY_INDEX_KEY, JSON.stringify(demoIndex));
+                }
+              }
+            } catch (error) {
+              if (isActive) setToast({ message: `示例记录初始化失败: ${error.message}`, type: 'error', duration: 5000 });
+            }
+            return;
+          }
           try {
             const migratedHistory = await migrateLegacyHistory(JSON.parse(legacyValue));
             if (!isActive) return;
@@ -170,21 +208,31 @@
 
         const savedConfig = localStorage.getItem('agent_api_config');
         if (savedConfig) {
-          const parsedConfig = JSON.parse(savedConfig);
-          delete parsedConfig.systemPrompt;
-          parsedConfig.promptVersion = DEFAULT_PROMPT_VERSION;
-          parsedConfig.processingPreferences = {
-            ...createDefaultProcessingPreferences(),
-            ...(parsedConfig.processingPreferences || {})
-          };
-          parsedConfig.imageApiUrl = parsedConfig.imageApiUrl || 'https://api.openai.com/v1/images/generations';
-          parsedConfig.imageModel = parsedConfig.imageModel || 'gpt-image-1';
-          parsedConfig.imageApiKey = parsedConfig.imageApiKey || '';
-          parsedConfig.imageSize = parsedConfig.imageSize || '768x1024';
-          localStorage.setItem('agent_api_config', JSON.stringify(parsedConfig));
-          setApiConfig(parsedConfig);
-          if (parsedConfig.apiKey) {
-            setIsConfigOpen(false);
+          let parsedConfig = null;
+          try {
+            parsedConfig = JSON.parse(savedConfig);
+            if (!parsedConfig || typeof parsedConfig !== 'object' || Array.isArray(parsedConfig)) throw new Error('配置格式无效');
+          } catch {
+            localStorage.removeItem('agent_api_config');
+            setIsConfigOpen(true);
+            setToast({ message: '本地配置已损坏，请重新填写接口设置', type: 'error', duration: 5000 });
+          }
+          if (parsedConfig) {
+            delete parsedConfig.systemPrompt;
+            parsedConfig.promptVersion = DEFAULT_PROMPT_VERSION;
+            parsedConfig.processingPreferences = {
+              ...createDefaultProcessingPreferences(),
+              ...(parsedConfig.processingPreferences || {})
+            };
+            parsedConfig.imageApiUrl = parsedConfig.imageApiUrl || 'https://api.openai.com/v1/images/generations';
+            parsedConfig.imageModel = parsedConfig.imageModel || 'gpt-image-1';
+            parsedConfig.imageApiKey = parsedConfig.imageApiKey || '';
+            parsedConfig.imageSize = parsedConfig.imageSize || '768x1024';
+            localStorage.setItem('agent_api_config', JSON.stringify(parsedConfig));
+            setApiConfig(parsedConfig);
+            if (parsedConfig.apiKey?.trim()) {
+              setIsConfigOpen(false);
+            }
           }
         } else {
           setIsConfigOpen(true);
@@ -194,6 +242,7 @@
       }, []);
 
       useEffect(() => () => {
+        abortImageRequests();
         imageObjectUrlsRef.current.forEach(url => URL.revokeObjectURL(url));
       }, []);
 
@@ -297,6 +346,10 @@
       };
 
       const handleGenerateImage = async (cardTitle, prompt, mode = 'visual') => {
+        if (currentSession.isDemo) {
+          setToast({ message: '内置示例仅用于查看流程，不调用图片 API。请输入自己的文章开始加工。', type: 'success', duration: 5000 });
+          return;
+        }
         if (!apiConfig.imageApiUrl.trim() || !apiConfig.imageModel.trim() || !apiConfig.imageApiKey.trim()) {
           setToast({ message: '请先配置图片接口、模型和密钥', type: 'error' });
           setIsConfigOpen(true);
@@ -304,6 +357,15 @@
         }
 
         const resultKey = `${mode}:${cardTitle}`;
+        imageAbortControllersRef.current.get(resultKey)?.abort();
+        const requestController = new AbortController();
+        imageAbortControllersRef.current.set(resultKey, requestController);
+        const operationToken = historyLoadTokenRef.current;
+        let imageTimedOut = false;
+        const imageTimeout = setTimeout(() => {
+          imageTimedOut = true;
+          requestController.abort();
+        }, IMAGE_REQUEST_TIMEOUT_MS);
         const imageEndpoint = resolveApiEndpoint(apiConfig.imageApiUrl, 'image');
         const imageTransport = getRequestTransport(imageEndpoint, 'image');
         const previousFocusY = imageResults[resultKey]?.focusY;
@@ -336,7 +398,8 @@
               prompt,
               size: apiConfig.imageSize.trim() || '768x1024',
               n: 1
-            })
+            }),
+            signal: requestController.signal
           });
 
           const data = await response.json();
@@ -355,11 +418,14 @@
             storageStatus: '保存中'
           });
 
-          const imageBlob = dataUrl ? dataUrlToBlob(dataUrl) : await fetch(remoteUrl).then(imageResponse => {
+          if (requestController.signal.aborted || operationToken !== historyLoadTokenRef.current) return;
+          const imageBlob = dataUrl ? dataUrlToBlob(dataUrl) : await fetch(remoteUrl, { signal: requestController.signal }).then(imageResponse => {
             if (!imageResponse.ok) throw new Error(`图片下载失败 HTTP ${imageResponse.status}`);
             return imageResponse.blob();
           });
+          if (requestController.signal.aborted || operationToken !== historyLoadTokenRef.current) return;
           await saveImageBlob(sessionId, cardTitle, imageBlob, mode, previousFocusY);
+          if (requestController.signal.aborted || operationToken !== historyLoadTokenRef.current) return;
           saveLastImageDiagnostic({ storageBackend: 'IndexedDB', storageStatus: '成功', restoreStatus: '尚未验证', failureReason: '' });
           const imageUrl = URL.createObjectURL(imageBlob);
 
@@ -373,12 +439,19 @@
           const generationLabel = mode === 'full' ? 'AI 整图' : mode === 'visual-only' ? '无字主视觉' : '主视觉';
           setToast({ message: `[${cardTitle}] ${generationLabel}生成完成`, type: 'success' });
         } catch (error) {
+          if (operationToken !== historyLoadTokenRef.current || (requestController.signal.aborted && !imageTimedOut)) return;
+          if (imageTimedOut) error = new Error('图片生成超过 300 秒，已自动停止。');
           saveLastImageDiagnostic({
             storageStatus: diagnosticPhase === 'storage' ? '失败' : '未开始',
             failureReason: getDiagnosticFailureReason(error, diagnosticPhase)
           });
           setImageResults(prev => ({ ...prev, [resultKey]: { status: 'error', imageUrl: '', error: error.message, mode } }));
           setToast({ message: `图片生成失败: ${error.message}`, type: 'error', duration: 5000 });
+        } finally {
+          clearTimeout(imageTimeout);
+          if (imageAbortControllersRef.current.get(resultKey) === requestController) {
+            imageAbortControllersRef.current.delete(resultKey);
+          }
         }
       };
 
@@ -472,21 +545,53 @@
         }
       };
 
-      const deleteHistoryItem = (id, e) => {
+      const deleteHistoryItem = async (id, e) => {
         e.stopPropagation();
+        historyLoadTokenRef.current += 1;
+        abortImageRequests();
+        const previousHistory = history;
         const updatedHistory = history.filter(item => item.id !== id);
         setHistory(updatedHistory);
-        localStorage.setItem(HISTORY_INDEX_KEY, JSON.stringify(updatedHistory));
-        deleteSessionRecord(id).catch(() => {});
-        deleteSessionImages(id).catch(() => {});
-
-        if (activeHistoryId === id) {
-          setActiveHistoryId(null);
-          setShowResults(false);
-          setCurrentSession({ rawText: '', packageData: null, stages: { 1: '', 2: '', 3: '', 4: '', 5: '', 6: '' }, isHalted: false, stopReason: '', warning: '' });
-          replaceImageResults({});
+        try {
+          localStorage.setItem(HISTORY_INDEX_KEY, JSON.stringify(updatedHistory));
+          await Promise.all([deleteSessionRecord(id), deleteSessionImages(id)]);
+          if (activeHistoryId === id) {
+            setActiveHistoryId(null);
+            setShowResults(false);
+            setCurrentSession({ rawText: '', packageData: null, stages: { 1: '', 2: '', 3: '', 4: '', 5: '', 6: '' }, isHalted: false, stopReason: '', warning: '' });
+            replaceImageResults({});
+          }
+          setToast({ message: '已删除该条记录', type: 'success' });
+        } catch (error) {
+          setHistory(previousHistory);
+          try { localStorage.setItem(HISTORY_INDEX_KEY, JSON.stringify(previousHistory)); } catch {}
+          setToast({ message: `历史记录删除失败: ${error.message}`, type: 'error', duration: 5000 });
         }
-        setToast({ message: '已删除该条记录', type: 'success' });
+      };
+
+      // 手动载入示例记录：老用户 / 已删示例的人也能随时查看应用完整能力（含视觉生成与对比）
+      const loadDemoRecord = async () => {
+        if (isProcessing || demoLoadInFlightRef.current) return;
+        demoLoadInFlightRef.current = true;
+        historyLoadTokenRef.current += 1;
+        abortImageRequests();
+        try {
+          const demoRecord = await loadDemoHistory();
+          const demoIndex = toHistoryIndex(demoRecord);
+          const updatedHistory = [demoIndex, ...history.filter(item => item.id !== demoIndex.id)].slice(0, HISTORY_LIMIT);
+          const removedHistory = history.filter(historyItem => !updatedHistory.some(item => item.id === historyItem.id));
+          setHistory(updatedHistory);
+          localStorage.setItem(HISTORY_INDEX_KEY, JSON.stringify(updatedHistory));
+          removedHistory.forEach(item => {
+            deleteSessionRecord(item.id).catch(() => {});
+            deleteSessionImages(item.id).catch(() => {});
+          });
+          setToast({ message: '示例记录已载入，点击即可查看完整流程', type: 'success' });
+        } catch (error) {
+          setToast({ message: `示例记录载入失败: ${error.message}`, type: 'error' });
+        } finally {
+          demoLoadInFlightRef.current = false;
+        }
       };
 
       const requestProcessingText = (messages, externalSignal) => runWithRequestControl(async signal => {
@@ -540,10 +645,12 @@
       const handleStartProcessing = async (overrideText = null) => {
         const textToProcess = (typeof overrideText === 'string' ? overrideText : inputText).trim();
 
-        if (!apiConfig.apiKey) { setToast({ message: '请先配置密钥', type: 'error' }); setIsConfigOpen(true); return; }
+        if (!apiConfig.apiKey?.trim()) { setToast({ message: '请先配置密钥', type: 'error' }); setIsConfigOpen(true); return; }
         if (!textToProcess) { setToast({ message: '请输入需加工的文章或文案', type: 'error' }); return; }
 
         setInputText(textToProcess);
+        historyLoadTokenRef.current += 1;
+        abortImageRequests();
         setIsProcessing(true);
         setShowResults(false);
         setInternalStage(1);
@@ -619,11 +726,20 @@
       };
 
       const loadHistoryItem = async (id) => {
-        const item = await loadSessionRecord(id);
+        const requestToken = ++historyLoadTokenRef.current;
+        abortImageRequests();
+        let item = null;
+        try {
+          item = await loadSessionRecord(id);
+        } catch (error) {
+          if (requestToken === historyLoadTokenRef.current) setToast({ message: `历史记录读取失败: ${error.message}`, type: 'error' });
+          return;
+        }
+        if (requestToken !== historyLoadTokenRef.current) return;
         if (item) {
           setActiveHistoryId(id);
-          setCurrentSession(item.sessionData);
-          restoreSessionImages(id);
+          setCurrentSession({ ...item.sessionData, isDemo: Boolean(item.isDemo) });
+          restoreSessionImages(id, requestToken);
           if (item.sessionData.packageData?.status === 'complete') {
             setInternalStage(5);
             setShowResults(true);
@@ -646,6 +762,10 @@
 
       const retryHistoryItem = async (id) => {
         const item = await loadSessionRecord(id);
+        if (item?.isDemo) {
+          setToast({ message: '示例记录仅用于查看应用能力，不会调用真实接口。粘贴原文后点击「开始加工」即可体验完整流程。', type: 'success', duration: 5000 });
+          return;
+        }
         if (!item?.originalInput) {
           setToast({ message: '该记录缺少原文备份，无法重试', type: 'error' });
           return;
@@ -706,7 +826,7 @@
       });
 
       // 运算中按钮切换为停止操作；空配置只阻止发起新请求。
-      const isButtonDisabled = !isProcessing && (!apiConfig.apiKey || !inputText.trim());
+      const isButtonDisabled = !isProcessing && (!apiConfig.apiKey?.trim() || !inputText.trim());
 
       return <AppView {...{
         activeHistoryId,
@@ -730,6 +850,7 @@
         isHistoryOpen,
         isProcessing,
         lastImageDiagnostic,
+        loadDemoRecord,
         loadHistoryItem,
         messagesEndRef,
         resultContent,

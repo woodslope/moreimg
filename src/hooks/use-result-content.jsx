@@ -116,6 +116,7 @@ const renderStageContent = () => {
               ) : sId === 5 ? (
                 (() => {
                   const { promptSections, htmlCards } = parsedSession;
+                  const isBuiltInDemo = Boolean(currentSession.isDemo);
 
                   if (promptSections.length > 0) {
                     const selectedPromptSection = promptSections.find(section => section.title === activeVisualPage) || promptSections[0];
@@ -164,7 +165,7 @@ const renderStageContent = () => {
                             <div className="visual-panel-actions">
                               <button
                                 onClick={() => handleGenerateImage(selectedPromptSection.title, visualOnlyPrompt, 'visual-only')}
-                                disabled={imageResult?.status === 'loading'}
+                                disabled={isBuiltInDemo || imageResult?.status === 'loading'}
                                 aria-busy={imageResult?.status === 'loading'}
                                 className="mi-button mi-button-standard visual-button visual-button-primary"
                               >
@@ -173,7 +174,7 @@ const renderStageContent = () => {
                               </button>
                               <button
                                 onClick={() => handleGenerateImage(selectedPromptSection.title, fullImagePrompt, 'full')}
-                                disabled={!matchingCard || fullImageResult?.status === 'loading'}
+                                disabled={isBuiltInDemo || !matchingCard || fullImageResult?.status === 'loading'}
                                 aria-busy={fullImageResult?.status === 'loading'}
                                 className="mi-button mi-button-standard visual-button"
                               >
@@ -182,7 +183,7 @@ const renderStageContent = () => {
                               </button>
                             </div>
                           </div>
-                          <div className="mi-feedback mi-feedback-info visual-notice visual-panel-notice"><Icon name="Info" className="mt-0.5 h-3.5 w-3.5 shrink-0" /><span>HTML 成品卡用于准确中文交付；AI 整图用于视觉候选，生成后仍需核对文字。</span></div>
+                          <div className="mi-feedback mi-feedback-info visual-notice visual-panel-notice"><Icon name="Info" className="mt-0.5 h-3.5 w-3.5 shrink-0" /><span>{isBuiltInDemo ? '内置示例仅用于查看流程；图片为本地占位图，不调用图片 API。' : 'HTML 成品卡用于准确中文交付；AI 整图用于视觉候选，生成后仍需核对文字。'}</span></div>
 
                           <div className="visual-workspace-grid">
                             <div className="visual-results-column">
@@ -197,14 +198,14 @@ const renderStageContent = () => {
                                 {imageResult?.status === 'success' ? (
                                   <div className="mi-surface mi-surface-card visual-result-item">
                                     <div className="visual-result-item-header">
-                                      <span>HTML 主视觉</span>
+                                      <span>{isBuiltInDemo ? '内置示例占位图' : 'HTML 主视觉'}</span>
                                       <button type="button" onClick={() => downloadImage(selectedPromptSection.title, imageResult.imageUrl)} className="mi-icon-button mi-icon-button-compact visual-result-action" aria-label="下载主视觉" title="下载主视觉"><Icon name="Download" className="h-3.5 w-3.5" /></button>
                                     </div>
                                     <VisualPreview imageUrl={imageResult.imageUrl} alt={`${selectedPromptSection.title} 生成结果`} />
                                   </div>
                                 ) : (
                                   <div className="mi-surface mi-surface-card visual-result-item">
-                                    <div className="visual-result-item-header"><span>HTML 主视觉</span></div>
+                                    <div className="visual-result-item-header"><span>{isBuiltInDemo ? '内置示例占位图' : 'HTML 主视觉'}</span></div>
                                     <div className="mi-empty-state mi-empty-state-media visual-result-slot-empty">
                                       <div className="mi-empty-state-icon"><Icon name={imageResult?.status === 'loading' ? 'LoaderCircle' : 'ImagePlus'} className={`h-5 w-5 ${imageResult?.status === 'loading' ? 'animate-spin' : ''}`} /></div>
                                       <span className="mt-3 text-[11px] font-bold">{imageResult?.status === 'loading' ? '生成中' : '等待生成'}</span>
@@ -215,7 +216,7 @@ const renderStageContent = () => {
                                 {fullImageResult?.status === 'success' && !hiddenFullImages[selectedPromptSection.title] ? (
                                   <div className="mi-surface mi-surface-card visual-result-item">
                                     <div className="visual-result-item-header">
-                                      <span>AI 整图</span>
+                                      <span>{isBuiltInDemo ? '内置示例占位图' : 'AI 整图'}</span>
                                       <div className="visual-result-actions">
                                         <button type="button" onClick={() => downloadImage(`${selectedPromptSection.title}-AI整图`, fullImageResult.imageUrl)} className="mi-icon-button mi-icon-button-compact visual-result-action" aria-label="下载 AI 整图" title="下载 AI 整图"><Icon name="Download" className="h-3.5 w-3.5" /></button>
                                         <button type="button" onClick={() => setHiddenFullImages(prev => ({ ...prev, [selectedPromptSection.title]: true }))} className="mi-icon-button mi-icon-button-compact visual-result-action" aria-label="隐藏 AI 整图" title="隐藏 AI 整图"><Icon name="EyeOff" className="h-3.5 w-3.5" /></button>
@@ -226,7 +227,7 @@ const renderStageContent = () => {
                                 ) : (
                                   <div className="mi-surface mi-surface-card visual-result-item">
                                     <div className="visual-result-item-header">
-                                      <span>AI 整图</span>
+                                      <span>{isBuiltInDemo ? '内置示例占位图' : 'AI 整图'}</span>
                                       {fullImageResult?.status === 'success' && hiddenFullImages[selectedPromptSection.title] && <button type="button" onClick={() => setHiddenFullImages(prev => ({ ...prev, [selectedPromptSection.title]: false }))} className="mi-icon-button mi-icon-button-compact visual-result-action" aria-label="显示 AI 整图" title="显示 AI 整图"><Icon name="Eye" className="h-3.5 w-3.5" /></button>}
                                     </div>
                                     <div className="mi-empty-state mi-empty-state-media visual-result-slot-empty">
@@ -321,15 +322,15 @@ const renderStageContent = () => {
                                         />
                                         {!selectedHtmlCardReady && <span className="html-card-placeholder-badge">等待主视觉</span>}
                                       </HtmlCardPreview>
-                                      <div className="visual-comparison-meta"><span><strong>预览框 3:4</strong> · {selectedHtmlCardReady ? 'HTML 成品' : '排版占位'}</span><span>{selectedHtmlCardReady ? '导出 1242×1656' : '待生成主视觉'}</span></div>
+                                      <div className="visual-comparison-meta"><span><strong>预览框 3:4</strong> · {isBuiltInDemo ? '内置示例占位图' : selectedHtmlCardReady ? 'HTML 成品' : '排版占位'}</span><span>{isBuiltInDemo ? '本地演示素材' : selectedHtmlCardReady ? '导出 1242×1656' : '待生成主视觉'}</span></div>
                                       {selectedHtmlImageResult?.status !== 'success' && <p className={`mt-3 text-center text-[11px] ${selectedHtmlLegacyResult?.status === 'success' ? 'text-amber-600' : 'text-slate-400'}`}>{selectedHtmlLegacyResult?.status === 'success' ? '旧版主视觉不再用于 HTML 成品卡，请重新生成无字主视觉。' : '当前使用视觉占位，生成无字主视觉后会自动替换。'}</p>}
                                     </div>
                                     <div className="mi-surface mi-surface-card visual-comparison-item">
-                                      <div className="visual-comparison-label">AI 整图</div>
+                                      <div className="visual-comparison-label">{isBuiltInDemo ? '内置示例占位图' : 'AI 整图'}</div>
                                       {fullImageResult?.status === 'success' && !hiddenFullImages[selectedPromptSection.title] ? (
                                         <>
                                         <div className="visual-comparison-preview-frame"><img src={fullImageResult.imageUrl} alt={`${selectedHtmlCard.label} AI 整图对比`} loading="lazy" decoding="async" className="visual-comparison-image" /></div>
-                                        <div className="visual-comparison-meta"><span><strong>预览框 3:4</strong> · AI 整图</span><span>模型排版输出</span></div>
+                                        <div className="visual-comparison-meta"><span><strong>预览框 3:4</strong> · {isBuiltInDemo ? '内置示例占位图' : 'AI 整图'}</span><span>{isBuiltInDemo ? '本地演示素材' : '模型排版输出'}</span></div>
                                         </>
                                       ) : (
                                         <>
@@ -339,7 +340,7 @@ const renderStageContent = () => {
                                               <span className="mt-3 text-[11px] font-bold">{fullImageResult?.status === 'loading' ? 'AI 整图生成中' : fullImageResult?.status === 'success' ? 'AI 整图已隐藏' : '尚未生成 AI 整图'}</span>
                                             </div>
                                           </div>
-                                          <div className="visual-comparison-meta"><span><strong>预览框 3:4</strong> · AI 整图</span><span>固定对比槽位</span></div>
+                                          <div className="visual-comparison-meta"><span><strong>预览框 3:4</strong> · {isBuiltInDemo ? '内置示例占位图' : 'AI 整图'}</span><span>固定对比槽位</span></div>
                                         </>
                                       )}
                                     </div>

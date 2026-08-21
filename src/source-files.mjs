@@ -1,6 +1,7 @@
 export const sourceFiles = [
   'runtime.js',
   'storage.js',
+  'demo.js',
   'prompt.js',
   'components/formatting.jsx',
   'core/processing.js',

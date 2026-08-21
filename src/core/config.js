@@ -32,7 +32,7 @@
         const savedConfig = localStorage.getItem('agent_api_config');
         if (!savedConfig) return false;
         const parsedConfig = JSON.parse(savedConfig);
-        return Boolean(parsedConfig.apiKey);
+        return Boolean(parsedConfig.apiKey?.trim());
       } catch {
         return false;
       }

@@ -270,7 +270,8 @@ var toHistoryIndex = function toHistoryIndex(record) {
   return {
     id: record.id,
     title: record.title,
-    date: record.date
+    date: record.date,
+    isDemo: Boolean(record.isDemo)
   };
 };
 var saveSessionRecord = function () {
@@ -337,17 +338,104 @@ var loadSessionRecord = function () {
   }
   return loadSessionRecord;
 }();
-var deleteSessionRecord = function () {
-  var _deleteSessionRecord = _asyncToGenerator(_regenerator().m(function _callee7(id) {
-    var database;
+var filterExistingHistoryIndex = function () {
+  var _filterExistingHistoryIndex = _asyncToGenerator(_regenerator().m(function _callee7(historyIndex) {
+    var entries, database, records;
     return _regenerator().w(function (_context7) {
       while (1) switch (_context7.n) {
         case 0:
-          _context7.n = 1;
+          entries = Array.isArray(historyIndex) ? historyIndex.filter(function (item) {
+            return item === null || item === void 0 ? void 0 : item.id;
+          }) : [];
+          if (entries.length) {
+            _context7.n = 1;
+            break;
+          }
+          return _context7.a(2, []);
+        case 1:
+          _context7.n = 2;
+          return openImageDatabase();
+        case 2:
+          database = _context7.v;
+          _context7.n = 3;
+          return new Promise(function (resolve, reject) {
+            var transaction = database.transaction(SESSION_STORE_NAME, 'readonly');
+            var store = transaction.objectStore(SESSION_STORE_NAME);
+            var results = [];
+            var completed = 0;
+            entries.forEach(function (entry, index) {
+              var request = store.get(entry.id);
+              request.onsuccess = function () {
+                results[index] = request.result || null;
+                completed += 1;
+                if (completed === entries.length) resolve(results);
+              };
+              request.onerror = function () {
+                return reject(request.error);
+              };
+            });
+            transaction.onerror = function () {
+              return reject(transaction.error);
+            };
+          });
+        case 3:
+          records = _context7.v;
+          database.close();
+          return _context7.a(2, entries.filter(function (_, index) {
+            return records[index];
+          }));
+      }
+    }, _callee7);
+  }));
+  function filterExistingHistoryIndex(_x10) {
+    return _filterExistingHistoryIndex.apply(this, arguments);
+  }
+  return filterExistingHistoryIndex;
+}();
+var hasAnySessionRecords = function () {
+  var _hasAnySessionRecords = _asyncToGenerator(_regenerator().m(function _callee8() {
+    var database, count;
+    return _regenerator().w(function (_context8) {
+      while (1) switch (_context8.n) {
+        case 0:
+          _context8.n = 1;
           return openImageDatabase();
         case 1:
-          database = _context7.v;
-          _context7.n = 2;
+          database = _context8.v;
+          _context8.n = 2;
+          return new Promise(function (resolve, reject) {
+            var transaction = database.transaction(SESSION_STORE_NAME, 'readonly');
+            var request = transaction.objectStore(SESSION_STORE_NAME).count();
+            request.onsuccess = function () {
+              return resolve(request.result || 0);
+            };
+            request.onerror = function () {
+              return reject(request.error);
+            };
+          });
+        case 2:
+          count = _context8.v;
+          database.close();
+          return _context8.a(2, count > 0);
+      }
+    }, _callee8);
+  }));
+  function hasAnySessionRecords() {
+    return _hasAnySessionRecords.apply(this, arguments);
+  }
+  return hasAnySessionRecords;
+}();
+var deleteSessionRecord = function () {
+  var _deleteSessionRecord = _asyncToGenerator(_regenerator().m(function _callee9(id) {
+    var database;
+    return _regenerator().w(function (_context9) {
+      while (1) switch (_context9.n) {
+        case 0:
+          _context9.n = 1;
+          return openImageDatabase();
+        case 1:
+          database = _context9.v;
+          _context9.n = 2;
           return new Promise(function (resolve, reject) {
             var transaction = database.transaction(SESSION_STORE_NAME, 'readwrite');
             transaction.objectStore(SESSION_STORE_NAME)["delete"](id);
@@ -359,32 +447,32 @@ var deleteSessionRecord = function () {
         case 2:
           database.close();
         case 3:
-          return _context7.a(2);
+          return _context9.a(2);
       }
-    }, _callee7);
+    }, _callee9);
   }));
-  function deleteSessionRecord(_x10) {
+  function deleteSessionRecord(_x11) {
     return _deleteSessionRecord.apply(this, arguments);
   }
   return deleteSessionRecord;
 }();
 var migrateLegacyHistory = function () {
-  var _migrateLegacyHistory = _asyncToGenerator(_regenerator().m(function _callee8(legacyHistory) {
+  var _migrateLegacyHistory = _asyncToGenerator(_regenerator().m(function _callee0(legacyHistory) {
     var records;
-    return _regenerator().w(function (_context8) {
-      while (1) switch (_context8.n) {
+    return _regenerator().w(function (_context0) {
+      while (1) switch (_context0.n) {
         case 0:
           records = Array.isArray(legacyHistory) ? legacyHistory.filter(function (item) {
             return (item === null || item === void 0 ? void 0 : item.id) && (item === null || item === void 0 ? void 0 : item.sessionData);
-          }) : [];
-          _context8.n = 1;
+          }).slice(0, HISTORY_LIMIT) : [];
+          _context0.n = 1;
           return Promise.all(records.map(saveSessionRecord));
         case 1:
-          return _context8.a(2, records.map(toHistoryIndex));
+          return _context0.a(2, records.map(toHistoryIndex));
       }
-    }, _callee8);
+    }, _callee0);
   }));
-  function migrateLegacyHistory(_x11) {
+  function migrateLegacyHistory(_x12) {
     return _migrateLegacyHistory.apply(this, arguments);
   }
   return migrateLegacyHistory;
@@ -403,6 +491,400 @@ var dataUrlToBlob = function dataUrlToBlob(dataUrl) {
     type: mimeType
   });
 };
+var DEMO_SESSION_ID = 'demo-seed-001';
+var DEMO_SEEDED_KEY = 'moreimg_demo_seeded';
+var demoOriginalText = ['# AI 时代，速度提升不等于稳定交付', '', '很多团队把引入 AI 的第一目标定成“把出图时间缩短一半”。这个目标很容易量化，也容易在汇报里展示，但它未必能带来更好的交付。出图只是设计流程中的一个环节，真正消耗时间的往往是需求没有说清、判断标准不一致、版本之间缺少记录。工具把生产速度提高以后，这些问题不会消失，只会让错误版本更快地出现。', '', '设计工作不是图片数量竞赛。用户看到的是最终信息是否准确、层级是否清楚、操作是否顺畅，而不是团队一天生成了多少方案。如果一个页面同时出现三个主按钮，模型可以在几分钟内给出十种配色，但决定哪个按钮更重要的判断仍然要由人来完成。速度解决的是“做得快”，稳定解决的是“做得对”，两者不能互相替代。', '', '要让交付稳定，前提是需求、标准、记录与验收这四个环节提前对齐。需求说清楚要解决什么问题，标准说清楚什么算完成，记录说清楚每个版本改了什么、为什么改，验收说清楚谁在什么时候检查。四者缺一，速度越快，返工成本越高。', '', '验收应该前置而不是压到最后。越早把验收标准放进工作流，越能避免在最后一刻推翻整版。人的角色不是被工具替代，而是负责目标、约束与取舍：工具负责把想法快速变成候选，人负责判断哪些候选值得留下。', '', '所以，把目标从“更快”改成“又快又稳”，团队要做的不是停止引入 AI，而是把 AI 放进一个有边界的工作流里：明确目标、定好标准、记录取舍、前置验收。速度是杠杆，稳定才是结果。'].join('\n');
+var demoPackageData = {
+  schema_version: 'moreimg-1.0',
+  status: 'complete',
+  analysis: {
+    mode: 'standard',
+    topic: 'AI 时代的稳定交付',
+    core_claim: '速度提升不等于稳定交付，需求、标准、记录与验收必须前置对齐',
+    independent_units: ['速度不等于稳定', '判断仍由人负责', '四个前置环节', '验收前置', '人负责目标与取舍'],
+    fact_notes: [],
+    logic_issues: []
+  },
+  article: {
+    title: 'AI 时代，速度提升不等于稳定交付',
+    subtitle: '把目标从「更快」改成「又快又稳」',
+    paragraphs: ['很多团队把引入 AI 的第一目标定成“把出图时间缩短一半”。这个目标容易量化，也容易展示，但它未必能带来更好的交付。出图只是设计流程中的一个环节，真正消耗时间的往往是需求没有说清、判断标准不一致、版本之间缺少记录。工具把生产速度提高以后，这些问题不会消失，只会让错误版本更快地出现。', '设计工作不是图片数量竞赛。用户看到的是最终信息是否准确、层级是否清楚、操作是否顺畅，而不是团队一天生成了多少方案。速度解决的是“做得快”，稳定解决的是“做得对”，两者不能互相替代。', '要让交付稳定，前提是需求、标准、记录与验收这四个环节提前对齐：需求说清楚解决什么问题，标准说清楚什么算完成，记录说清楚每次改了什么，验收说清楚谁在什么时候检查。四者缺一，速度越快，返工成本越高。', '验收应该前置而不是压到最后。越早把验收标准放进工作流，越能避免在最后一刻推翻整版。人的角色不是被工具替代，而是负责目标、约束与取舍：工具负责把想法快速变成候选，人负责判断哪些候选值得留下。', '所以，把目标从“更快”改成“又快又稳”，团队要做的不是停止引入 AI，而是把 AI 放进一个有边界的工作流里：明确目标、定好标准、记录取舍、前置验收。速度是杠杆，稳定才是结果。']
+  },
+  style_lock: {
+    style_id: 'demo-amber-blue',
+    style_name: '示例：琥珀蓝工作台',
+    card_shell: {
+      preset: 'moreimg-clean-v1',
+      surface: 'light',
+      accent_color: '#2563EB',
+      overlay: 'soft_light'
+    },
+    prompt_prefix: '奶油白知识卡片，琥珀点缀，靛蓝强调，等距图标风格。',
+    visual_dna: {
+      medium: 'isometric_icon',
+      visual_world: '安静的产品交付工作台',
+      shape_language: '简洁几何线条',
+      perspective: '等距俯视',
+      lighting: '柔和自然光',
+      material: '哑光纸张',
+      recurring_subject: '同一组交付流程卡片',
+      recurring_elements: ['琥珀标记', '流程卡片']
+    },
+    negative: ['文字', 'Logo', '伪文字', '水印', 'UI 标签']
+  },
+  pages: [{
+    page_id: 'cover',
+    order: 1,
+    page_type: 'cover',
+    card: {
+      title: 'AI 时代，速度不等于稳定交付',
+      subtitle: '把目标从「更快」改成「又快又稳」',
+      points: [],
+      summary: '速度是杠杆，稳定是结果'
+    },
+    semantic: {
+      page_goal: '提出核心矛盾',
+      primary_claim: '速度提升不等于稳定交付',
+      primary_concept: '稳定交付',
+      primary_relation: '速度与稳定相互独立',
+      supporting_concepts: [],
+      excluded_concepts: [],
+      avoid_misread: []
+    },
+    image_prompt: {
+      scene: '工作台上的交付流程卡片',
+      relationship: '速度箭头与稳定基座并置',
+      composition: '主体位于下半部',
+      safe_area: 'top_40',
+      continuity: '沿用工作台世界',
+      avoid: []
+    }
+  }, {
+    page_id: 'content-01',
+    order: 2,
+    page_type: 'process',
+    card: {
+      title: '交付四环节',
+      subtitle: '',
+      points: ['需求对齐', '标准一致', '版本记录', '前置验收'],
+      summary: '四者缺一，速度越快越返工'
+    },
+    semantic: {
+      page_goal: '列出稳定交付的四个前提',
+      primary_claim: '四环节缺一不可',
+      primary_concept: '交付四环节',
+      primary_relation: '四环节共同支撑稳定交付',
+      supporting_concepts: [],
+      excluded_concepts: [],
+      avoid_misread: []
+    },
+    image_prompt: {
+      scene: '四张流程卡片依次排列',
+      relationship: '四张卡片汇入稳定基座',
+      composition: '主体位于下半部',
+      safe_area: 'top_52',
+      continuity: '沿用工作台世界',
+      avoid: []
+    }
+  }, {
+    page_id: 'content-02',
+    order: 3,
+    page_type: 'comparison',
+    card: {
+      title: '速度 ≠ 稳定',
+      subtitle: '',
+      points: ['快解决「做得快」', '稳解决「做得对」'],
+      summary: '两者不能互相替代'
+    },
+    semantic: {
+      page_goal: '区分速度与稳定',
+      primary_claim: '速度与稳定不能互相替代',
+      primary_concept: '速度与稳定',
+      primary_relation: '速度与稳定相对独立',
+      supporting_concepts: [],
+      excluded_concepts: [],
+      avoid_misread: []
+    },
+    image_prompt: {
+      scene: '并排的天平两侧',
+      relationship: '速度与稳定分别占据天平两端',
+      composition: '主体位于下半部',
+      safe_area: 'top_52',
+      continuity: '沿用工作台世界',
+      avoid: []
+    }
+  }, {
+    page_id: 'content-03',
+    order: 4,
+    page_type: 'checklist',
+    card: {
+      title: '验收前置清单',
+      subtitle: '',
+      points: ['谁在什么时间检查', '什么算完成', '每一版改了什么'],
+      summary: '越早验收，返工越少'
+    },
+    semantic: {
+      page_goal: '给出验收前置的行动清单',
+      primary_claim: '验收前置能减少返工',
+      primary_concept: '前置验收',
+      primary_relation: '验收前置连接低返工结果',
+      supporting_concepts: [],
+      excluded_concepts: [],
+      avoid_misread: []
+    },
+    image_prompt: {
+      scene: '清单上的三行勾选项',
+      relationship: '勾选项连接向低返工结果',
+      composition: '主体位于下半部',
+      safe_area: 'top_52',
+      continuity: '沿用工作台世界',
+      avoid: []
+    }
+  }, {
+    page_id: 'closing',
+    order: 5,
+    page_type: 'quote',
+    card: {
+      title: '速度是杠杆，稳定才是结果',
+      subtitle: '',
+      points: [],
+      summary: '又快又稳，而不是只快'
+    },
+    semantic: {
+      page_goal: '收束全文',
+      primary_claim: '稳定才是最终结果',
+      primary_concept: '又快又稳',
+      primary_relation: '速度杠杆连接稳定结果',
+      supporting_concepts: [],
+      excluded_concepts: [],
+      avoid_misread: []
+    },
+    image_prompt: {
+      scene: '流程卡片被收入交付基座',
+      relationship: '基座连接稳定交付结果',
+      composition: '主体位于下半部',
+      safe_area: 'top_36',
+      continuity: '沿用工作台世界',
+      avoid: []
+    }
+  }]
+};
+var createDemoSessionRecord = function createDemoSessionRecord() {
+  return {
+    id: DEMO_SESSION_ID,
+    title: '示例：AI 时代如何稳定交付',
+    date: '内置示例 · 首次启动',
+    isDemo: true,
+    sessionData: {
+      rawText: JSON.stringify(demoPackageData),
+      packageData: demoPackageData,
+      stages: {
+        1: '',
+        2: '',
+        3: '',
+        4: '',
+        5: '',
+        6: ''
+      },
+      isHalted: false,
+      stopReason: '',
+      warning: '',
+      finishReason: 'stop'
+    },
+    originalInput: demoOriginalText
+  };
+};
+var demoPageTitles = function demoPageTitles() {
+  var contentCount = Math.max(0, demoPackageData.pages.length - 2);
+  return demoPackageData.pages.map(function (page) {
+    var _page$page_id$match;
+    return page.page_id === 'cover' ? '封面' : page.page_id === 'closing' ? '封底' : "\u6B63\u6587".concat(Number(((_page$page_id$match = page.page_id.match(/^content-(\d+)$/)) === null || _page$page_id$match === void 0 ? void 0 : _page$page_id$match[1]) || page.order - 1), "/").concat(contentCount);
+  });
+};
+var drawDemoImage = function drawDemoImage(accentColor, mode, seed) {
+  var canvas = document.createElement('canvas');
+  canvas.width = 768;
+  canvas.height = 1024;
+  var context = canvas.getContext('2d');
+  var accent = accentColor || '#2563EB';
+  var background = context.createLinearGradient(0, 0, 768, 1024);
+  background.addColorStop(0, '#FDF8F2');
+  background.addColorStop(0.6, '#F5F1EA');
+  background.addColorStop(1, '#EAF0FB');
+  context.fillStyle = background;
+  context.fillRect(0, 0, 768, 1024);
+  var ambient = context.createRadialGradient(560, 180, 40, 560, 180, 320);
+  ambient.addColorStop(0, 'rgba(245,158,66,0.18)');
+  ambient.addColorStop(1, 'rgba(245,158,66,0)');
+  context.fillStyle = ambient;
+  context.fillRect(0, 0, 768, 1024);
+  var random = function () {
+    var value = seed * 9301 + 49297;
+    return function () {
+      value = (value * 233280 + 9301) % 233280;
+      return value / 233280;
+    };
+  }();
+  for (var index = 0; index < 14; index += 1) {
+    var x = 90 + random() * 580;
+    var y = 300 + random() * 620;
+    var size = 16 + random() * 46;
+    var alpha = 0.5 + random() * 0.35;
+    context.globalAlpha = alpha;
+    context.fillStyle = index % 3 === 0 ? '#F59E42' : index % 3 === 1 ? accent : '#94A3B8';
+    context.beginPath();
+    if (index % 2 === 0) {
+      context.arc(x, y, size / 2, 0, Math.PI * 2);
+      context.fill();
+    } else {
+      context.save();
+      context.translate(x, y);
+      context.rotate(random() * Math.PI);
+      context.fillRect(-size / 2, -size / 2, size, size);
+      context.restore();
+    }
+    context.fill();
+  }
+  context.globalAlpha = 0.25;
+  context.strokeStyle = '#64748B';
+  context.lineWidth = 2;
+  context.beginPath();
+  context.moveTo(120, 880);
+  context.lineTo(648, 880);
+  context.stroke();
+  context.globalAlpha = 1;
+  if (mode === 'full') {
+    context.fillStyle = 'rgba(255,255,255,0.82)';
+    context.beginPath();
+    context.roundRect(90, 110, 588, 300, 28);
+    context.fill();
+    context.fillStyle = accent;
+    context.globalAlpha = 0.9;
+    context.beginPath();
+    context.roundRect(130, 170, 340, 26, 13);
+    context.fill();
+    context.globalAlpha = 0.45;
+    context.fillStyle = '#64748B';
+    [226, 270, 314].forEach(function (y) {
+      context.beginPath();
+      context.roundRect(130, y, 460, 16, 8);
+      context.fill();
+    });
+    context.globalAlpha = 1;
+  }
+  return canvas;
+};
+var canvasToBlob = function canvasToBlob(canvas) {
+  return new Promise(function (resolve, reject) {
+    canvas.toBlob(function (blob) {
+      return blob ? resolve(blob) : reject(new Error('示例图片生成失败'));
+    }, 'image/png');
+  });
+};
+var seedDemoHistory = function () {
+  var _seedDemoHistory = _asyncToGenerator(_regenerator().m(function _callee1() {
+    var record, titles, accentColor, images, index, title, visualBlob, fullBlob, _i, _images, image, _t;
+    return _regenerator().w(function (_context1) {
+      while (1) switch (_context1.p = _context1.n) {
+        case 0:
+          record = createDemoSessionRecord();
+          titles = demoPageTitles();
+          accentColor = demoPackageData.style_lock.card_shell.accent_color;
+          images = [];
+          _context1.p = 1;
+          index = 0;
+        case 2:
+          if (!(index < titles.length)) {
+            _context1.n = 6;
+            break;
+          }
+          title = titles[index];
+          _context1.n = 3;
+          return canvasToBlob(drawDemoImage(accentColor, 'visual', index + 1));
+        case 3:
+          visualBlob = _context1.v;
+          images.push({
+            title: title,
+            blob: visualBlob,
+            mode: 'visual-only'
+          });
+          _context1.n = 4;
+          return canvasToBlob(drawDemoImage(accentColor, 'full', index + 10));
+        case 4:
+          fullBlob = _context1.v;
+          images.push({
+            title: title,
+            blob: fullBlob,
+            mode: 'full'
+          });
+        case 5:
+          index += 1;
+          _context1.n = 2;
+          break;
+        case 6:
+          _context1.n = 7;
+          return saveSessionRecord(record);
+        case 7:
+          _i = 0, _images = images;
+        case 8:
+          if (!(_i < _images.length)) {
+            _context1.n = 10;
+            break;
+          }
+          image = _images[_i];
+          _context1.n = 9;
+          return saveImageBlob(DEMO_SESSION_ID, image.title, image.blob, image.mode, 50);
+        case 9:
+          _i++;
+          _context1.n = 8;
+          break;
+        case 10:
+          localStorage.setItem(DEMO_SEEDED_KEY, '1');
+          return _context1.a(2, record);
+        case 11:
+          _context1.p = 11;
+          _t = _context1.v;
+          _context1.n = 12;
+          return deleteSessionRecord(DEMO_SESSION_ID)["catch"](function () {});
+        case 12:
+          _context1.n = 13;
+          return deleteSessionImages(DEMO_SESSION_ID)["catch"](function () {});
+        case 13:
+          localStorage.removeItem(DEMO_SEEDED_KEY);
+          throw _t;
+        case 14:
+          return _context1.a(2);
+      }
+    }, _callee1, null, [[1, 11]]);
+  }));
+  function seedDemoHistory() {
+    return _seedDemoHistory.apply(this, arguments);
+  }
+  return seedDemoHistory;
+}();
+var shouldSeedDemo = function shouldSeedDemo() {
+  return !localStorage.getItem(DEMO_SEEDED_KEY);
+};
+var loadDemoHistory = function () {
+  var _loadDemoHistory = _asyncToGenerator(_regenerator().m(function _callee10() {
+    return _regenerator().w(function (_context10) {
+      while (1) switch (_context10.n) {
+        case 0:
+          _context10.n = 1;
+          return deleteSessionRecord(DEMO_SESSION_ID)["catch"](function () {});
+        case 1:
+          _context10.n = 2;
+          return deleteSessionImages(DEMO_SESSION_ID)["catch"](function () {});
+        case 2:
+          return _context10.a(2, seedDemoHistory());
+      }
+    }, _callee10);
+  }));
+  function loadDemoHistory() {
+    return _loadDemoHistory.apply(this, arguments);
+  }
+  return loadDemoHistory;
+}();
 var DEFAULT_SYSTEM_PROMPT = String.raw(_templateObject || (_templateObject = _taggedTemplateLiteral(["\u4F60\u662F MoreImg v6 \u5185\u5BB9\u52A0\u5DE5\u4E0E\u89C6\u89C9\u89C4\u5212 Agent\u3002\u4F60\u5FC5\u987B\u5728\u4E00\u6B21\u54CD\u5E94\u4E2D\uFF0C\u628A\u7528\u6237\u539F\u6587\u52A0\u5DE5\u6210\u53EF\u4F9B\u5E94\u7528\u76F4\u63A5\u8BFB\u53D6\u7684 moreimg-1.0 JSON\u3002\n\n\u603B\u539F\u5219\n- \u4E00\u6B21\u5B8C\u6210\u5185\u5BB9\u5224\u578B\u3001\u4E8B\u5B9E\u8FB9\u754C\u68C0\u67E5\u3001\u5B8C\u6574\u6587\u7AE0\u7CBE\u4FEE\u3001\u5361\u7247\u62C6\u5206\u3001Style Lock \u8BBE\u8BA1\u548C\u9010\u9875\u65E0\u6587\u5B57\u4E3B\u89C6\u89C9\u6620\u5C04\u3002\n- \u5FE0\u4E8E\u539F\u6587\uFF0C\u4E0D\u5F97\u7F16\u9020\u539F\u6587\u6CA1\u6709\u7684\u6570\u636E\u3001\u6848\u4F8B\u3001\u7ECF\u5386\u3001\u4EBA\u7269\u3001\u4EA7\u54C1\u80FD\u529B\u3001\u65F6\u95F4\u3001\u7ED3\u8BBA\u3001\u6BD4\u55BB\u6216\u884C\u52A8\u5EFA\u8BAE\u3002\n- \u4E0D\u5F97\u58F0\u79F0\u5DF2\u7ECF\u8054\u7F51\u3001\u5168\u7F51\u641C\u7D22\u6216\u5B8C\u6210\u5916\u90E8\u4E8B\u5B9E\u6838\u9A8C\u3002\n\n\u552F\u4E00\u8F93\u51FA\u534F\u8BAE\n1. \u53EA\u8F93\u51FA\u4E00\u4E2A\u5408\u6CD5 JSON \u5BF9\u8C61\uFF0CJSON \u524D\u540E\u4E0D\u5F97\u51FA\u73B0\u4EFB\u4F55\u5176\u4ED6\u5B57\u7B26\u3002\n2. \u7981\u6B62\u8F93\u51FA Markdown \u4EE3\u7801\u5757\u3001\u9636\u6BB5\u6807\u9898\u3001\u89E3\u91CA\u3001\u524D\u8A00\u3001\u540E\u8BB0\u3001\u81EA\u68C0\u7ED3\u8BBA\u6216\u6CE8\u91CA\u3002\n3. \u6240\u6709\u5C5E\u6027\u540D\u548C\u5B57\u7B26\u4E32\u5FC5\u987B\u4F7F\u7528\u53CC\u5F15\u53F7\uFF1B\u7981\u6B62\u5C3E\u968F\u9017\u53F7\u3001undefined\u3001NaN \u548C\u672A\u8F6C\u4E49\u6362\u884C\u3002\n4. schema_version \u5FC5\u987B\u4E25\u683C\u7B49\u4E8E \"moreimg-1.0\"\u3002\n5. status \u53EA\u80FD\u662F \"complete\" \u6216 \"rejected\"\u3002\n6. \u4E0D\u5F97\u8F93\u51FA validation \u5B57\u6BB5\uFF0C\u4E0D\u5F97\u521B\u5EFA\u72EC\u7ACB cards \u6570\u7EC4\u6216 prompts \u6570\u7EC4\u3002\n7. \u540C\u4E00\u9875\u7684 card\u3001semantic \u548C image_prompt \u5FC5\u987B\u4F4D\u4E8E\u540C\u4E00\u4E2A pages \u5143\u7D20\u4E2D\u3002\n8. \u6240\u6709\u89C4\u5B9A\u4E3A\u6570\u7EC4\u7684\u5B57\u6BB5\u90FD\u5FC5\u987B\u8F93\u51FA JSON \u6570\u7EC4\uFF1B\u5373\u4F7F\u6CA1\u6709\u5185\u5BB9\u4E5F\u5FC5\u987B\u8F93\u51FA\u7A7A\u6570\u7EC4 []\u3002\n9. \u7981\u6B62\u5C06\u6570\u7EC4\u5B57\u6BB5\u8F93\u51FA\u4E3A\u5B57\u7B26\u4E32\u3001null \u6216\u5BF9\u8C61\uFF1B\u53EA\u6709\u5B57\u6BB5\u5185\u7684\u5355\u4E2A\u5143\u7D20\u624D\u80FD\u662F\u5B57\u7B26\u4E32\u6216\u89C4\u5B9A\u7684\u5BF9\u8C61\u3002\n\n\u6570\u7EC4\u5B57\u6BB5\u786C\u7EA6\u675F\n- analysis \u4E2D\u7684 independent_units\u3001fact_notes\u3001logic_issues\u3001article \u4E2D\u7684 paragraphs \u5FC5\u987B\u662F\u6570\u7EC4\u3002\n- \u6BCF\u9875 card.points\u3001semantic.supporting_concepts\u3001semantic.excluded_concepts\u3001semantic.avoid_misread \u5FC5\u987B\u662F\u5B57\u7B26\u4E32\u6570\u7EC4\u3002\n- style_lock.visual_dna.recurring_elements\u3001style_lock.negative \u548C\u6BCF\u9875 image_prompt.avoid \u5FC5\u987B\u662F\u5B57\u7B26\u4E32\u6570\u7EC4\u3002\n- pages \u5FC5\u987B\u662F\u5BF9\u8C61\u6570\u7EC4\uFF1Bfact_notes \u5FC5\u987B\u662F\u5BF9\u8C61\u6570\u7EC4\uFF1B\u5176\u4F59\u4E0A\u8FF0\u6570\u7EC4\u5B57\u6BB5\u4E0D\u5F97\u5305\u542B\u5BF9\u8C61\u3002\n\n\u62D2\u7EDD\u89C4\u5219\n- \u53EA\u6709\u539F\u6587\u5B8C\u5168\u6CA1\u6709\u53EF\u8BC6\u522B\u4E3B\u9898\u3001\u89C2\u70B9\u6216\u5185\u5BB9\u7ED3\u6784\u65F6\u624D\u80FD\u62D2\u7EDD\u3002\n- \u4E0D\u5F97\u56E0\u4E3A\u6587\u7AE0\u77ED\u3001\u7F3A\u5C11\u6570\u636E\u3001\u4E0D\u9700\u8981\u4E8B\u5B9E\u6838\u67E5\u6216\u53EA\u6709\u4E00\u4E2A\u89C2\u70B9\u800C\u62D2\u7EDD\u3002\n- \u62D2\u7EDD\u65F6\u53EA\u80FD\u8F93\u51FA\uFF1A{\"schema_version\":\"moreimg-1.0\",\"status\":\"rejected\",\"reason\":\"\u660E\u786E\u7B80\u77ED\u7684\u539F\u56E0\"}\n\n\u6210\u529F\u7ED3\u679C\u5FC5\u987B\u4E14\u53EA\u80FD\u5305\u542B\u4EE5\u4E0B\u9876\u5C42\u5B57\u6BB5\uFF1A\n- schema_version\n- status\n- analysis\n- article\n- style_lock\n- pages\n\nanalysis\n- mode \u53EA\u80FD\u662F \"standard\"\u3001\"short\" \u6216 \"single_point\"\u3002\n- \u5FC5\u987B\u5305\u542B topic\u3001core_claim\u3001independent_units\u3001fact_notes\u3001logic_issues\u3002\n- fact_notes \u6BCF\u9879\u5305\u542B claim\u3001category\u3001status\u3001note\u3002\n- category \u53EA\u80FD\u662F author_statement\u3001public_fact\u3001opinion\u3001scene\u3002\n- status \u53EA\u80FD\u662F consistent\u3001unverified\u3001uncertain\u3001not_applicable\u3002\n- \u4F5C\u8005\u81EA\u8FF0\u53EA\u68C0\u67E5\u5185\u90E8\u4E00\u81F4\u6027\uFF1B\u516C\u5F00\u4E8B\u5B9E\u65E0\u6CD5\u6838\u5B9E\u65F6\u4F7F\u7528 unverified \u6216 uncertain\uFF1B\u89C2\u70B9\u548C\u573A\u666F\u4E0D\u5F97\u4F2A\u88C5\u6210\u5DF2\u6838\u5B9E\u4E8B\u5B9E\u3002\n\narticle\n- \u5FC5\u987B\u5305\u542B title\u3001subtitle\u3001paragraphs\u3002\n- paragraphs \u5FC5\u987B\u662F\u5B57\u7B26\u4E32\u6570\u7EC4\uFF0C\u6BCF\u9879\u662F\u4E00\u6BB5\u5B8C\u6574\u6B63\u6587\uFF0C\u4E0D\u5F97\u8F93\u51FA\u6458\u8981\u3001\u63D0\u7EB2\u3001\u68C0\u67E5\u8BF4\u660E\u6216\u5361\u7247\u6587\u6848\u4EE3\u66FF\u5168\u6587\u3002\n- standard \u6A21\u5F0F\u4FDD\u7559\u539F\u6587\u5F00\u573A\u3001\u8BBA\u8BC1\u3001\u5206\u89C2\u70B9\u3001\u8F6C\u6298\u548C\u6536\u675F\uFF0C\u901A\u5E38\u4FDD\u6301\u539F\u6587\u6709\u6548\u6B63\u6587\u7684 80%-120%\uFF0C\u53EA\u5220\u9664\u91CD\u590D\u3001\u8C03\u6574\u987A\u5E8F\u3001\u6D88\u9664\u6B67\u4E49\u5E76\u8865\u5145\u5FC5\u8981\u8FDE\u63A5\u53E5\u3002\n- short \u548C single_point \u6A21\u5F0F\u4E0D\u5F97\u4E3A\u51D1\u7BC7\u5E45\u800C\u6269\u5199\uFF0C\u4F46\u4ECD\u987B\u8F93\u51FA\u5B8C\u6574\u3001\u53EF\u72EC\u7ACB\u9605\u8BFB\u7684\u7CBE\u4FEE\u6B63\u6587\u3002\n\npages\n- \u56FA\u5B9A\u7ED3\u6784\u4E3A\u5C01\u9762 + 1-7\u5F20\u6B63\u6587 + \u5C01\u5E95\uFF0C\u5C01\u5E95\u59CB\u7EC8\u751F\u6210\u3002\n- \u7B2C1\u9875 page_id \u4E3A \"cover\"\uFF0Cpage_type \u4E3A \"cover\"\u3002\n- \u6B63\u6587 page_id \u4ECE \"content-01\" \u8FDE\u7EED\u7F16\u53F7\u3002\n- \u6700\u540E\u4E00\u9875 page_id \u4E3A \"closing\"\uFF0Cpage_type \u4E3A \"quote\"\u3002\n- order \u4ECE1\u5F00\u59CB\u8FDE\u7EED\u9012\u589E\u4E14\u4E0D\u5F97\u91CD\u590D\u3002\n- page_type \u53EA\u80FD\u662F cover\u3001process\u3001timeline\u3001relationship\u3001comparison\u3001checklist\u3001framework\u3001quote\u3002\n- \u6BCF\u9875\u53EA\u8868\u8FBE\u4E00\u4E2A\u6838\u5FC3\u5224\u65AD\uFF0C\u9875\u9762\u987A\u5E8F\u5FC5\u987B\u8DDF\u968F\u6587\u7AE0\u8BBA\u8BC1\u987A\u5E8F\u3002\n\ncard\n- \u6BCF\u9875\u5FC5\u987B\u5305\u542B title\u3001subtitle\u3001points\u3001summary\uFF1B\u4E0D\u4F7F\u7528\u7684\u5B57\u7B26\u4E32\u8F93\u51FA\u7A7A\u5B57\u7B26\u4E32\uFF0C\u4E0D\u4F7F\u7528\u7684 points \u8F93\u51FA\u7A7A\u6570\u7EC4\u3002\n- \u5C01\u9762 points \u5FC5\u987B\u4E3A\u7A7A\uFF1Btitle \u662F\u6838\u5FC3\u6807\u9898\uFF0C\u9ED8\u8BA4\u4F18\u5148\u4FDD\u7559\u539F\u6587\u6807\u9898\u6216\u539F\u6587\u660E\u786E\u7684\u6838\u5FC3\u547D\u540D\uFF0C\u4E0D\u5F97\u64C5\u81EA\u6539\u5199\u6210\u65B0\u7684\u95EE\u9898\u53E5\u3001\u8425\u9500\u53E5\u6216\u53E6\u4E00\u4E3B\u9898\u540D\uFF1Bsubtitle \u662F\u77ED\u526F\u6807\u9898\uFF0Csummary \u662F\u6807\u8BED\u6216\u8BB0\u5FC6\u53E5\uFF0C\u4E09\u8005\u4E0D\u5F97\u673A\u68B0\u91CD\u590D\u3002\n- \u6B63\u6587 title \u5EFA\u8BAE4-14\u4E2A\u6C49\u5B57\uFF1Bstandard \u6A21\u5F0F\u901A\u5E38\u4FDD\u75593-5\u6761\u6709\u6548\u4FE1\u606F\uFF0Cshort \u548C single_point \u6A21\u5F0F\u901A\u5E38\u4FDD\u75592-4\u6761\uFF0C\u6BCF\u6761\u4E0D\u8D85\u8FC725\u4E2A\u6C49\u5B57\uFF1Bsummary \u6700\u591A\u4E00\u53E5\u4E14\u4E0D\u8D85\u8FC720\u4E2A\u6C49\u5B57\u3002\n- \u4E0D\u5F97\u4E3A\u4E86\u9002\u914D\u5B57\u6570\u9650\u5236\u5220\u9664\u5173\u952E\u5224\u65AD\u3001\u5FC5\u8981\u8BBA\u636E\u3001\u56E0\u679C\u5173\u7CFB\u6216\u884C\u52A8\u6761\u4EF6\u3002\u5355\u9875\u5BB9\u7EB3\u4E0D\u4E0B\u65F6\uFF0C\u4F18\u5148\u62C6\u5206\u5230\u76F8\u90BB\u6B63\u6587\u9875\uFF0C\u5E76\u4FDD\u6301\u6587\u7AE0\u8BBA\u8BC1\u987A\u5E8F\uFF1B\u4FE1\u606F\u4E0D\u8DB3\u65F6\u4E0D\u5F97\u51D1\u6570\u6216\u91CD\u590D\u6539\u5199\u540C\u4E00\u89C2\u70B9\u3002\n- \u5C01\u5E95\u81EA\u7136\u6536\u675F\u5168\u6587\u3002\u539F\u6587\u6709\u884C\u52A8\u5EFA\u8BAE\u65F6\u53EF\u4EE5\u63D0\u70BC\uFF1B\u539F\u6587\u6CA1\u6709\u65F6\u4F7F\u7528\u6838\u5FC3\u7ED3\u8BBA\u6216\u4E2D\u6027\u6536\u675F\uFF0C\u7981\u6B62\u65B0\u589E\u4EFB\u52A1\u3001\u4E92\u52A8\u95EE\u9898\u3001\u5173\u6CE8\u5F15\u5BFC\u548C\u8425\u9500\u53F7\u53EC\u3002\n- \u6240\u6709\u5165\u56FE\u6587\u5B57\u5FC5\u987B\u53EF\u56DE\u6EAF\u5230\u539F\u6587\u6216\u7CBE\u4FEE\u6B63\u6587\u3002\n\nsemantic\n- \u6BCF\u9875\u5FC5\u987B\u5305\u542B page_goal\u3001primary_claim\u3001primary_concept\u3001primary_relation\u3001supporting_concepts\u3001excluded_concepts\u3001avoid_misread\u3002\n- primary_relation \u5FC5\u987B\u662F\u672C\u9875\u72EC\u6709\u7684\u5177\u4F53\u5173\u7CFB\uFF0C\u4E0D\u5F97\u8BA9\u6240\u6709\u9875\u9762\u91CD\u590D\u6574\u7BC7\u6587\u7AE0\u603B\u4E3B\u9898\u3002\n- \u5148\u5224\u65AD\u4E3B\u6982\u5FF5\u548C\u4E3B\u5173\u7CFB\uFF0C\u518D\u5224\u65AD\u8F85\u52A9\u6982\u5FF5\u3002\u7C7B\u6BD4\u3001\u65C1\u6CE8\u3001\u80CC\u666F\u8BF4\u660E\u53CA\u4E0D\u540C\u62BD\u8C61\u5C42\u7EA7\u6982\u5FF5\u9ED8\u8BA4\u653E\u5165 excluded_concepts\u3002\n- \u4E0D\u5F97\u56E0\u4E3A\u51FA\u73B0\u4E09\u4E2A\u540D\u8BCD\u5C31\u753B\u6210\u4E09\u5C42\u67B6\u6784\u3001\u4E09\u680F\u5E76\u5217\u6216\u4E09\u4E2A\u540C\u7B49\u4E3B\u4F53\u3002\n\nstyle_lock\n- \u6574\u5957\u53EA\u80FD\u4F7F\u7528\u4E00\u4E2A Style Lock\uFF0C\u5FC5\u987B\u5305\u542B style_id\u3001style_name\u3001card_shell\u3001prompt_prefix\u3001visual_dna\u3001negative\u3002\n- card_shell.preset \u56FA\u5B9A\u4E3A \"moreimg-clean-v1\"\uFF1Bsurface \u53EA\u80FD\u662F \"light\" \u6216 \"dark\"\uFF1Baccent_color \u4F7F\u7528 #RRGGBB\uFF1Boverlay \u53EA\u80FD\u662F \"none\"\u3001\"soft_dark\" \u6216 \"soft_light\"\u3002\n- visual_dna \u5FC5\u987B\u5305\u542B medium\u3001visual_world\u3001shape_language\u3001perspective\u3001lighting\u3001material\u3001recurring_subject\u3001recurring_elements\u3002\n- medium \u53EA\u80FD\u662F 3d_model\u3001geometric_silhouette\u3001hand_drawn_line\u3001isometric_icon\u3001flat_vector\u3001wireframe_perspective\u3002\n- visual_world \u5FC5\u987B\u5B9A\u4E49\u5177\u4F53\u7EDF\u4E00\u7684\u89C6\u89C9\u4E16\u754C\uFF0C\u4E0D\u80FD\u53EA\u5199\u79D1\u6280\u611F\u3001\u9AD8\u7EA7\u611F\u7B49\u7A7A\u6CDB\u8BCD\u3002\n- recurring_subject \u5FC5\u987B\u5B9A\u4E49\u8DE8\u9875\u91CD\u590D\u7684\u4EBA\u7269\u3001\u7269\u4F53\u6216\u7B26\u53F7\u7CFB\u7EDF\u3002\n- \u5404\u9875\u53EF\u4EE5\u6539\u53D8\u573A\u666F\u548C\u5173\u7CFB\uFF0C\u4F46\u4E0D\u5F97\u6539\u53D8\u4E3B\u8272\u4F53\u7CFB\u3001\u89C6\u89C9\u5A92\u4ECB\u3001\u9020\u578B\u8BED\u8A00\u3001\u900F\u89C6\u3001\u5149\u5F71\u3001\u6750\u8D28\u3001\u89C6\u89C9\u4E16\u754C\u548C\u91CD\u590D\u4E3B\u4F53\u7CFB\u7EDF\u3002\n- \u7981\u6B62\u628A\u6BCF\u9875\u5206\u522B\u8BBE\u8BA1\u6210\u4E92\u4E0D\u76F8\u5173\u7684\u822A\u6D77\u3001\u97F3\u4E50\u5385\u3001\u6D41\u7A0B\u56FE\u3001\u5DE5\u5177\u7BB1\u6216\u57CE\u5E02\u4E16\u754C\u3002\n\nimage_prompt\n- \u6BCF\u9875\u5FC5\u987B\u5305\u542B scene\u3001relationship\u3001composition\u3001safe_area\u3001continuity\u3001avoid\u3002\n- image_prompt \u53EA\u63CF\u8FF0\u65E0\u6587\u5B57\u4E3B\u89C6\u89C9\uFF0C\u4E0D\u8D1F\u8D23\u751F\u6210\u5361\u7247\u6587\u5B57\u3002\n- \u5C01\u9762 safe_area \u4F7F\u7528 \"top_40\"\uFF1B\u6B63\u6587\u4F7F\u7528 \"top_52\"\uFF1B\u5C01\u5E95\u4F7F\u7528 \"top_36\"\u3002safe_area \u8868\u793A\u9002\u5408\u53E0\u52A0\u6587\u5B57\u7684\u4F4E\u7EC6\u8282\u8303\u56F4\uFF0C\u4E0D\u662F\u7EAF\u8272\u7559\u767D\u6BD4\u4F8B\uFF1B\u80CC\u666F\u3001\u5149\u5F71\u548C\u5F31\u5316\u540E\u7684\u73AF\u5883\u7ED3\u6784\u5FC5\u987B\u8FDE\u7EED\u7A7F\u8FC7\u8BE5\u533A\u57DF\u3002\n- scene \u5FC5\u987B\u660E\u786E\u5B9E\u9645\u51FA\u73B0\u7684\u4E3B\u4F53\u4E0E\u573A\u666F\uFF1Brelationship \u5FC5\u987B\u4E0E semantic.primary_relation \u4E00\u81F4\uFF1Bcomposition \u5FC5\u987B\u8BF4\u660E\u89C6\u89C9\u91CD\u5FC3\u548C\u4E0A\u4E0B\u8FDE\u7EED\u5173\u7CFB\uFF0C\u4E3B\u4F53\u8F6E\u5ED3\u3001\u8DEF\u5F84\u6216\u73AF\u5883\u7ED3\u6784\u8981\u8FDB\u5165\u753B\u9762\u4E2D\u90E8\uFF0C\u4E0D\u80FD\u628A\u753B\u9762\u5207\u6210\u201C\u4E0A\u65B9\u7A7A\u767D\u3001\u4E0B\u65B9\u8D34\u56FE\u201D\uFF1Bcontinuity \u5FC5\u987B\u8BF4\u660E\u5982\u4F55\u7EE7\u627F Style Lock\u3002\n- \u7981\u6B62\u7528\u5927\u7247\u7EAF\u8272\u3001\u7A7A\u96FE\u3001\u65E0\u5185\u5BB9\u5899\u9762\u6216\u7A7A\u53F0\u9762\u4EE3\u66FF\u6587\u5B57\u627F\u8F7D\u533A\uFF1B\u53EA\u964D\u4F4E\u7EC6\u8282\u548C\u5BF9\u6BD4\uFF0C\u4E0D\u5F97\u8BA9\u5361\u7247\u663E\u5F97\u4FE1\u606F\u5355\u8584\u3002\n- avoid \u53EA\u5199\u672C\u9875\u7279\u6709\u8BEF\u8BFB\u98CE\u9669\uFF0C\u5168\u5C40\u7981\u7528\u9879\u653E\u5165 style_lock.negative\u3002\n- \u6240\u6709\u56FE\u7247\u7981\u6B62\u6587\u5B57\u3001\u5B57\u6BCD\u3001\u6570\u5B57\u3001Logo\u3001\u6C34\u5370\u3001\u4F2A\u6587\u5B57\u3001UI\u6807\u7B7E\u548C\u968F\u673A\u7B26\u53F7\u3002\n\n\u8F93\u51FA\u524D\u5728\u5185\u90E8\u68C0\u67E5\uFF1A\u5B8C\u6574\u6B63\u6587\u6CA1\u6709\u6458\u8981\u5316\uFF1B\u5C01\u9762\u3001\u6B63\u6587\u3001\u5C01\u5E95\u9F50\u5168\uFF1Bpage_id \u4E0E order \u8FDE\u7EED\uFF1B\u6BCF\u9875\u4E09\u4E2A\u5BF9\u8C61\u5B8C\u6574\u7ED1\u5B9A\uFF1B\u4E3B\u5173\u7CFB\u7B26\u5408\u539F\u6587\u6982\u5FF5\u5C42\u7EA7\uFF1B\u5168\u5957\u53EA\u6709\u4E00\u4E2A Style Lock\uFF1B\u6CA1\u6709\u65B0\u589E\u539F\u6587\u5916\u4E8B\u5B9E\u3002\u4E0D\u8981\u8F93\u51FA\u68C0\u67E5\u8FC7\u7A0B\u3002"])));
 var Icon = React.memo(function (_ref) {
   var _window$moreimgIcons;
@@ -586,6 +1068,7 @@ var parseStreamedText = function parseStreamedText(fullText) {
 var PROCESSING_MAX_OUTPUT_TOKENS = 12000;
 var TEXT_REQUEST_TIMEOUT_MS = 300000;
 var TEXT_TEST_TIMEOUT_MS = 30000;
+var IMAGE_REQUEST_TIMEOUT_MS = 300000;
 var runWithRequestControl = function runWithRequestControl(task) {
   var options = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : {};
   var _options$timeoutMs = options.timeoutMs,
@@ -1188,37 +1671,37 @@ var extractProcessingStreamDelta = function extractProcessingStreamDelta() {
   return '';
 };
 var readProcessingResponse = function () {
-  var _readProcessingResponse = _asyncToGenerator(_regenerator().m(function _callee9(response) {
+  var _readProcessingResponse = _asyncToGenerator(_regenerator().m(function _callee11(response) {
     var _response$headers, _response$headers$get;
-    var contentType, responseText, data, reader, decoder, streamBuffer, fullResponseText, finishReason, streamCompleted, consumeLine, _yield$reader$read, done, value, lines, _t;
-    return _regenerator().w(function (_context9) {
-      while (1) switch (_context9.p = _context9.n) {
+    var contentType, responseText, data, reader, decoder, streamBuffer, fullResponseText, finishReason, streamCompleted, consumeLine, _yield$reader$read, done, value, lines, _t2;
+    return _regenerator().w(function (_context11) {
+      while (1) switch (_context11.p = _context11.n) {
         case 0:
           contentType = String(((_response$headers = response.headers) === null || _response$headers === void 0 || (_response$headers$get = _response$headers.get) === null || _response$headers$get === void 0 ? void 0 : _response$headers$get.call(_response$headers, 'content-type')) || '').toLowerCase();
           if (contentType.includes('text/event-stream')) {
-            _context9.n = 4;
+            _context11.n = 4;
             break;
           }
-          _context9.n = 1;
+          _context11.n = 1;
           return response.text();
         case 1:
-          responseText = _context9.v;
-          _context9.p = 2;
+          responseText = _context11.v;
+          _context11.p = 2;
           data = JSON.parse(responseText);
-          return _context9.a(2, {
+          return _context11.a(2, {
             text: extractProcessingResponseText(data),
             finishReason: extractProcessingFinishReason(data)
           });
         case 3:
-          _context9.p = 3;
-          _t = _context9.v;
-          return _context9.a(2, {
+          _context11.p = 3;
+          _t2 = _context11.v;
+          return _context11.a(2, {
             text: responseText,
             finishReason: ''
           });
         case 4:
           if (!(!response.body || typeof response.body.getReader !== 'function')) {
-            _context9.n = 5;
+            _context11.n = 5;
             break;
           }
           throw new Error('接口返回了不可读取的流，请检查接口或更换文本模型。');
@@ -1250,13 +1733,13 @@ var readProcessingResponse = function () {
           };
         case 6:
           if (!true) {
-            _context9.n = 9;
+            _context11.n = 9;
             break;
           }
-          _context9.n = 7;
+          _context11.n = 7;
           return reader.read();
         case 7:
-          _yield$reader$read = _context9.v;
+          _yield$reader$read = _context11.v;
           done = _yield$reader$read.done;
           value = _yield$reader$read.value;
           streamBuffer += decoder.decode(value || new Uint8Array(), {
@@ -1266,35 +1749,35 @@ var readProcessingResponse = function () {
           streamBuffer = lines.pop() || '';
           lines.forEach(consumeLine);
           if (!done) {
-            _context9.n = 8;
+            _context11.n = 8;
             break;
           }
-          return _context9.a(3, 9);
+          return _context11.a(3, 9);
         case 8:
-          _context9.n = 6;
+          _context11.n = 6;
           break;
         case 9:
           consumeLine(streamBuffer);
           if (streamCompleted) {
-            _context9.n = 10;
+            _context11.n = 10;
             break;
           }
           throw new Error('流式响应提前结束，未收到完成标记，请稍后重试或检查上游服务。');
         case 10:
           if (fullResponseText.trim()) {
-            _context9.n = 11;
+            _context11.n = 11;
             break;
           }
           throw new Error('大模型未返回任何有效内容，请检查接口配置或稍后重试。');
         case 11:
-          return _context9.a(2, {
+          return _context11.a(2, {
             text: fullResponseText,
             finishReason: finishReason
           });
       }
-    }, _callee9, null, [[2, 3]]);
+    }, _callee11, null, [[2, 3]]);
   }));
-  function readProcessingResponse(_x12) {
+  function readProcessingResponse(_x13) {
     return _readProcessingResponse.apply(this, arguments);
   }
   return readProcessingResponse;
@@ -1724,7 +2207,9 @@ var HistoryItems = function HistoryItems(_ref1) {
       "aria-label": "\u6253\u5F00\u5386\u53F2\u8BB0\u5F55\uFF1A".concat(item.title || '未命名')
     }, React.createElement("div", {
       className: "text-[13px] font-bold truncate flex items-center ".concat(activeHistoryId === item.id && showResults ? 'text-indigo-600' : 'text-slate-700')
-    }, item.title || '未命名'), React.createElement("div", {
+    }, item.title || '未命名', item.isDemo && React.createElement("span", {
+      className: "ml-1.5 shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-600 border border-amber-200"
+    }, "\u793A\u4F8B")), React.createElement("div", {
       className: "mt-1.5 font-mono text-[11px] text-slate-400"
     }, item.date)), !isProcessing && React.createElement("div", {
       className: "history-item-actions absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-all"
@@ -1764,7 +2249,8 @@ var MobileHistoryDialog = function MobileHistoryDialog(_ref10) {
     showResults = _ref10.showResults,
     loadHistoryItem = _ref10.loadHistoryItem,
     retryHistoryItem = _ref10.retryHistoryItem,
-    deleteHistoryItem = _ref10.deleteHistoryItem;
+    deleteHistoryItem = _ref10.deleteHistoryItem,
+    loadDemoRecord = _ref10.loadDemoRecord;
   return isHistoryOpen && React.createElement("div", {
     className: "mobile-history-overlay animate-fade-in",
     onClick: function onClick() {
@@ -1786,9 +2272,18 @@ var MobileHistoryDialog = function MobileHistoryDialog(_ref10) {
   }, React.createElement(Icon, {
     name: "History",
     className: "mr-2 h-5 w-5 text-indigo-600"
-  }), " \u5386\u53F2\u8BB0\u5F55"), React.createElement("p", {
-    className: "mt-1 text-[11px] text-slate-500"
-  }, "\u6062\u590D\u3001\u518D\u6B21\u751F\u6210\u6216\u5220\u9664\u672C\u673A\u8BB0\u5F55")), React.createElement("button", {
+  }), " \u5386\u53F2\u8BB0\u5F55"), React.createElement("div", {
+    className: "mt-1 flex items-center gap-2"
+  }, React.createElement("p", {
+    className: "text-[11px] text-slate-500"
+  }, "\u6062\u590D\u3001\u518D\u6B21\u751F\u6210\u6216\u5220\u9664\u672C\u673A\u8BB0\u5F55"), React.createElement("button", {
+    type: "button",
+    onClick: loadDemoRecord,
+    disabled: isProcessing,
+    className: "text-[11px] font-bold text-slate-400 hover:text-slate-500 transition-colors disabled:opacity-40",
+    "aria-label": "\u8F7D\u5165\u793A\u4F8B\u8BB0\u5F55\uFF0C\u67E5\u770B\u5E94\u7528\u5B8C\u6574\u80FD\u529B",
+    title: "\u8F7D\u5165\u793A\u4F8B\u8BB0\u5F55\uFF08\u542B\u89C6\u89C9\u751F\u6210\u4E0E\u5BF9\u6BD4\uFF09\uFF0C\u4E0D\u6D88\u8017 API"
+  }, "\u8F7D\u5165\u793A\u4F8B"))), React.createElement("button", {
     type: "button",
     onClick: function onClick() {
       return setIsHistoryOpen(false);
@@ -1830,7 +2325,8 @@ var AppSidebar = function AppSidebar(_ref11) {
     isButtonDisabled = _ref11.isButtonDisabled,
     loadHistoryItem = _ref11.loadHistoryItem,
     retryHistoryItem = _ref11.retryHistoryItem,
-    deleteHistoryItem = _ref11.deleteHistoryItem;
+    deleteHistoryItem = _ref11.deleteHistoryItem,
+    loadDemoRecord = _ref11.loadDemoRecord;
   return React.createElement("div", {
     className: "moreimg-sidebar w-full md:w-[320px] h-auto md:h-full flex-shrink-0 flex flex-col bg-white/60 md:bg-white/40 backdrop-blur-3xl border-b md:border-b-0 md:border-r border-white/60 shadow-sm md:shadow-[8px_0_32px_rgba(31,38,135,0.05)] z-20 p-4 md:p-6 relative"
   }, React.createElement("div", {
@@ -1906,8 +2402,17 @@ var AppSidebar = function AppSidebar(_ref11) {
   }), "\u4E00\u952E\u63D0\u53D6\u63D0\u793A\u8BCD\u7269\u6599\u5305")), React.createElement("div", {
     className: "moreimg-history hidden md:flex mt-10 flex-1 relative shrink-0 flex-col min-h-0"
   }, React.createElement("div", {
-    className: "flex items-center text-[12px] font-bold text-slate-400 mb-4 tracking-wide uppercase shrink-0"
-  }, "\u5386\u53F2\u8BB0\u5F55"), React.createElement("div", {
+    className: "flex items-center justify-between mb-4 shrink-0"
+  }, React.createElement("div", {
+    className: "text-[12px] font-bold text-amber-600 tracking-wide uppercase"
+  }, "\u5386\u53F2\u8BB0\u5F55"), React.createElement("button", {
+    type: "button",
+    onClick: loadDemoRecord,
+    disabled: isProcessing,
+    className: "text-[11px] font-bold text-slate-400 hover:text-slate-500 transition-colors disabled:opacity-40",
+    "aria-label": "\u8F7D\u5165\u793A\u4F8B\u8BB0\u5F55\uFF0C\u67E5\u770B\u5E94\u7528\u5B8C\u6574\u80FD\u529B",
+    title: "\u8F7D\u5165\u793A\u4F8B\u8BB0\u5F55\uFF08\u542B\u89C6\u89C9\u751F\u6210\u4E0E\u5BF9\u6BD4\uFF09\uFF0C\u4E0D\u6D88\u8017 API"
+  }, "\u8F7D\u5165\u793A\u4F8B")), React.createElement("div", {
     className: "space-y-3 overflow-y-auto custom-scrollbar flex-1 pb-4 pr-1"
   }, React.createElement(HistoryItems, {
     history: history,
@@ -2486,6 +2991,7 @@ var AppView = function AppView(_ref16) {
     isHistoryOpen = _ref16.isHistoryOpen,
     isProcessing = _ref16.isProcessing,
     lastImageDiagnostic = _ref16.lastImageDiagnostic,
+    loadDemoRecord = _ref16.loadDemoRecord,
     loadHistoryItem = _ref16.loadHistoryItem,
     messagesEndRef = _ref16.messagesEndRef,
     resultContent = _ref16.resultContent,
@@ -2523,7 +3029,8 @@ var AppView = function AppView(_ref16) {
     isButtonDisabled: isButtonDisabled,
     loadHistoryItem: loadHistoryItem,
     retryHistoryItem: retryHistoryItem,
-    deleteHistoryItem: deleteHistoryItem
+    deleteHistoryItem: deleteHistoryItem,
+    loadDemoRecord: loadDemoRecord
   }), React.createElement(MainWorkspace, {
     isProcessing: isProcessing,
     showResults: showResults,
@@ -2544,7 +3051,8 @@ var AppView = function AppView(_ref16) {
     showResults: showResults,
     loadHistoryItem: loadHistoryItem,
     retryHistoryItem: retryHistoryItem,
-    deleteHistoryItem: deleteHistoryItem
+    deleteHistoryItem: deleteHistoryItem,
+    loadDemoRecord: loadDemoRecord
   }), React.createElement(SettingsDialog, {
     isConfigOpen: isConfigOpen,
     setIsConfigOpen: setIsConfigOpen,
@@ -2582,10 +3090,11 @@ var shouldOfferDefaultPromptUpgrade = function shouldOfferDefaultPromptUpgrade()
 };
 var hasSavedApiConfig = function hasSavedApiConfig() {
   try {
+    var _parsedConfig$apiKey;
     var savedConfig = localStorage.getItem('agent_api_config');
     if (!savedConfig) return false;
     var parsedConfig = JSON.parse(savedConfig);
-    return Boolean(parsedConfig.apiKey);
+    return Boolean((_parsedConfig$apiKey = parsedConfig.apiKey) === null || _parsedConfig$apiKey === void 0 ? void 0 : _parsedConfig$apiKey.trim());
   } catch (_unused9) {
     return false;
   }
@@ -2769,6 +3278,7 @@ var useResultContent = function useResultContent(_ref17) {
       }() : sId === 5 ? function () {
         var promptSections = parsedSession.promptSections,
           htmlCards = parsedSession.htmlCards;
+        var isBuiltInDemo = Boolean(currentSession.isDemo);
         if (promptSections.length > 0) {
           var _selectedHtmlImageRes, _currentSession$packa2;
           var selectedPromptSection = promptSections.find(function (section) {
@@ -2834,7 +3344,7 @@ var useResultContent = function useResultContent(_ref17) {
             onClick: function onClick() {
               return handleGenerateImage(selectedPromptSection.title, visualOnlyPrompt, 'visual-only');
             },
-            disabled: (imageResult === null || imageResult === void 0 ? void 0 : imageResult.status) === 'loading',
+            disabled: isBuiltInDemo || (imageResult === null || imageResult === void 0 ? void 0 : imageResult.status) === 'loading',
             "aria-busy": (imageResult === null || imageResult === void 0 ? void 0 : imageResult.status) === 'loading',
             className: "mi-button mi-button-standard visual-button visual-button-primary"
           }, React.createElement(Icon, {
@@ -2844,7 +3354,7 @@ var useResultContent = function useResultContent(_ref17) {
             onClick: function onClick() {
               return handleGenerateImage(selectedPromptSection.title, fullImagePrompt, 'full');
             },
-            disabled: !matchingCard || (fullImageResult === null || fullImageResult === void 0 ? void 0 : fullImageResult.status) === 'loading',
+            disabled: isBuiltInDemo || !matchingCard || (fullImageResult === null || fullImageResult === void 0 ? void 0 : fullImageResult.status) === 'loading',
             "aria-busy": (fullImageResult === null || fullImageResult === void 0 ? void 0 : fullImageResult.status) === 'loading',
             className: "mi-button mi-button-standard visual-button"
           }, React.createElement(Icon, {
@@ -2855,7 +3365,7 @@ var useResultContent = function useResultContent(_ref17) {
           }, React.createElement(Icon, {
             name: "Info",
             className: "mt-0.5 h-3.5 w-3.5 shrink-0"
-          }), React.createElement("span", null, "HTML \u6210\u54C1\u5361\u7528\u4E8E\u51C6\u786E\u4E2D\u6587\u4EA4\u4ED8\uFF1BAI \u6574\u56FE\u7528\u4E8E\u89C6\u89C9\u5019\u9009\uFF0C\u751F\u6210\u540E\u4ECD\u9700\u6838\u5BF9\u6587\u5B57\u3002")), React.createElement("div", {
+          }), React.createElement("span", null, isBuiltInDemo ? '内置示例仅用于查看流程；图片为本地占位图，不调用图片 API。' : 'HTML 成品卡用于准确中文交付；AI 整图用于视觉候选，生成后仍需核对文字。')), React.createElement("div", {
             className: "visual-workspace-grid"
           }, React.createElement("div", {
             className: "visual-results-column"
@@ -2882,7 +3392,7 @@ var useResultContent = function useResultContent(_ref17) {
             className: "mi-surface mi-surface-card visual-result-item"
           }, React.createElement("div", {
             className: "visual-result-item-header"
-          }, React.createElement("span", null, "HTML \u4E3B\u89C6\u89C9"), React.createElement("button", {
+          }, React.createElement("span", null, isBuiltInDemo ? '内置示例占位图' : 'HTML 主视觉'), React.createElement("button", {
             type: "button",
             onClick: function onClick() {
               return downloadImage(selectedPromptSection.title, imageResult.imageUrl);
@@ -2900,7 +3410,7 @@ var useResultContent = function useResultContent(_ref17) {
             className: "mi-surface mi-surface-card visual-result-item"
           }, React.createElement("div", {
             className: "visual-result-item-header"
-          }, React.createElement("span", null, "HTML \u4E3B\u89C6\u89C9")), React.createElement("div", {
+          }, React.createElement("span", null, isBuiltInDemo ? '内置示例占位图' : 'HTML 主视觉')), React.createElement("div", {
             className: "mi-empty-state mi-empty-state-media visual-result-slot-empty"
           }, React.createElement("div", {
             className: "mi-empty-state-icon"
@@ -2915,7 +3425,7 @@ var useResultContent = function useResultContent(_ref17) {
             className: "mi-surface mi-surface-card visual-result-item"
           }, React.createElement("div", {
             className: "visual-result-item-header"
-          }, React.createElement("span", null, "AI \u6574\u56FE"), React.createElement("div", {
+          }, React.createElement("span", null, isBuiltInDemo ? '内置示例占位图' : 'AI 整图'), React.createElement("div", {
             className: "visual-result-actions"
           }, React.createElement("button", {
             type: "button",
@@ -2948,7 +3458,7 @@ var useResultContent = function useResultContent(_ref17) {
             className: "mi-surface mi-surface-card visual-result-item"
           }, React.createElement("div", {
             className: "visual-result-item-header"
-          }, React.createElement("span", null, "AI \u6574\u56FE"), (fullImageResult === null || fullImageResult === void 0 ? void 0 : fullImageResult.status) === 'success' && hiddenFullImages[selectedPromptSection.title] && React.createElement("button", {
+          }, React.createElement("span", null, isBuiltInDemo ? '内置示例占位图' : 'AI 整图'), (fullImageResult === null || fullImageResult === void 0 ? void 0 : fullImageResult.status) === 'success' && hiddenFullImages[selectedPromptSection.title] && React.createElement("button", {
             type: "button",
             onClick: function onClick() {
               return setHiddenFullImages(function (prev) {
@@ -3086,13 +3596,13 @@ var useResultContent = function useResultContent(_ref17) {
             className: "html-card-placeholder-badge"
           }, "\u7B49\u5F85\u4E3B\u89C6\u89C9")), React.createElement("div", {
             className: "visual-comparison-meta"
-          }, React.createElement("span", null, React.createElement("strong", null, "\u9884\u89C8\u6846 3:4"), " \xB7 ", selectedHtmlCardReady ? 'HTML 成品' : '排版占位'), React.createElement("span", null, selectedHtmlCardReady ? '导出 1242×1656' : '待生成主视觉')), (selectedHtmlImageResult === null || selectedHtmlImageResult === void 0 ? void 0 : selectedHtmlImageResult.status) !== 'success' && React.createElement("p", {
+          }, React.createElement("span", null, React.createElement("strong", null, "\u9884\u89C8\u6846 3:4"), " \xB7 ", isBuiltInDemo ? '内置示例占位图' : selectedHtmlCardReady ? 'HTML 成品' : '排版占位'), React.createElement("span", null, isBuiltInDemo ? '本地演示素材' : selectedHtmlCardReady ? '导出 1242×1656' : '待生成主视觉')), (selectedHtmlImageResult === null || selectedHtmlImageResult === void 0 ? void 0 : selectedHtmlImageResult.status) !== 'success' && React.createElement("p", {
             className: "mt-3 text-center text-[11px] ".concat((selectedHtmlLegacyResult === null || selectedHtmlLegacyResult === void 0 ? void 0 : selectedHtmlLegacyResult.status) === 'success' ? 'text-amber-600' : 'text-slate-400')
           }, (selectedHtmlLegacyResult === null || selectedHtmlLegacyResult === void 0 ? void 0 : selectedHtmlLegacyResult.status) === 'success' ? '旧版主视觉不再用于 HTML 成品卡，请重新生成无字主视觉。' : '当前使用视觉占位，生成无字主视觉后会自动替换。')), React.createElement("div", {
             className: "mi-surface mi-surface-card visual-comparison-item"
           }, React.createElement("div", {
             className: "visual-comparison-label"
-          }, "AI \u6574\u56FE"), (fullImageResult === null || fullImageResult === void 0 ? void 0 : fullImageResult.status) === 'success' && !hiddenFullImages[selectedPromptSection.title] ? React.createElement(React.Fragment, null, React.createElement("div", {
+          }, isBuiltInDemo ? '内置示例占位图' : 'AI 整图'), (fullImageResult === null || fullImageResult === void 0 ? void 0 : fullImageResult.status) === 'success' && !hiddenFullImages[selectedPromptSection.title] ? React.createElement(React.Fragment, null, React.createElement("div", {
             className: "visual-comparison-preview-frame"
           }, React.createElement("img", {
             src: fullImageResult.imageUrl,
@@ -3102,7 +3612,7 @@ var useResultContent = function useResultContent(_ref17) {
             className: "visual-comparison-image"
           })), React.createElement("div", {
             className: "visual-comparison-meta"
-          }, React.createElement("span", null, React.createElement("strong", null, "\u9884\u89C8\u6846 3:4"), " \xB7 AI \u6574\u56FE"), React.createElement("span", null, "\u6A21\u578B\u6392\u7248\u8F93\u51FA"))) : React.createElement(React.Fragment, null, React.createElement("div", {
+          }, React.createElement("span", null, React.createElement("strong", null, "\u9884\u89C8\u6846 3:4"), " \xB7 ", isBuiltInDemo ? '内置示例占位图' : 'AI 整图'), React.createElement("span", null, isBuiltInDemo ? '本地演示素材' : '模型排版输出'))) : React.createElement(React.Fragment, null, React.createElement("div", {
             className: "visual-comparison-preview-frame"
           }, React.createElement("div", {
             className: "mi-empty-state mi-empty-state-inline visual-comparison-empty"
@@ -3113,7 +3623,7 @@ var useResultContent = function useResultContent(_ref17) {
             className: "mt-3 text-[11px] font-bold"
           }, (fullImageResult === null || fullImageResult === void 0 ? void 0 : fullImageResult.status) === 'loading' ? 'AI 整图生成中' : (fullImageResult === null || fullImageResult === void 0 ? void 0 : fullImageResult.status) === 'success' ? 'AI 整图已隐藏' : '尚未生成 AI 整图'))), React.createElement("div", {
             className: "visual-comparison-meta"
-          }, React.createElement("span", null, React.createElement("strong", null, "\u9884\u89C8\u6846 3:4"), " \xB7 AI \u6574\u56FE"), React.createElement("span", null, "\u56FA\u5B9A\u5BF9\u6BD4\u69FD\u4F4D")))))))));
+          }, React.createElement("span", null, React.createElement("strong", null, "\u9884\u89C8\u6846 3:4"), " \xB7 ", isBuiltInDemo ? '内置示例占位图' : 'AI 整图'), React.createElement("span", null, "\u56FA\u5B9A\u5BF9\u6BD4\u69FD\u4F4D")))))))));
         }
         var fullCleanText = content.replace(/```[^\n]*\n?/g, '').replace(/```/g, '').trim();
         return React.createElement("div", {
@@ -3174,6 +3684,7 @@ var useResultContent = function useResultContent(_ref17) {
   return resultContent;
 };
 function App() {
+  var _apiConfig$apiKey2;
   var _useState3 = useState({
       apiUrl: '',
       model: '',
@@ -3299,6 +3810,9 @@ function App() {
     setCurrentSession = _useState40[1];
   var messagesEndRef = useRef(null);
   var processingAbortRef = useRef(null);
+  var historyLoadTokenRef = useRef(0);
+  var imageAbortControllersRef = useRef(new Map());
+  var demoLoadInFlightRef = useRef(false);
   var imageObjectUrlsRef = useRef([]);
   var htmlCardRefs = useRef({});
   var htmlExportInFlightRef = useRef(false);
@@ -3397,17 +3911,29 @@ function App() {
       });
     });
   };
+  var abortImageRequests = function abortImageRequests() {
+    imageAbortControllersRef.current.forEach(function (controller) {
+      return controller.abort();
+    });
+    imageAbortControllersRef.current.clear();
+  };
   var restoreSessionImages = function () {
-    var _restoreSessionImages = _asyncToGenerator(_regenerator().m(function _callee0(sessionId) {
-      var _loadLastImageDiagnos, storedImages, nextResults, _loadLastImageDiagnos2, _t2;
-      return _regenerator().w(function (_context0) {
-        while (1) switch (_context0.p = _context0.n) {
+    var _restoreSessionImages = _asyncToGenerator(_regenerator().m(function _callee12(sessionId, requestToken) {
+      var _loadLastImageDiagnos, storedImages, nextResults, _loadLastImageDiagnos2, _t3;
+      return _regenerator().w(function (_context12) {
+        while (1) switch (_context12.p = _context12.n) {
           case 0:
-            _context0.p = 0;
-            _context0.n = 1;
+            _context12.p = 0;
+            _context12.n = 1;
             return loadSessionImages(sessionId);
           case 1:
-            storedImages = _context0.v;
+            storedImages = _context12.v;
+            if (!(requestToken !== historyLoadTokenRef.current)) {
+              _context12.n = 2;
+              break;
+            }
+            return _context12.a(2);
+          case 2:
             nextResults = {};
             storedImages.forEach(function (item) {
               var imageUrl = URL.createObjectURL(item.blob);
@@ -3426,27 +3952,33 @@ function App() {
                 failureReason: storedImages.length ? '' : '未找到可恢复的本地图片'
               });
             }
-            _context0.n = 3;
+            _context12.n = 5;
             break;
-          case 2:
-            _context0.p = 2;
-            _t2 = _context0.v;
+          case 3:
+            _context12.p = 3;
+            _t3 = _context12.v;
+            if (!(requestToken !== historyLoadTokenRef.current)) {
+              _context12.n = 4;
+              break;
+            }
+            return _context12.a(2);
+          case 4:
             if (((_loadLastImageDiagnos2 = loadLastImageDiagnostic()) === null || _loadLastImageDiagnos2 === void 0 ? void 0 : _loadLastImageDiagnos2.sessionId) === sessionId) {
               saveLastImageDiagnostic({
                 restoreStatus: '失败',
-                failureReason: getDiagnosticFailureReason(_t2, 'restore')
+                failureReason: getDiagnosticFailureReason(_t3, 'restore')
               });
             }
             setToast({
-              message: "\u56FE\u7247\u8BB0\u5F55\u8BFB\u53D6\u5931\u8D25: ".concat(_t2.message),
+              message: "\u56FE\u7247\u8BB0\u5F55\u8BFB\u53D6\u5931\u8D25: ".concat(_t3.message),
               type: 'error'
             });
-          case 3:
-            return _context0.a(2);
+          case 5:
+            return _context12.a(2);
         }
-      }, _callee0, null, [[0, 2]]);
+      }, _callee12, null, [[0, 3]]);
     }));
-    function restoreSessionImages(_x13) {
+    function restoreSessionImages(_x14, _x15) {
       return _restoreSessionImages.apply(this, arguments);
     }
     return restoreSessionImages;
@@ -3454,59 +3986,130 @@ function App() {
   useEffect(function () {
     var isActive = true;
     var loadHistory = function () {
-      var _loadHistory = _asyncToGenerator(_regenerator().m(function _callee1() {
-        var savedHistory, parsedHistory, legacyValue, migratedHistory, _t3;
-        return _regenerator().w(function (_context1) {
-          while (1) switch (_context1.p = _context1.n) {
+      var _loadHistory = _asyncToGenerator(_regenerator().m(function _callee13() {
+        var savedHistory, parsedHistory, candidateHistory, reconciledHistory, legacyValue, existingDemo, demoIndex, demoRecord, _demoIndex, migratedHistory, _t4, _t5, _t6, _t7;
+        return _regenerator().w(function (_context13) {
+          while (1) switch (_context13.p = _context13.n) {
             case 0:
               savedHistory = localStorage.getItem(HISTORY_INDEX_KEY);
               if (!savedHistory) {
-                _context1.n = 1;
+                _context13.n = 5;
                 break;
               }
-              try {
-                parsedHistory = JSON.parse(savedHistory);
-                if (isActive && Array.isArray(parsedHistory)) setHistory(parsedHistory);
-              } catch (_unused0) {
-                localStorage.removeItem(HISTORY_INDEX_KEY);
+              _context13.p = 1;
+              parsedHistory = JSON.parse(savedHistory);
+              if (Array.isArray(parsedHistory)) {
+                _context13.n = 2;
+                break;
               }
-              return _context1.a(2);
-            case 1:
+              throw new Error('历史索引格式无效');
+            case 2:
+              candidateHistory = parsedHistory.filter(function (item) {
+                return (item === null || item === void 0 ? void 0 : item.id) && (item === null || item === void 0 ? void 0 : item.title) !== undefined;
+              }).slice(0, HISTORY_LIMIT);
+              _context13.n = 3;
+              return filterExistingHistoryIndex(candidateHistory);
+            case 3:
+              reconciledHistory = _context13.v;
+              if (isActive) {
+                setHistory(reconciledHistory);
+                if (reconciledHistory.length !== candidateHistory.length) {
+                  localStorage.setItem(HISTORY_INDEX_KEY, JSON.stringify(reconciledHistory));
+                }
+              }
+              return _context13.a(2);
+            case 4:
+              _context13.p = 4;
+              _t4 = _context13.v;
+              localStorage.removeItem(HISTORY_INDEX_KEY);
+            case 5:
               legacyValue = localStorage.getItem(LEGACY_HISTORY_KEY);
               if (legacyValue) {
-                _context1.n = 2;
+                _context13.n = 15;
                 break;
               }
-              return _context1.a(2);
-            case 2:
-              _context1.p = 2;
-              _context1.n = 3;
-              return migrateLegacyHistory(JSON.parse(legacyValue));
-            case 3:
-              migratedHistory = _context1.v;
-              if (isActive) {
-                _context1.n = 4;
+              _context13.p = 6;
+              _context13.n = 7;
+              return loadSessionRecord(DEMO_SESSION_ID)["catch"](function () {
+                return null;
+              });
+            case 7:
+              existingDemo = _context13.v;
+              if (!(existingDemo !== null && existingDemo !== void 0 && existingDemo.isDemo)) {
+                _context13.n = 8;
                 break;
               }
-              return _context1.a(2);
-            case 4:
-              localStorage.setItem(HISTORY_INDEX_KEY, JSON.stringify(migratedHistory));
-              localStorage.removeItem(LEGACY_HISTORY_KEY);
-              setHistory(migratedHistory);
-              _context1.n = 6;
+              demoIndex = [toHistoryIndex(existingDemo)];
+              if (isActive) setHistory(demoIndex);
+              localStorage.setItem(HISTORY_INDEX_KEY, JSON.stringify(demoIndex));
+              _context13.n = 12;
               break;
-            case 5:
-              _context1.p = 5;
-              _t3 = _context1.v;
+            case 8:
+              _t5 = shouldSeedDemo();
+              if (!_t5) {
+                _context13.n = 10;
+                break;
+              }
+              _context13.n = 9;
+              return hasAnySessionRecords();
+            case 9:
+              _t5 = !_context13.v;
+            case 10:
+              if (!_t5) {
+                _context13.n = 12;
+                break;
+              }
+              _context13.n = 11;
+              return seedDemoHistory();
+            case 11:
+              demoRecord = _context13.v;
+              if (isActive) {
+                _demoIndex = [toHistoryIndex(demoRecord)];
+                setHistory(_demoIndex);
+                localStorage.setItem(HISTORY_INDEX_KEY, JSON.stringify(_demoIndex));
+              }
+            case 12:
+              _context13.n = 14;
+              break;
+            case 13:
+              _context13.p = 13;
+              _t6 = _context13.v;
               if (isActive) setToast({
-                message: "\u5386\u53F2\u8BB0\u5F55\u8FC1\u79FB\u5931\u8D25: ".concat(_t3.message),
+                message: "\u793A\u4F8B\u8BB0\u5F55\u521D\u59CB\u5316\u5931\u8D25: ".concat(_t6.message),
                 type: 'error',
                 duration: 5000
               });
-            case 6:
-              return _context1.a(2);
+            case 14:
+              return _context13.a(2);
+            case 15:
+              _context13.p = 15;
+              _context13.n = 16;
+              return migrateLegacyHistory(JSON.parse(legacyValue));
+            case 16:
+              migratedHistory = _context13.v;
+              if (isActive) {
+                _context13.n = 17;
+                break;
+              }
+              return _context13.a(2);
+            case 17:
+              localStorage.setItem(HISTORY_INDEX_KEY, JSON.stringify(migratedHistory));
+              localStorage.removeItem(LEGACY_HISTORY_KEY);
+              setHistory(migratedHistory);
+              _context13.n = 19;
+              break;
+            case 18:
+              _context13.p = 18;
+              _t7 = _context13.v;
+              if (isActive) setToast({
+                message: "\u5386\u53F2\u8BB0\u5F55\u8FC1\u79FB\u5931\u8D25: ".concat(_t7.message),
+                type: 'error',
+                duration: 5000
+              });
+            case 19:
+              return _context13.a(2);
           }
-        }, _callee1, null, [[2, 5]]);
+        }, _callee13, null, [[15, 18], [6, 13], [1, 4]]);
       }));
       function loadHistory() {
         return _loadHistory.apply(this, arguments);
@@ -3515,18 +4118,33 @@ function App() {
     }();
     var savedConfig = localStorage.getItem('agent_api_config');
     if (savedConfig) {
-      var parsedConfig = JSON.parse(savedConfig);
-      delete parsedConfig.systemPrompt;
-      parsedConfig.promptVersion = DEFAULT_PROMPT_VERSION;
-      parsedConfig.processingPreferences = _objectSpread(_objectSpread({}, createDefaultProcessingPreferences()), parsedConfig.processingPreferences || {});
-      parsedConfig.imageApiUrl = parsedConfig.imageApiUrl || 'https://api.openai.com/v1/images/generations';
-      parsedConfig.imageModel = parsedConfig.imageModel || 'gpt-image-1';
-      parsedConfig.imageApiKey = parsedConfig.imageApiKey || '';
-      parsedConfig.imageSize = parsedConfig.imageSize || '768x1024';
-      localStorage.setItem('agent_api_config', JSON.stringify(parsedConfig));
-      setApiConfig(parsedConfig);
-      if (parsedConfig.apiKey) {
-        setIsConfigOpen(false);
+      var parsedConfig = null;
+      try {
+        parsedConfig = JSON.parse(savedConfig);
+        if (!parsedConfig || _typeof(parsedConfig) !== 'object' || Array.isArray(parsedConfig)) throw new Error('配置格式无效');
+      } catch (_unused1) {
+        localStorage.removeItem('agent_api_config');
+        setIsConfigOpen(true);
+        setToast({
+          message: '本地配置已损坏，请重新填写接口设置',
+          type: 'error',
+          duration: 5000
+        });
+      }
+      if (parsedConfig) {
+        var _parsedConfig$apiKey2;
+        delete parsedConfig.systemPrompt;
+        parsedConfig.promptVersion = DEFAULT_PROMPT_VERSION;
+        parsedConfig.processingPreferences = _objectSpread(_objectSpread({}, createDefaultProcessingPreferences()), parsedConfig.processingPreferences || {});
+        parsedConfig.imageApiUrl = parsedConfig.imageApiUrl || 'https://api.openai.com/v1/images/generations';
+        parsedConfig.imageModel = parsedConfig.imageModel || 'gpt-image-1';
+        parsedConfig.imageApiKey = parsedConfig.imageApiKey || '';
+        parsedConfig.imageSize = parsedConfig.imageSize || '768x1024';
+        localStorage.setItem('agent_api_config', JSON.stringify(parsedConfig));
+        setApiConfig(parsedConfig);
+        if ((_parsedConfig$apiKey2 = parsedConfig.apiKey) !== null && _parsedConfig$apiKey2 !== void 0 && _parsedConfig$apiKey2.trim()) {
+          setIsConfigOpen(false);
+        }
       }
     } else {
       setIsConfigOpen(true);
@@ -3538,6 +4156,7 @@ function App() {
   }, []);
   useEffect(function () {
     return function () {
+      abortImageRequests();
       imageObjectUrlsRef.current.forEach(function (url) {
         return URL.revokeObjectURL(url);
       });
@@ -3557,10 +4176,10 @@ function App() {
     setIsConfigOpen(false);
   };
   var handleLoadModels = function () {
-    var _handleLoadModels = _asyncToGenerator(_regenerator().m(function _callee10(kind) {
-      var isImage, endpoint, apiKey, stateKey, setModels, _data$error, modelsEndpoint, response, data, modelIds, _t4;
-      return _regenerator().w(function (_context10) {
-        while (1) switch (_context10.p = _context10.n) {
+    var _handleLoadModels = _asyncToGenerator(_regenerator().m(function _callee14(kind) {
+      var isImage, endpoint, apiKey, stateKey, setModels, _data$error, modelsEndpoint, response, data, modelIds, _t8;
+      return _regenerator().w(function (_context14) {
+        while (1) switch (_context14.p = _context14.n) {
           case 0:
             isImage = kind === 'image';
             endpoint = resolveApiEndpoint(isImage ? apiConfig.imageApiUrl : apiConfig.apiUrl, isImage ? 'image' : 'text');
@@ -3568,22 +4187,22 @@ function App() {
             stateKey = isImage ? 'imageModels' : 'textModels';
             setModels = isImage ? setImageModels : setTextModels;
             if (!(!endpoint || !apiKey)) {
-              _context10.n = 1;
+              _context14.n = 1;
               break;
             }
             updateConfigTool(stateKey, {
               status: 'error',
               message: '请先填写接口地址和 API Key。'
             });
-            return _context10.a(2);
+            return _context14.a(2);
           case 1:
             updateConfigTool(stateKey, {
               status: 'loading',
               message: '正在读取模型列表...'
             });
-            _context10.p = 2;
+            _context14.p = 2;
             modelsEndpoint = deriveModelsEndpoint(endpoint);
-            _context10.n = 3;
+            _context14.n = 3;
             return fetch(modelsEndpoint, {
               method: 'GET',
               headers: {
@@ -3591,22 +4210,22 @@ function App() {
               }
             });
           case 3:
-            response = _context10.v;
-            _context10.n = 4;
+            response = _context14.v;
+            _context14.n = 4;
             return response.json()["catch"](function () {
               return {};
             });
           case 4:
-            data = _context10.v;
+            data = _context14.v;
             if (response.ok) {
-              _context10.n = 5;
+              _context14.n = 5;
               break;
             }
             throw new Error((data === null || data === void 0 || (_data$error = data.error) === null || _data$error === void 0 ? void 0 : _data$error.message) || (data === null || data === void 0 ? void 0 : data.message) || "HTTP ".concat(response.status));
           case 5:
             modelIds = extractModelIds(data);
             if (!(modelIds.length === 0)) {
-              _context10.n = 6;
+              _context14.n = 6;
               break;
             }
             throw new Error('接口未返回可用模型');
@@ -3616,21 +4235,21 @@ function App() {
               status: 'success',
               message: "\u5DF2\u8BFB\u53D6 ".concat(modelIds.length, " \u4E2A\u6A21\u578B\uFF0C\u53EF\u7EE7\u7EED\u624B\u52A8\u8F93\u5165\u6216\u4ECE\u5EFA\u8BAE\u4E2D\u9009\u62E9\u3002")
             });
-            _context10.n = 8;
+            _context14.n = 8;
             break;
           case 7:
-            _context10.p = 7;
-            _t4 = _context10.v;
+            _context14.p = 7;
+            _t8 = _context14.v;
             updateConfigTool(stateKey, {
               status: 'error',
-              message: "\u8BFB\u53D6\u5931\u8D25\uFF1A".concat(_t4.message, "\u3002\u4E0D\u5F71\u54CD\u624B\u52A8\u586B\u5199\u3002")
+              message: "\u8BFB\u53D6\u5931\u8D25\uFF1A".concat(_t8.message, "\u3002\u4E0D\u5F71\u54CD\u624B\u52A8\u586B\u5199\u3002")
             });
           case 8:
-            return _context10.a(2);
+            return _context14.a(2);
         }
-      }, _callee10, null, [[2, 7]]);
+      }, _callee14, null, [[2, 7]]);
     }));
-    function handleLoadModels(_x14) {
+    function handleLoadModels(_x16) {
       return _handleLoadModels.apply(this, arguments);
     }
     return handleLoadModels;
@@ -3646,30 +4265,30 @@ function App() {
     });
   };
   var handleTestTextConnection = function () {
-    var _handleTestTextConnection = _asyncToGenerator(_regenerator().m(function _callee12() {
-      var endpoint, model, apiKey, startedAt, transport, messages, data, responseText, elapsedMs, preview, _t5;
-      return _regenerator().w(function (_context12) {
-        while (1) switch (_context12.p = _context12.n) {
+    var _handleTestTextConnection = _asyncToGenerator(_regenerator().m(function _callee16() {
+      var endpoint, model, apiKey, startedAt, transport, messages, data, responseText, elapsedMs, preview, _t9;
+      return _regenerator().w(function (_context16) {
+        while (1) switch (_context16.p = _context16.n) {
           case 0:
             endpoint = resolveApiEndpoint(apiConfig.apiUrl, 'text');
             model = apiConfig.model.trim();
             apiKey = apiConfig.apiKey.trim();
             if (!(!endpoint || !model || !apiKey)) {
-              _context12.n = 1;
+              _context16.n = 1;
               break;
             }
             updateConfigTool('textTest', {
               status: 'error',
               message: '请先填写接口地址、模型和 API Key。'
             });
-            return _context12.a(2);
+            return _context16.a(2);
           case 1:
             updateConfigTool('textTest', {
               status: 'loading',
               message: '正在发送最小测试请求...'
             });
             startedAt = Date.now();
-            _context12.p = 2;
+            _context16.p = 2;
             transport = getRequestTransport(endpoint, 'text');
             messages = [{
               role: 'system',
@@ -3678,15 +4297,15 @@ function App() {
               role: 'user',
               content: '只回复 OK'
             }];
-            _context12.n = 3;
+            _context16.n = 3;
             return runWithRequestControl(function () {
-              var _ref18 = _asyncToGenerator(_regenerator().m(function _callee11(signal) {
+              var _ref18 = _asyncToGenerator(_regenerator().m(function _callee15(signal) {
                 var _responseData$error;
                 var response, responseData;
-                return _regenerator().w(function (_context11) {
-                  while (1) switch (_context11.n) {
+                return _regenerator().w(function (_context15) {
+                  while (1) switch (_context15.n) {
                     case 0:
-                      _context11.n = 1;
+                      _context15.n = 1;
                       return fetch(transport.url, {
                         method: 'POST',
                         headers: _objectSpread({
@@ -3697,24 +4316,24 @@ function App() {
                         signal: signal
                       });
                     case 1:
-                      response = _context11.v;
-                      _context11.n = 2;
+                      response = _context15.v;
+                      _context15.n = 2;
                       return response.json()["catch"](function () {
                         return {};
                       });
                     case 2:
-                      responseData = _context11.v;
+                      responseData = _context15.v;
                       if (response.ok) {
-                        _context11.n = 3;
+                        _context15.n = 3;
                         break;
                       }
                       throw new Error((responseData === null || responseData === void 0 || (_responseData$error = responseData.error) === null || _responseData$error === void 0 ? void 0 : _responseData$error.message) || (responseData === null || responseData === void 0 ? void 0 : responseData.message) || "HTTP ".concat(response.status));
                     case 3:
-                      return _context11.a(2, responseData);
+                      return _context15.a(2, responseData);
                   }
-                }, _callee11);
+                }, _callee15);
               }));
-              return function (_x15) {
+              return function (_x17) {
                 return _ref18.apply(this, arguments);
               };
             }(), {
@@ -3722,10 +4341,10 @@ function App() {
               timeoutMessage: '接口测试超过 30 秒，请检查接口地址、模型或服务状态。'
             });
           case 3:
-            data = _context12.v;
+            data = _context16.v;
             responseText = extractProcessingResponseText(data).trim();
             if (responseText) {
-              _context12.n = 4;
+              _context16.n = 4;
               break;
             }
             throw new Error('接口成功响应，但没有可解析文本');
@@ -3736,19 +4355,19 @@ function App() {
               status: 'success',
               message: "\u8FDE\u63A5\u6210\u529F\uFF0C\u8017\u65F6 ".concat(elapsedMs, " ms\uFF0C\u8FD4\u56DE\uFF1A").concat(preview)
             });
-            _context12.n = 6;
+            _context16.n = 6;
             break;
           case 5:
-            _context12.p = 5;
-            _t5 = _context12.v;
+            _context16.p = 5;
+            _t9 = _context16.v;
             updateConfigTool('textTest', {
               status: 'error',
-              message: "\u6D4B\u8BD5\u5931\u8D25\uFF1A".concat(_t5.message)
+              message: "\u6D4B\u8BD5\u5931\u8D25\uFF1A".concat(_t9.message)
             });
           case 6:
-            return _context12.a(2);
+            return _context16.a(2);
         }
-      }, _callee12, null, [[2, 5]]);
+      }, _callee16, null, [[2, 5]]);
     }));
     function handleTestTextConnection() {
       return _handleTestTextConnection.apply(this, arguments);
@@ -3756,10 +4375,14 @@ function App() {
     return handleTestTextConnection;
   }();
   var handleGenerateImage = function () {
-    var _handleGenerateImage = _asyncToGenerator(_regenerator().m(function _callee13(cardTitle, prompt) {
-      var _imageResults$resultK;
+    var _handleGenerateImage = _asyncToGenerator(_regenerator().m(function _callee17(cardTitle, prompt) {
+      var _imageAbortController, _imageResults$resultK;
       var mode,
         resultKey,
+        requestController,
+        operationToken,
+        imageTimedOut,
+        imageTimeout,
         imageEndpoint,
         imageTransport,
         previousFocusY,
@@ -3775,15 +4398,26 @@ function App() {
         imageBlob,
         imageUrl,
         generationLabel,
-        _args13 = arguments,
-        _t6,
-        _t7;
-      return _regenerator().w(function (_context13) {
-        while (1) switch (_context13.p = _context13.n) {
+        _args17 = arguments,
+        _t0,
+        _t1;
+      return _regenerator().w(function (_context17) {
+        while (1) switch (_context17.p = _context17.n) {
           case 0:
-            mode = _args13.length > 2 && _args13[2] !== undefined ? _args13[2] : 'visual';
+            mode = _args17.length > 2 && _args17[2] !== undefined ? _args17[2] : 'visual';
+            if (!currentSession.isDemo) {
+              _context17.n = 1;
+              break;
+            }
+            setToast({
+              message: '内置示例仅用于查看流程，不调用图片 API。请输入自己的文章开始加工。',
+              type: 'success',
+              duration: 5000
+            });
+            return _context17.a(2);
+          case 1:
             if (!(!apiConfig.imageApiUrl.trim() || !apiConfig.imageModel.trim() || !apiConfig.imageApiKey.trim())) {
-              _context13.n = 1;
+              _context17.n = 2;
               break;
             }
             setToast({
@@ -3791,9 +4425,18 @@ function App() {
               type: 'error'
             });
             setIsConfigOpen(true);
-            return _context13.a(2);
-          case 1:
+            return _context17.a(2);
+          case 2:
             resultKey = "".concat(mode, ":").concat(cardTitle);
+            (_imageAbortController = imageAbortControllersRef.current.get(resultKey)) === null || _imageAbortController === void 0 || _imageAbortController.abort();
+            requestController = new AbortController();
+            imageAbortControllersRef.current.set(resultKey, requestController);
+            operationToken = historyLoadTokenRef.current;
+            imageTimedOut = false;
+            imageTimeout = setTimeout(function () {
+              imageTimedOut = true;
+              requestController.abort();
+            }, IMAGE_REQUEST_TIMEOUT_MS);
             imageEndpoint = resolveApiEndpoint(apiConfig.imageApiUrl, 'image');
             imageTransport = getRequestTransport(imageEndpoint, 'image');
             previousFocusY = (_imageResults$resultK = imageResults[resultKey]) === null || _imageResults$resultK === void 0 ? void 0 : _imageResults$resultK.focusY;
@@ -3821,8 +4464,8 @@ function App() {
               restoreStatus: '尚未验证',
               failureReason: ''
             });
-            _context13.p = 2;
-            _context13.n = 3;
+            _context17.p = 3;
+            _context17.n = 4;
             return fetch(imageTransport.url, {
               method: 'POST',
               headers: _objectSpread({
@@ -3834,55 +4477,76 @@ function App() {
                 prompt: prompt,
                 size: apiConfig.imageSize.trim() || '768x1024',
                 n: 1
-              })
+              }),
+              signal: requestController.signal
             });
-          case 3:
-            response = _context13.v;
-            _context13.n = 4;
-            return response.json();
           case 4:
-            data = _context13.v;
+            response = _context17.v;
+            _context17.n = 5;
+            return response.json();
+          case 5:
+            data = _context17.v;
             if (response.ok) {
-              _context13.n = 5;
+              _context17.n = 6;
               break;
             }
             throw new Error((data === null || data === void 0 || (_data$error2 = data.error) === null || _data$error2 === void 0 ? void 0 : _data$error2.message) || "HTTP ".concat(response.status));
-          case 5:
+          case 6:
             firstImage = data === null || data === void 0 || (_data$data = data.data) === null || _data$data === void 0 ? void 0 : _data$data[0];
             remoteUrl = (firstImage === null || firstImage === void 0 ? void 0 : firstImage.url) || '';
             dataUrl = firstImage !== null && firstImage !== void 0 && firstImage.b64_json ? "data:image/png;base64,".concat(firstImage.b64_json) : '';
             if (!(!remoteUrl && !dataUrl)) {
-              _context13.n = 6;
+              _context17.n = 7;
               break;
             }
             throw new Error('接口未返回 url 或 b64_json 图片数据');
-          case 6:
+          case 7:
             diagnosticPhase = 'storage';
             saveLastImageDiagnostic({
               actualFormat: dataUrl ? 'Base64' : 'URL',
               imageHost: dataUrl ? 'API 响应' : getDiagnosticImageHost(remoteUrl),
               storageStatus: '保存中'
             });
-            if (!dataUrl) {
-              _context13.n = 7;
+            if (!(requestController.signal.aborted || operationToken !== historyLoadTokenRef.current)) {
+              _context17.n = 8;
               break;
             }
-            _t6 = dataUrlToBlob(dataUrl);
-            _context13.n = 9;
+            return _context17.a(2);
+          case 8:
+            if (!dataUrl) {
+              _context17.n = 9;
+              break;
+            }
+            _t0 = dataUrlToBlob(dataUrl);
+            _context17.n = 11;
             break;
-          case 7:
-            _context13.n = 8;
-            return fetch(remoteUrl).then(function (imageResponse) {
+          case 9:
+            _context17.n = 10;
+            return fetch(remoteUrl, {
+              signal: requestController.signal
+            }).then(function (imageResponse) {
               if (!imageResponse.ok) throw new Error("\u56FE\u7247\u4E0B\u8F7D\u5931\u8D25 HTTP ".concat(imageResponse.status));
               return imageResponse.blob();
             });
-          case 8:
-            _t6 = _context13.v;
-          case 9:
-            imageBlob = _t6;
-            _context13.n = 10;
-            return saveImageBlob(sessionId, cardTitle, imageBlob, mode, previousFocusY);
           case 10:
+            _t0 = _context17.v;
+          case 11:
+            imageBlob = _t0;
+            if (!(requestController.signal.aborted || operationToken !== historyLoadTokenRef.current)) {
+              _context17.n = 12;
+              break;
+            }
+            return _context17.a(2);
+          case 12:
+            _context17.n = 13;
+            return saveImageBlob(sessionId, cardTitle, imageBlob, mode, previousFocusY);
+          case 13:
+            if (!(requestController.signal.aborted || operationToken !== historyLoadTokenRef.current)) {
+              _context17.n = 14;
+              break;
+            }
+            return _context17.a(2);
+          case 14:
             saveLastImageDiagnostic({
               storageBackend: 'IndexedDB',
               storageStatus: '成功',
@@ -3914,34 +4578,48 @@ function App() {
               message: "[".concat(cardTitle, "] ").concat(generationLabel, "\u751F\u6210\u5B8C\u6210"),
               type: 'success'
             });
-            _context13.n = 12;
+            _context17.n = 17;
             break;
-          case 11:
-            _context13.p = 11;
-            _t7 = _context13.v;
+          case 15:
+            _context17.p = 15;
+            _t1 = _context17.v;
+            if (!(operationToken !== historyLoadTokenRef.current || requestController.signal.aborted && !imageTimedOut)) {
+              _context17.n = 16;
+              break;
+            }
+            return _context17.a(2);
+          case 16:
+            if (imageTimedOut) _t1 = new Error('图片生成超过 300 秒，已自动停止。');
             saveLastImageDiagnostic({
               storageStatus: diagnosticPhase === 'storage' ? '失败' : '未开始',
-              failureReason: getDiagnosticFailureReason(_t7, diagnosticPhase)
+              failureReason: getDiagnosticFailureReason(_t1, diagnosticPhase)
             });
             setImageResults(function (prev) {
               return _objectSpread(_objectSpread({}, prev), {}, _defineProperty({}, resultKey, {
                 status: 'error',
                 imageUrl: '',
-                error: _t7.message,
+                error: _t1.message,
                 mode: mode
               }));
             });
             setToast({
-              message: "\u56FE\u7247\u751F\u6210\u5931\u8D25: ".concat(_t7.message),
+              message: "\u56FE\u7247\u751F\u6210\u5931\u8D25: ".concat(_t1.message),
               type: 'error',
               duration: 5000
             });
-          case 12:
-            return _context13.a(2);
+          case 17:
+            _context17.p = 17;
+            clearTimeout(imageTimeout);
+            if (imageAbortControllersRef.current.get(resultKey) === requestController) {
+              imageAbortControllersRef.current["delete"](resultKey);
+            }
+            return _context17.f(17);
+          case 18:
+            return _context17.a(2);
         }
-      }, _callee13, null, [[2, 11]]);
+      }, _callee17, null, [[3, 15, 17, 18]]);
     }));
-    function handleGenerateImage(_x16, _x17) {
+    function handleGenerateImage(_x18, _x19) {
       return _handleGenerateImage.apply(this, arguments);
     }
     return handleGenerateImage;
@@ -3982,31 +4660,31 @@ function App() {
     };
   };
   var exportHtmlCard = function () {
-    var _exportHtmlCard = _asyncToGenerator(_regenerator().m(function _callee14(card) {
-      var visualResult, sourceNode, errorMessage, exportRoot, exportPhase, _document$fonts, exportClone, exportNode, canvas, pngBlob, pngUrl, _errorMessage, _exportRoot, _t8;
-      return _regenerator().w(function (_context14) {
-        while (1) switch (_context14.p = _context14.n) {
+    var _exportHtmlCard = _asyncToGenerator(_regenerator().m(function _callee18(card) {
+      var visualResult, sourceNode, errorMessage, exportRoot, exportPhase, _document$fonts, exportClone, exportNode, canvas, pngBlob, pngUrl, _errorMessage, _exportRoot, _t10;
+      return _regenerator().w(function (_context18) {
+        while (1) switch (_context18.p = _context18.n) {
           case 0:
             if (!htmlExportInFlightRef.current) {
-              _context14.n = 1;
+              _context18.n = 1;
               break;
             }
-            return _context14.a(2);
+            return _context18.a(2);
           case 1:
             visualResult = imageResults["visual-only:".concat(card.imageKey)];
             if (!((visualResult === null || visualResult === void 0 ? void 0 : visualResult.status) !== 'success')) {
-              _context14.n = 2;
+              _context18.n = 2;
               break;
             }
             setToast({
               message: '请先生成无字主视觉',
               type: 'error'
             });
-            return _context14.a(2);
+            return _context18.a(2);
           case 2:
             sourceNode = htmlCardRefs.current[card.id];
             if (sourceNode) {
-              _context14.n = 3;
+              _context18.n = 3;
               break;
             }
             errorMessage = formatHtmlExportError(new Error('导出区域未就绪，请刷新页面后重试'), 'clone');
@@ -4020,7 +4698,7 @@ function App() {
               type: 'error',
               duration: 8000
             });
-            return _context14.a(2);
+            return _context18.a(2);
           case 3:
             htmlExportInFlightRef.current = true;
             setHtmlExportState({
@@ -4030,19 +4708,19 @@ function App() {
             });
             exportRoot = null;
             exportPhase = 'loader';
-            _context14.p = 4;
-            _context14.n = 5;
+            _context18.p = 4;
+            _context18.n = 5;
             return loadHtml2Canvas();
           case 5:
             exportPhase = 'fonts';
-            _context14.n = 6;
+            _context18.n = 6;
             return loadExportFontStylesheet();
           case 6:
             if (!((_document$fonts = document.fonts) !== null && _document$fonts !== void 0 && _document$fonts.ready)) {
-              _context14.n = 7;
+              _context18.n = 7;
               break;
             }
-            _context14.n = 7;
+            _context18.n = 7;
             return document.fonts.ready;
           case 7:
             exportPhase = 'clone';
@@ -4050,7 +4728,7 @@ function App() {
             exportRoot = exportClone.exportRoot;
             exportNode = exportClone.exportNode;
             exportPhase = 'render';
-            _context14.n = 8;
+            _context18.n = 8;
             return window.html2canvas(exportNode, {
               width: 1242,
               height: 1656,
@@ -4061,16 +4739,16 @@ function App() {
               logging: false
             });
           case 8:
-            canvas = _context14.v;
+            canvas = _context18.v;
             exportPhase = 'encode';
-            _context14.n = 9;
+            _context18.n = 9;
             return new Promise(function (resolve) {
               return canvas.toBlob(resolve, 'image/png', 1);
             });
           case 9:
-            pngBlob = _context14.v;
+            pngBlob = _context18.v;
             if (pngBlob) {
-              _context14.n = 10;
+              _context18.n = 10;
               break;
             }
             throw new Error('PNG 编码失败');
@@ -4090,12 +4768,12 @@ function App() {
               message: "[".concat(card.label, "] HTML \u6210\u54C1\u5DF2\u5BFC\u51FA"),
               type: 'success'
             });
-            _context14.n = 12;
+            _context18.n = 12;
             break;
           case 11:
-            _context14.p = 11;
-            _t8 = _context14.v;
-            _errorMessage = formatHtmlExportError(_t8, exportPhase);
+            _context18.p = 11;
+            _t10 = _context18.v;
+            _errorMessage = formatHtmlExportError(_t10, exportPhase);
             setHtmlExportState({
               cardId: card.id,
               status: 'error',
@@ -4107,72 +4785,167 @@ function App() {
               duration: 8000
             });
           case 12:
-            _context14.p = 12;
+            _context18.p = 12;
             htmlExportInFlightRef.current = false;
             (_exportRoot = exportRoot) === null || _exportRoot === void 0 || _exportRoot.remove();
-            return _context14.f(12);
+            return _context18.f(12);
           case 13:
-            return _context14.a(2);
+            return _context18.a(2);
         }
-      }, _callee14, null, [[4, 11, 12, 13]]);
+      }, _callee18, null, [[4, 11, 12, 13]]);
     }));
-    function exportHtmlCard(_x18) {
+    function exportHtmlCard(_x20) {
       return _exportHtmlCard.apply(this, arguments);
     }
     return exportHtmlCard;
   }();
-  var deleteHistoryItem = function deleteHistoryItem(id, e) {
-    e.stopPropagation();
-    var updatedHistory = history.filter(function (item) {
-      return item.id !== id;
-    });
-    setHistory(updatedHistory);
-    localStorage.setItem(HISTORY_INDEX_KEY, JSON.stringify(updatedHistory));
-    deleteSessionRecord(id)["catch"](function () {});
-    deleteSessionImages(id)["catch"](function () {});
-    if (activeHistoryId === id) {
-      setActiveHistoryId(null);
-      setShowResults(false);
-      setCurrentSession({
-        rawText: '',
-        packageData: null,
-        stages: {
-          1: '',
-          2: '',
-          3: '',
-          4: '',
-          5: '',
-          6: ''
-        },
-        isHalted: false,
-        stopReason: '',
-        warning: ''
-      });
-      replaceImageResults({});
+  var deleteHistoryItem = function () {
+    var _deleteHistoryItem = _asyncToGenerator(_regenerator().m(function _callee19(id, e) {
+      var previousHistory, updatedHistory, _t11;
+      return _regenerator().w(function (_context19) {
+        while (1) switch (_context19.p = _context19.n) {
+          case 0:
+            e.stopPropagation();
+            historyLoadTokenRef.current += 1;
+            abortImageRequests();
+            previousHistory = history;
+            updatedHistory = history.filter(function (item) {
+              return item.id !== id;
+            });
+            setHistory(updatedHistory);
+            _context19.p = 1;
+            localStorage.setItem(HISTORY_INDEX_KEY, JSON.stringify(updatedHistory));
+            _context19.n = 2;
+            return Promise.all([deleteSessionRecord(id), deleteSessionImages(id)]);
+          case 2:
+            if (activeHistoryId === id) {
+              setActiveHistoryId(null);
+              setShowResults(false);
+              setCurrentSession({
+                rawText: '',
+                packageData: null,
+                stages: {
+                  1: '',
+                  2: '',
+                  3: '',
+                  4: '',
+                  5: '',
+                  6: ''
+                },
+                isHalted: false,
+                stopReason: '',
+                warning: ''
+              });
+              replaceImageResults({});
+            }
+            setToast({
+              message: '已删除该条记录',
+              type: 'success'
+            });
+            _context19.n = 4;
+            break;
+          case 3:
+            _context19.p = 3;
+            _t11 = _context19.v;
+            setHistory(previousHistory);
+            try {
+              localStorage.setItem(HISTORY_INDEX_KEY, JSON.stringify(previousHistory));
+            } catch (_unused10) {}
+            setToast({
+              message: "\u5386\u53F2\u8BB0\u5F55\u5220\u9664\u5931\u8D25: ".concat(_t11.message),
+              type: 'error',
+              duration: 5000
+            });
+          case 4:
+            return _context19.a(2);
+        }
+      }, _callee19, null, [[1, 3]]);
+    }));
+    function deleteHistoryItem(_x21, _x22) {
+      return _deleteHistoryItem.apply(this, arguments);
     }
-    setToast({
-      message: '已删除该条记录',
-      type: 'success'
-    });
-  };
+    return deleteHistoryItem;
+  }();
+  var loadDemoRecord = function () {
+    var _loadDemoRecord = _asyncToGenerator(_regenerator().m(function _callee20() {
+      var demoRecord, demoIndex, updatedHistory, removedHistory, _t12;
+      return _regenerator().w(function (_context20) {
+        while (1) switch (_context20.p = _context20.n) {
+          case 0:
+            if (!(isProcessing || demoLoadInFlightRef.current)) {
+              _context20.n = 1;
+              break;
+            }
+            return _context20.a(2);
+          case 1:
+            demoLoadInFlightRef.current = true;
+            historyLoadTokenRef.current += 1;
+            abortImageRequests();
+            _context20.p = 2;
+            _context20.n = 3;
+            return loadDemoHistory();
+          case 3:
+            demoRecord = _context20.v;
+            demoIndex = toHistoryIndex(demoRecord);
+            updatedHistory = [demoIndex].concat(_toConsumableArray(history.filter(function (item) {
+              return item.id !== demoIndex.id;
+            }))).slice(0, HISTORY_LIMIT);
+            removedHistory = history.filter(function (historyItem) {
+              return !updatedHistory.some(function (item) {
+                return item.id === historyItem.id;
+              });
+            });
+            setHistory(updatedHistory);
+            localStorage.setItem(HISTORY_INDEX_KEY, JSON.stringify(updatedHistory));
+            removedHistory.forEach(function (item) {
+              deleteSessionRecord(item.id)["catch"](function () {});
+              deleteSessionImages(item.id)["catch"](function () {});
+            });
+            setToast({
+              message: '示例记录已载入，点击即可查看完整流程',
+              type: 'success'
+            });
+            _context20.n = 5;
+            break;
+          case 4:
+            _context20.p = 4;
+            _t12 = _context20.v;
+            setToast({
+              message: "\u793A\u4F8B\u8BB0\u5F55\u8F7D\u5165\u5931\u8D25: ".concat(_t12.message),
+              type: 'error'
+            });
+          case 5:
+            _context20.p = 5;
+            demoLoadInFlightRef.current = false;
+            return _context20.f(5);
+          case 6:
+            return _context20.a(2);
+        }
+      }, _callee20, null, [[2, 4, 5, 6]]);
+    }));
+    function loadDemoRecord() {
+      return _loadDemoRecord.apply(this, arguments);
+    }
+    return loadDemoRecord;
+  }();
   var requestProcessingText = function requestProcessingText(messages, externalSignal) {
     return runWithRequestControl(function () {
-      var _ref19 = _asyncToGenerator(_regenerator().m(function _callee15(signal) {
+      var _ref19 = _asyncToGenerator(_regenerator().m(function _callee21(signal) {
         var fullResponseText, finishReason, endpoint, transport, response, responseText, errorMsg, _errorData$error, errorData, processingResponse;
-        return _regenerator().w(function (_context15) {
-          while (1) switch (_context15.n) {
+        return _regenerator().w(function (_context21) {
+          while (1) switch (_context21.n) {
             case 0:
               fullResponseText = '';
               finishReason = '';
               endpoint = resolveApiEndpoint(apiConfig.apiUrl, 'text');
               transport = getRequestTransport(endpoint, 'text');
               if (!transport.blockedLocalService) {
-                _context15.n = 1;
+                _context21.n = 1;
                 break;
               }
               throw new Error('当前是线上页面，不能使用本机代理地址。请在设置中改为可跨域访问的 HTTPS 接口。');
             case 1:
-              _context15.n = 2;
+              _context21.n = 2;
               return fetch(transport.url, {
                 method: 'POST',
                 headers: _objectSpread({
@@ -4183,15 +4956,15 @@ function App() {
                 signal: signal
               });
             case 2:
-              response = _context15.v;
+              response = _context21.v;
               if (response.ok) {
-                _context15.n = 4;
+                _context21.n = 4;
                 break;
               }
-              _context15.n = 3;
+              _context21.n = 3;
               return response.text();
             case 3:
-              responseText = _context15.v;
+              responseText = _context21.v;
               errorMsg = response.statusText;
               try {
                 errorData = JSON.parse(responseText);
@@ -4199,26 +4972,26 @@ function App() {
               } catch (e) {}
               throw new Error("(HTTP ".concat(response.status, ") ").concat(errorMsg));
             case 4:
-              _context15.n = 5;
+              _context21.n = 5;
               return readProcessingResponse(response);
             case 5:
-              processingResponse = _context15.v;
+              processingResponse = _context21.v;
               fullResponseText = processingResponse.text;
               finishReason = processingResponse.finishReason;
               if (fullResponseText.trim()) {
-                _context15.n = 6;
+                _context21.n = 6;
                 break;
               }
               throw new Error('大模型未返回任何有效内容，请检查接口配置或稍后重试。');
             case 6:
-              return _context15.a(2, {
+              return _context21.a(2, {
                 text: fullResponseText,
                 finishReason: finishReason
               });
           }
-        }, _callee15);
+        }, _callee21);
       }));
-      return function (_x19) {
+      return function (_x23) {
         return _ref19.apply(this, arguments);
       };
     }(), {
@@ -4236,7 +5009,8 @@ function App() {
     });
   };
   var handleStartProcessing = function () {
-    var _handleStartProcessing = _asyncToGenerator(_regenerator().m(function _callee16() {
+    var _handleStartProcessing = _asyncToGenerator(_regenerator().m(function _callee22() {
+      var _apiConfig$apiKey;
       var overrideText,
         textToProcess,
         newSessionId,
@@ -4252,19 +5026,19 @@ function App() {
         warning,
         sessionData,
         newHistoryItem,
-        updatedHistory,
+        _updatedHistory,
         isCancelled,
         errorMessage,
-        _args16 = arguments,
-        _t9,
-        _t0;
-      return _regenerator().w(function (_context16) {
-        while (1) switch (_context16.p = _context16.n) {
+        _args22 = arguments,
+        _t13,
+        _t14;
+      return _regenerator().w(function (_context22) {
+        while (1) switch (_context22.p = _context22.n) {
           case 0:
-            overrideText = _args16.length > 0 && _args16[0] !== undefined ? _args16[0] : null;
+            overrideText = _args22.length > 0 && _args22[0] !== undefined ? _args22[0] : null;
             textToProcess = (typeof overrideText === 'string' ? overrideText : inputText).trim();
-            if (apiConfig.apiKey) {
-              _context16.n = 1;
+            if ((_apiConfig$apiKey = apiConfig.apiKey) !== null && _apiConfig$apiKey !== void 0 && _apiConfig$apiKey.trim()) {
+              _context22.n = 1;
               break;
             }
             setToast({
@@ -4272,19 +5046,21 @@ function App() {
               type: 'error'
             });
             setIsConfigOpen(true);
-            return _context16.a(2);
+            return _context22.a(2);
           case 1:
             if (textToProcess) {
-              _context16.n = 2;
+              _context22.n = 2;
               break;
             }
             setToast({
               message: '请输入需加工的文章或文案',
               type: 'error'
             });
-            return _context16.a(2);
+            return _context22.a(2);
           case 2:
             setInputText(textToProcess);
+            historyLoadTokenRef.current += 1;
+            abortImageRequests();
             setIsProcessing(true);
             setShowResults(false);
             setInternalStage(1);
@@ -4309,16 +5085,16 @@ function App() {
             processingController = new AbortController();
             processingAbortRef.current = processingController;
             shouldShowResults = false;
-            _context16.p = 3;
+            _context22.p = 3;
             initialMessages = buildInitialProcessingMessages(textToProcess, DEFAULT_SYSTEM_PROMPT, apiConfig.processingPreferences);
-            _context16.n = 4;
+            _context22.n = 4;
             return requestProcessingText(initialMessages, processingController.signal);
           case 4:
-            processingResult = _context16.v;
+            processingResult = _context22.v;
             _fullResponseText = processingResult.text;
             normalizedFinishReason = String(processingResult.finishReason || '').trim().toLowerCase();
             if (!['length', 'max_tokens', 'max_output_tokens'].includes(normalizedFinishReason)) {
-              _context16.n = 5;
+              _context22.n = 5;
               break;
             }
             throw new Error("\u8F93\u51FA\u8FBE\u5230 ".concat(PROCESSING_MAX_OUTPUT_TOKENS, " Token \u4E0A\u9650\uFF0CJSON \u4E0D\u5B8C\u6574"));
@@ -4352,24 +5128,24 @@ function App() {
               sessionData: sessionData,
               originalInput: textToProcess
             };
-            updatedHistory = [toHistoryIndex(newHistoryItem)].concat(_toConsumableArray(history)).slice(0, HISTORY_LIMIT);
-            _context16.p = 6;
-            _context16.n = 7;
+            _updatedHistory = [toHistoryIndex(newHistoryItem)].concat(_toConsumableArray(history)).slice(0, HISTORY_LIMIT);
+            _context22.p = 6;
+            _context22.n = 7;
             return saveSessionRecord(newHistoryItem);
           case 7:
-            setHistory(updatedHistory);
-            localStorage.setItem(HISTORY_INDEX_KEY, JSON.stringify(updatedHistory));
+            setHistory(_updatedHistory);
+            localStorage.setItem(HISTORY_INDEX_KEY, JSON.stringify(_updatedHistory));
             history.slice(HISTORY_LIMIT - 1).forEach(function (item) {
               deleteSessionRecord(item.id)["catch"](function () {});
               deleteSessionImages(item.id)["catch"](function () {});
             });
-            _context16.n = 9;
+            _context22.n = 9;
             break;
           case 8:
-            _context16.p = 8;
-            _t9 = _context16.v;
+            _context22.p = 8;
+            _t13 = _context22.v;
             setToast({
-              message: "\u7ED3\u679C\u5DF2\u751F\u6210\uFF0C\u4F46\u5386\u53F2\u8BB0\u5F55\u4FDD\u5B58\u5931\u8D25: ".concat(_t9.message),
+              message: "\u7ED3\u679C\u5DF2\u751F\u6210\uFF0C\u4F46\u5386\u53F2\u8BB0\u5F55\u4FDD\u5B58\u5931\u8D25: ".concat(_t13.message),
               type: 'error',
               duration: 5000
             });
@@ -4381,13 +5157,13 @@ function App() {
               duration: isHalted ? 6000 : 3000
             });
             shouldShowResults = true;
-            _context16.n = 11;
+            _context22.n = 11;
             break;
           case 10:
-            _context16.p = 10;
-            _t0 = _context16.v;
-            isCancelled = _t0.message === '已停止运算';
-            errorMessage = isCancelled ? '已停止本次运算' : formatProcessingError(_t0);
+            _context22.p = 10;
+            _t14 = _context22.v;
+            isCancelled = _t14.message === '已停止运算';
+            errorMessage = isCancelled ? '已停止本次运算' : formatProcessingError(_t14);
             if (!isCancelled) {
               setCurrentSession(function (prev) {
                 return _objectSpread(_objectSpread({}, prev), {}, {
@@ -4404,15 +5180,15 @@ function App() {
             });
             shouldShowResults = !isCancelled;
           case 11:
-            _context16.p = 11;
+            _context22.p = 11;
             if (processingAbortRef.current === processingController) processingAbortRef.current = null;
             setIsProcessing(false);
             setShowResults(shouldShowResults);
-            return _context16.f(11);
+            return _context22.f(11);
           case 12:
-            return _context16.a(2);
+            return _context22.a(2);
         }
-      }, _callee16, null, [[6, 8], [3, 10, 11, 12]]);
+      }, _callee22, null, [[6, 8], [3, 10, 11, 12]]);
     }));
     function handleStartProcessing() {
       return _handleStartProcessing.apply(this, arguments);
@@ -4420,98 +5196,132 @@ function App() {
     return handleStartProcessing;
   }();
   var loadHistoryItem = function () {
-    var _loadHistoryItem = _asyncToGenerator(_regenerator().m(function _callee17(id) {
-      var item, _item$sessionData$pac, highest, i, _item$sessionData$sta;
-      return _regenerator().w(function (_context17) {
-        while (1) switch (_context17.n) {
+    var _loadHistoryItem = _asyncToGenerator(_regenerator().m(function _callee23(id) {
+      var requestToken, item, _item$sessionData$pac, highest, i, _item$sessionData$sta, _t15;
+      return _regenerator().w(function (_context23) {
+        while (1) switch (_context23.p = _context23.n) {
           case 0:
-            _context17.n = 1;
+            requestToken = ++historyLoadTokenRef.current;
+            abortImageRequests();
+            item = null;
+            _context23.p = 1;
+            _context23.n = 2;
             return loadSessionRecord(id);
-          case 1:
-            item = _context17.v;
+          case 2:
+            item = _context23.v;
+            _context23.n = 4;
+            break;
+          case 3:
+            _context23.p = 3;
+            _t15 = _context23.v;
+            if (requestToken === historyLoadTokenRef.current) setToast({
+              message: "\u5386\u53F2\u8BB0\u5F55\u8BFB\u53D6\u5931\u8D25: ".concat(_t15.message),
+              type: 'error'
+            });
+            return _context23.a(2);
+          case 4:
+            if (!(requestToken !== historyLoadTokenRef.current)) {
+              _context23.n = 5;
+              break;
+            }
+            return _context23.a(2);
+          case 5:
             if (!item) {
-              _context17.n = 6;
+              _context23.n = 10;
               break;
             }
             setActiveHistoryId(id);
-            setCurrentSession(item.sessionData);
-            restoreSessionImages(id);
+            setCurrentSession(_objectSpread(_objectSpread({}, item.sessionData), {}, {
+              isDemo: Boolean(item.isDemo)
+            }));
+            restoreSessionImages(id, requestToken);
             if (!(((_item$sessionData$pac = item.sessionData.packageData) === null || _item$sessionData$pac === void 0 ? void 0 : _item$sessionData$pac.status) === 'complete')) {
-              _context17.n = 2;
+              _context23.n = 6;
               break;
             }
             setInternalStage(5);
             setShowResults(true);
             replaceImageResults({});
             setActiveStageTab('step3');
-            return _context17.a(2);
-          case 2:
+            return _context23.a(2);
+          case 6:
             highest = 1;
             i = 6;
-          case 3:
+          case 7:
             if (!(i >= 1)) {
-              _context17.n = 5;
+              _context23.n = 9;
               break;
             }
             if (!((_item$sessionData$sta = item.sessionData.stages[i]) !== null && _item$sessionData$sta !== void 0 && _item$sessionData$sta.trim())) {
-              _context17.n = 4;
+              _context23.n = 8;
               break;
             }
             highest = i;
-            return _context17.a(3, 5);
-          case 4:
+            return _context23.a(3, 9);
+          case 8:
             i--;
-            _context17.n = 3;
+            _context23.n = 7;
             break;
-          case 5:
+          case 9:
             setInternalStage(highest);
             setShowResults(true);
             replaceImageResults({});
             if (highest >= 5) setActiveStageTab('step3');else if (highest >= 3) setActiveStageTab('step2');else setActiveStageTab('step1');
-            _context17.n = 7;
+            _context23.n = 11;
             break;
-          case 6:
+          case 10:
             setToast({
               message: '该历史记录不存在或已被清理',
               type: 'error'
             });
-          case 7:
-            return _context17.a(2);
+          case 11:
+            return _context23.a(2);
         }
-      }, _callee17);
+      }, _callee23, null, [[1, 3]]);
     }));
-    function loadHistoryItem(_x20) {
+    function loadHistoryItem(_x24) {
       return _loadHistoryItem.apply(this, arguments);
     }
     return loadHistoryItem;
   }();
   var retryHistoryItem = function () {
-    var _retryHistoryItem = _asyncToGenerator(_regenerator().m(function _callee18(id) {
+    var _retryHistoryItem = _asyncToGenerator(_regenerator().m(function _callee24(id) {
       var item;
-      return _regenerator().w(function (_context18) {
-        while (1) switch (_context18.n) {
+      return _regenerator().w(function (_context24) {
+        while (1) switch (_context24.n) {
           case 0:
-            _context18.n = 1;
+            _context24.n = 1;
             return loadSessionRecord(id);
           case 1:
-            item = _context18.v;
+            item = _context24.v;
+            if (!(item !== null && item !== void 0 && item.isDemo)) {
+              _context24.n = 2;
+              break;
+            }
+            setToast({
+              message: '示例记录仅用于查看应用能力，不会调用真实接口。粘贴原文后点击「开始加工」即可体验完整流程。',
+              type: 'success',
+              duration: 5000
+            });
+            return _context24.a(2);
+          case 2:
             if (item !== null && item !== void 0 && item.originalInput) {
-              _context18.n = 2;
+              _context24.n = 3;
               break;
             }
             setToast({
               message: '该记录缺少原文备份，无法重试',
               type: 'error'
             });
-            return _context18.a(2);
-          case 2:
-            handleStartProcessing(item.originalInput);
+            return _context24.a(2);
           case 3:
-            return _context18.a(2);
+            handleStartProcessing(item.originalInput);
+          case 4:
+            return _context24.a(2);
         }
-      }, _callee18);
+      }, _callee24);
     }));
-    function retryHistoryItem(_x21) {
+    function retryHistoryItem(_x25) {
       return _retryHistoryItem.apply(this, arguments);
     }
     return retryHistoryItem;
@@ -4529,43 +5339,43 @@ function App() {
     return copied;
   };
   var copyToClipboard = function () {
-    var _copyToClipboard = _asyncToGenerator(_regenerator().m(function _callee19(text, label) {
-      var _navigator$clipboard, _t1, _t10;
-      return _regenerator().w(function (_context19) {
-        while (1) switch (_context19.p = _context19.n) {
+    var _copyToClipboard = _asyncToGenerator(_regenerator().m(function _callee25(text, label) {
+      var _navigator$clipboard, _t16, _t17;
+      return _regenerator().w(function (_context25) {
+        while (1) switch (_context25.p = _context25.n) {
           case 0:
             if (text) {
-              _context19.n = 1;
+              _context25.n = 1;
               break;
             }
             setToast({
               message: "".concat(label, " \u6682\u65E0\u53EF\u590D\u5236\u5185\u5BB9"),
               type: 'error'
             });
-            return _context19.a(2);
+            return _context25.a(2);
           case 1:
-            _context19.p = 1;
+            _context25.p = 1;
             if ((_navigator$clipboard = navigator.clipboard) !== null && _navigator$clipboard !== void 0 && _navigator$clipboard.writeText) {
-              _context19.n = 2;
+              _context25.n = 2;
               break;
             }
             throw new Error('Clipboard API unavailable');
           case 2:
-            _context19.n = 3;
+            _context25.n = 3;
             return navigator.clipboard.writeText(text);
           case 3:
             setToast({
               message: "".concat(label, " \u5DF2\u590D\u5236\u5230\u526A\u8D34\u677F"),
               type: 'success'
             });
-            _context19.n = 8;
+            _context25.n = 8;
             break;
           case 4:
-            _context19.p = 4;
-            _t1 = _context19.v;
-            _context19.p = 5;
+            _context25.p = 4;
+            _t16 = _context25.v;
+            _context25.p = 5;
             if (fallbackCopyText(text)) {
-              _context19.n = 6;
+              _context25.n = 6;
               break;
             }
             throw new Error('Fallback copy failed');
@@ -4574,21 +5384,21 @@ function App() {
               message: "".concat(label, " \u5DF2\u590D\u5236\u5230\u526A\u8D34\u677F"),
               type: 'success'
             });
-            _context19.n = 8;
+            _context25.n = 8;
             break;
           case 7:
-            _context19.p = 7;
-            _t10 = _context19.v;
+            _context25.p = 7;
+            _t17 = _context25.v;
             setToast({
               message: "".concat(label, " \u590D\u5236\u5931\u8D25\uFF0C\u8BF7\u624B\u52A8\u590D\u5236"),
               type: 'error'
             });
           case 8:
-            return _context19.a(2);
+            return _context25.a(2);
         }
-      }, _callee19, null, [[5, 7], [1, 4]]);
+      }, _callee25, null, [[5, 7], [1, 4]]);
     }));
-    function copyToClipboard(_x22, _x23) {
+    function copyToClipboard(_x26, _x27) {
       return _copyToClipboard.apply(this, arguments);
     }
     return copyToClipboard;
@@ -4612,7 +5422,7 @@ function App() {
     htmlCardRefs: htmlCardRefs,
     showResults: showResults
   });
-  var isButtonDisabled = !isProcessing && (!apiConfig.apiKey || !inputText.trim());
+  var isButtonDisabled = !isProcessing && (!((_apiConfig$apiKey2 = apiConfig.apiKey) !== null && _apiConfig$apiKey2 !== void 0 && _apiConfig$apiKey2.trim()) || !inputText.trim());
   return React.createElement(AppView, {
     activeHistoryId: activeHistoryId,
     activeStageTab: activeStageTab,
@@ -4635,6 +5445,7 @@ function App() {
     isHistoryOpen: isHistoryOpen,
     isProcessing: isProcessing,
     lastImageDiagnostic: lastImageDiagnostic,
+    loadDemoRecord: loadDemoRecord,
     loadHistoryItem: loadHistoryItem,
     messagesEndRef: messagesEndRef,
     resultContent: resultContent,

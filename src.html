@@ -522,7 +522,8 @@
     const toHistoryIndex = (record) => ({
       id: record.id,
       title: record.title,
-      date: record.date
+      date: record.date,
+      isDemo: Boolean(record.isDemo)
     });
 
     const saveSessionRecord = async (record) => {
@@ -548,6 +549,42 @@
       return record;
     };
 
+    const filterExistingHistoryIndex = async (historyIndex) => {
+      const entries = Array.isArray(historyIndex) ? historyIndex.filter(item => item?.id) : [];
+      if (!entries.length) return [];
+      const database = await openImageDatabase();
+      const records = await new Promise((resolve, reject) => {
+        const transaction = database.transaction(SESSION_STORE_NAME, 'readonly');
+        const store = transaction.objectStore(SESSION_STORE_NAME);
+        const results = [];
+        let completed = 0;
+        entries.forEach((entry, index) => {
+          const request = store.get(entry.id);
+          request.onsuccess = () => {
+            results[index] = request.result || null;
+            completed += 1;
+            if (completed === entries.length) resolve(results);
+          };
+          request.onerror = () => reject(request.error);
+        });
+        transaction.onerror = () => reject(transaction.error);
+      });
+      database.close();
+      return entries.filter((_, index) => records[index]);
+    };
+
+    const hasAnySessionRecords = async () => {
+      const database = await openImageDatabase();
+      const count = await new Promise((resolve, reject) => {
+        const transaction = database.transaction(SESSION_STORE_NAME, 'readonly');
+        const request = transaction.objectStore(SESSION_STORE_NAME).count();
+        request.onsuccess = () => resolve(request.result || 0);
+        request.onerror = () => reject(request.error);
+      });
+      database.close();
+      return count > 0;
+    };
+
     const deleteSessionRecord = async (id) => {
       const database = await openImageDatabase();
       await new Promise((resolve, reject) => {
@@ -560,7 +597,7 @@
     };
 
     const migrateLegacyHistory = async (legacyHistory) => {
-      const records = Array.isArray(legacyHistory) ? legacyHistory.filter(item => item?.id && item?.sessionData) : [];
+      const records = Array.isArray(legacyHistory) ? legacyHistory.filter(item => item?.id && item?.sessionData).slice(0, HISTORY_LIMIT) : [];
       await Promise.all(records.map(saveSessionRecord));
       return records.map(toHistoryIndex);
     };
@@ -575,6 +612,247 @@
     };
 
     // MoreImg v6 核心规则属于应用协议，不向普通用户开放编辑。
+
+    // 首次启动示例记录：让第一次使用的人无需配置即可查看完整能力（历史恢复、物料包、视觉生成与成品对比）。
+    // 示例图片为浏览器端 Canvas 程序化生成的示意主视觉，不代表真实 AI 生图质量。
+
+    const DEMO_SESSION_ID = 'demo-seed-001';
+    const DEMO_SEEDED_KEY = 'moreimg_demo_seeded';
+
+    const demoOriginalText = [
+      '# AI 时代，速度提升不等于稳定交付',
+      '',
+      '很多团队把引入 AI 的第一目标定成“把出图时间缩短一半”。这个目标很容易量化，也容易在汇报里展示，但它未必能带来更好的交付。出图只是设计流程中的一个环节，真正消耗时间的往往是需求没有说清、判断标准不一致、版本之间缺少记录。工具把生产速度提高以后，这些问题不会消失，只会让错误版本更快地出现。',
+      '',
+      '设计工作不是图片数量竞赛。用户看到的是最终信息是否准确、层级是否清楚、操作是否顺畅，而不是团队一天生成了多少方案。如果一个页面同时出现三个主按钮，模型可以在几分钟内给出十种配色，但决定哪个按钮更重要的判断仍然要由人来完成。速度解决的是“做得快”，稳定解决的是“做得对”，两者不能互相替代。',
+      '',
+      '要让交付稳定，前提是需求、标准、记录与验收这四个环节提前对齐。需求说清楚要解决什么问题，标准说清楚什么算完成，记录说清楚每个版本改了什么、为什么改，验收说清楚谁在什么时候检查。四者缺一，速度越快，返工成本越高。',
+      '',
+      '验收应该前置而不是压到最后。越早把验收标准放进工作流，越能避免在最后一刻推翻整版。人的角色不是被工具替代，而是负责目标、约束与取舍：工具负责把想法快速变成候选，人负责判断哪些候选值得留下。',
+      '',
+      '所以，把目标从“更快”改成“又快又稳”，团队要做的不是停止引入 AI，而是把 AI 放进一个有边界的工作流里：明确目标、定好标准、记录取舍、前置验收。速度是杠杆，稳定才是结果。'
+    ].join('\n');
+
+    const demoPackageData = {
+      schema_version: 'moreimg-1.0',
+      status: 'complete',
+      analysis: {
+        mode: 'standard',
+        topic: 'AI 时代的稳定交付',
+        core_claim: '速度提升不等于稳定交付，需求、标准、记录与验收必须前置对齐',
+        independent_units: ['速度不等于稳定', '判断仍由人负责', '四个前置环节', '验收前置', '人负责目标与取舍'],
+        fact_notes: [],
+        logic_issues: []
+      },
+      article: {
+        title: 'AI 时代，速度提升不等于稳定交付',
+        subtitle: '把目标从「更快」改成「又快又稳」',
+        paragraphs: [
+          '很多团队把引入 AI 的第一目标定成“把出图时间缩短一半”。这个目标容易量化，也容易展示，但它未必能带来更好的交付。出图只是设计流程中的一个环节，真正消耗时间的往往是需求没有说清、判断标准不一致、版本之间缺少记录。工具把生产速度提高以后，这些问题不会消失，只会让错误版本更快地出现。',
+          '设计工作不是图片数量竞赛。用户看到的是最终信息是否准确、层级是否清楚、操作是否顺畅，而不是团队一天生成了多少方案。速度解决的是“做得快”，稳定解决的是“做得对”，两者不能互相替代。',
+          '要让交付稳定，前提是需求、标准、记录与验收这四个环节提前对齐：需求说清楚解决什么问题，标准说清楚什么算完成，记录说清楚每次改了什么，验收说清楚谁在什么时候检查。四者缺一，速度越快，返工成本越高。',
+          '验收应该前置而不是压到最后。越早把验收标准放进工作流，越能避免在最后一刻推翻整版。人的角色不是被工具替代，而是负责目标、约束与取舍：工具负责把想法快速变成候选，人负责判断哪些候选值得留下。',
+          '所以，把目标从“更快”改成“又快又稳”，团队要做的不是停止引入 AI，而是把 AI 放进一个有边界的工作流里：明确目标、定好标准、记录取舍、前置验收。速度是杠杆，稳定才是结果。'
+        ]
+      },
+      style_lock: {
+        style_id: 'demo-amber-blue',
+        style_name: '示例：琥珀蓝工作台',
+        card_shell: { preset: 'moreimg-clean-v1', surface: 'light', accent_color: '#2563EB', overlay: 'soft_light' },
+        prompt_prefix: '奶油白知识卡片，琥珀点缀，靛蓝强调，等距图标风格。',
+        visual_dna: {
+          medium: 'isometric_icon',
+          visual_world: '安静的产品交付工作台',
+          shape_language: '简洁几何线条',
+          perspective: '等距俯视',
+          lighting: '柔和自然光',
+          material: '哑光纸张',
+          recurring_subject: '同一组交付流程卡片',
+          recurring_elements: ['琥珀标记', '流程卡片']
+        },
+        negative: ['文字', 'Logo', '伪文字', '水印', 'UI 标签']
+      },
+      pages: [
+        {
+          page_id: 'cover', order: 1, page_type: 'cover',
+          card: { title: 'AI 时代，速度不等于稳定交付', subtitle: '把目标从「更快」改成「又快又稳」', points: [], summary: '速度是杠杆，稳定是结果' },
+          semantic: { page_goal: '提出核心矛盾', primary_claim: '速度提升不等于稳定交付', primary_concept: '稳定交付', primary_relation: '速度与稳定相互独立', supporting_concepts: [], excluded_concepts: [], avoid_misread: [] },
+          image_prompt: { scene: '工作台上的交付流程卡片', relationship: '速度箭头与稳定基座并置', composition: '主体位于下半部', safe_area: 'top_40', continuity: '沿用工作台世界', avoid: [] }
+        },
+        {
+          page_id: 'content-01', order: 2, page_type: 'process',
+          card: { title: '交付四环节', subtitle: '', points: ['需求对齐', '标准一致', '版本记录', '前置验收'], summary: '四者缺一，速度越快越返工' },
+          semantic: { page_goal: '列出稳定交付的四个前提', primary_claim: '四环节缺一不可', primary_concept: '交付四环节', primary_relation: '四环节共同支撑稳定交付', supporting_concepts: [], excluded_concepts: [], avoid_misread: [] },
+          image_prompt: { scene: '四张流程卡片依次排列', relationship: '四张卡片汇入稳定基座', composition: '主体位于下半部', safe_area: 'top_52', continuity: '沿用工作台世界', avoid: [] }
+        },
+        {
+          page_id: 'content-02', order: 3, page_type: 'comparison',
+          card: { title: '速度 ≠ 稳定', subtitle: '', points: ['快解决「做得快」', '稳解决「做得对」'], summary: '两者不能互相替代' },
+          semantic: { page_goal: '区分速度与稳定', primary_claim: '速度与稳定不能互相替代', primary_concept: '速度与稳定', primary_relation: '速度与稳定相对独立', supporting_concepts: [], excluded_concepts: [], avoid_misread: [] },
+          image_prompt: { scene: '并排的天平两侧', relationship: '速度与稳定分别占据天平两端', composition: '主体位于下半部', safe_area: 'top_52', continuity: '沿用工作台世界', avoid: [] }
+        },
+        {
+          page_id: 'content-03', order: 4, page_type: 'checklist',
+          card: { title: '验收前置清单', subtitle: '', points: ['谁在什么时间检查', '什么算完成', '每一版改了什么'], summary: '越早验收，返工越少' },
+          semantic: { page_goal: '给出验收前置的行动清单', primary_claim: '验收前置能减少返工', primary_concept: '前置验收', primary_relation: '验收前置连接低返工结果', supporting_concepts: [], excluded_concepts: [], avoid_misread: [] },
+          image_prompt: { scene: '清单上的三行勾选项', relationship: '勾选项连接向低返工结果', composition: '主体位于下半部', safe_area: 'top_52', continuity: '沿用工作台世界', avoid: [] }
+        },
+        {
+          page_id: 'closing', order: 5, page_type: 'quote',
+          card: { title: '速度是杠杆，稳定才是结果', subtitle: '', points: [], summary: '又快又稳，而不是只快' },
+          semantic: { page_goal: '收束全文', primary_claim: '稳定才是最终结果', primary_concept: '又快又稳', primary_relation: '速度杠杆连接稳定结果', supporting_concepts: [], excluded_concepts: [], avoid_misread: [] },
+          image_prompt: { scene: '流程卡片被收入交付基座', relationship: '基座连接稳定交付结果', composition: '主体位于下半部', safe_area: 'top_36', continuity: '沿用工作台世界', avoid: [] }
+        }
+      ]
+    };
+
+    const createDemoSessionRecord = () => ({
+      id: DEMO_SESSION_ID,
+      title: '示例：AI 时代如何稳定交付',
+      date: '内置示例 · 首次启动',
+      isDemo: true,
+      sessionData: {
+        rawText: JSON.stringify(demoPackageData),
+        packageData: demoPackageData,
+        stages: { 1: '', 2: '', 3: '', 4: '', 5: '', 6: '' },
+        isHalted: false,
+        stopReason: '',
+        warning: '',
+        finishReason: 'stop'
+      },
+      originalInput: demoOriginalText
+    });
+
+    const demoPageTitles = () => {
+      const contentCount = Math.max(0, demoPackageData.pages.length - 2);
+      return demoPackageData.pages.map(page => page.page_id === 'cover' ? '封面' : page.page_id === 'closing' ? '封底' : `正文${Number(page.page_id.match(/^content-(\d+)$/)?.[1] || page.order - 1)}/${contentCount}`);
+    };
+
+    const drawDemoImage = (accentColor, mode, seed) => {
+      const canvas = document.createElement('canvas');
+      canvas.width = 768;
+      canvas.height = 1024;
+      const context = canvas.getContext('2d');
+      const accent = accentColor || '#2563EB';
+
+      // 背景渐变：奶油白到浅靛蓝，模拟浅色卡片表面
+      const background = context.createLinearGradient(0, 0, 768, 1024);
+      background.addColorStop(0, '#FDF8F2');
+      background.addColorStop(0.6, '#F5F1EA');
+      background.addColorStop(1, '#EAF0FB');
+      context.fillStyle = background;
+      context.fillRect(0, 0, 768, 1024);
+
+      // 柔和环境光斑
+      const ambient = context.createRadialGradient(560, 180, 40, 560, 180, 320);
+      ambient.addColorStop(0, 'rgba(245,158,66,0.18)');
+      ambient.addColorStop(1, 'rgba(245,158,66,0)');
+      context.fillStyle = ambient;
+      context.fillRect(0, 0, 768, 1024);
+
+      const random = (() => {
+        let value = seed * 9301 + 49297;
+        return () => {
+          value = (value * 233280 + 9301) % 233280;
+          return value / 233280;
+        };
+      })();
+
+      // 等距风格几何元素：圆形 + 方块 + 连线，模拟无文字主视觉
+      for (let index = 0; index < 14; index += 1) {
+        const x = 90 + random() * 580;
+        const y = 300 + random() * 620;
+        const size = 16 + random() * 46;
+        const alpha = 0.5 + random() * 0.35;
+        context.globalAlpha = alpha;
+        context.fillStyle = index % 3 === 0 ? '#F59E42' : index % 3 === 1 ? accent : '#94A3B8';
+        context.beginPath();
+        if (index % 2 === 0) {
+          context.arc(x, y, size / 2, 0, Math.PI * 2);
+          context.fill();
+        } else {
+          context.save();
+          context.translate(x, y);
+          context.rotate(random() * Math.PI);
+          context.fillRect(-size / 2, -size / 2, size, size);
+          context.restore();
+        }
+        context.fill();
+      }
+      context.globalAlpha = 0.25;
+      context.strokeStyle = '#64748B';
+      context.lineWidth = 2;
+      context.beginPath();
+      context.moveTo(120, 880);
+      context.lineTo(648, 880);
+      context.stroke();
+      context.globalAlpha = 1;
+
+      if (mode === 'full') {
+        // AI 整图示意：在顶部叠加半透明文字区占位块，表示模型排版输出的成品卡
+        context.fillStyle = 'rgba(255,255,255,0.82)';
+        context.beginPath();
+        context.roundRect(90, 110, 588, 300, 28);
+        context.fill();
+        context.fillStyle = accent;
+        context.globalAlpha = 0.9;
+        context.beginPath();
+        context.roundRect(130, 170, 340, 26, 13);
+        context.fill();
+        context.globalAlpha = 0.45;
+        context.fillStyle = '#64748B';
+        [226, 270, 314].forEach(y => {
+          context.beginPath();
+          context.roundRect(130, y, 460, 16, 8);
+          context.fill();
+        });
+        context.globalAlpha = 1;
+      }
+
+      return canvas;
+    };
+
+    const canvasToBlob = (canvas) => new Promise((resolve, reject) => {
+      canvas.toBlob(blob => blob ? resolve(blob) : reject(new Error('示例图片生成失败')), 'image/png');
+    });
+
+    // 首次启动 seed：写入示例 session 记录 + 每页示意主视觉与 AI 整图
+    const seedDemoHistory = async () => {
+      const record = createDemoSessionRecord();
+      const titles = demoPageTitles();
+      const accentColor = demoPackageData.style_lock.card_shell.accent_color;
+      const images = [];
+      try {
+        // 先生成完整的内置素材，再写入存储，避免半成品被当作可恢复历史。
+        for (let index = 0; index < titles.length; index += 1) {
+          const title = titles[index];
+          const visualBlob = await canvasToBlob(drawDemoImage(accentColor, 'visual', index + 1));
+          images.push({ title, blob: visualBlob, mode: 'visual-only' });
+          const fullBlob = await canvasToBlob(drawDemoImage(accentColor, 'full', index + 10));
+          images.push({ title, blob: fullBlob, mode: 'full' });
+        }
+        await saveSessionRecord(record);
+        for (const image of images) {
+          await saveImageBlob(DEMO_SESSION_ID, image.title, image.blob, image.mode, 50);
+        }
+        localStorage.setItem(DEMO_SEEDED_KEY, '1');
+        return record;
+      } catch (error) {
+        await deleteSessionRecord(DEMO_SESSION_ID).catch(() => {});
+        await deleteSessionImages(DEMO_SESSION_ID).catch(() => {});
+        localStorage.removeItem(DEMO_SEEDED_KEY);
+        throw error;
+      }
+    };
+
+    const shouldSeedDemo = () => !localStorage.getItem(DEMO_SEEDED_KEY);
+
+    // 手动载入示例（幂等）：先清理旧示例记录与图片，再重新生成，供「载入示例」按钮使用
+    const loadDemoHistory = async () => {
+      await deleteSessionRecord(DEMO_SESSION_ID).catch(() => {});
+      await deleteSessionImages(DEMO_SESSION_ID).catch(() => {});
+      return seedDemoHistory();
+    };
 
     const DEFAULT_SYSTEM_PROMPT = String.raw`你是 MoreImg v6 内容加工与视觉规划 Agent。你必须在一次响应中，把用户原文加工成可供应用直接读取的 moreimg-1.0 JSON。
 
@@ -849,6 +1127,7 @@ image_prompt
     const PROCESSING_MAX_OUTPUT_TOKENS = 12000;
     const TEXT_REQUEST_TIMEOUT_MS = 300000;
     const TEXT_TEST_TIMEOUT_MS = 30000;
+    const IMAGE_REQUEST_TIMEOUT_MS = 300000;
 
     const runWithRequestControl = (task, options = {}) => {
       const {
@@ -1879,6 +2158,7 @@ const HistoryItems = ({ history, isProcessing, activeHistoryId, showResults, set
         >
           <div className={`text-[13px] font-bold truncate flex items-center ${activeHistoryId === item.id && showResults ? 'text-indigo-600' : 'text-slate-700'}`}>
             {item.title || '未命名'}
+            {item.isDemo && <span className="ml-1.5 shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-600 border border-amber-200">示例</span>}
           </div>
           <div className="mt-1.5 font-mono text-[11px] text-slate-400">{item.date}</div>
         </button>
@@ -1914,7 +2194,7 @@ const HistoryItems = ({ history, isProcessing, activeHistoryId, showResults, set
 );
 
 
-const MobileHistoryDialog = ({ isHistoryOpen, setIsHistoryOpen, history, isProcessing, activeHistoryId, showResults, loadHistoryItem, retryHistoryItem, deleteHistoryItem }) => (
+const MobileHistoryDialog = ({ isHistoryOpen, setIsHistoryOpen, history, isProcessing, activeHistoryId, showResults, loadHistoryItem, retryHistoryItem, deleteHistoryItem, loadDemoRecord }) => (
   isHistoryOpen && (
   <div
     className="mobile-history-overlay animate-fade-in"
@@ -1932,7 +2212,19 @@ const MobileHistoryDialog = ({ isHistoryOpen, setIsHistoryOpen, history, isProce
           <h2 id="mobile-history-title" className="flex items-center text-[16px] font-extrabold text-slate-800">
             <Icon name="History" className="mr-2 h-5 w-5 text-indigo-600" /> 历史记录
           </h2>
-          <p className="mt-1 text-[11px] text-slate-500">恢复、再次生成或删除本机记录</p>
+          <div className="mt-1 flex items-center gap-2">
+            <p className="text-[11px] text-slate-500">恢复、再次生成或删除本机记录</p>
+            <button
+              type="button"
+              onClick={loadDemoRecord}
+              disabled={isProcessing}
+              className="text-[11px] font-bold text-slate-400 hover:text-slate-500 transition-colors disabled:opacity-40"
+              aria-label="载入示例记录，查看应用完整能力"
+              title="载入示例记录（含视觉生成与对比），不消耗 API"
+            >
+              载入示例
+            </button>
+          </div>
         </div>
         <button type="button" onClick={() => setIsHistoryOpen(false)} className="mi-icon-button mi-icon-button-standard sidebar-icon-button" aria-label="关闭历史记录" title="关闭历史记录">
           <Icon name="X" className="h-5 w-5" />
@@ -1948,7 +2240,7 @@ const MobileHistoryDialog = ({ isHistoryOpen, setIsHistoryOpen, history, isProce
 )
 );
 
-const AppSidebar = ({ history, isProcessing, activeHistoryId, showResults, setIsHistoryOpen, setIsConfigOpen, inputText, setInputText, handleStopProcessing, handleStartProcessing, isButtonDisabled, loadHistoryItem, retryHistoryItem, deleteHistoryItem }) => (
+const AppSidebar = ({ history, isProcessing, activeHistoryId, showResults, setIsHistoryOpen, setIsConfigOpen, inputText, setInputText, handleStopProcessing, handleStartProcessing, isButtonDisabled, loadHistoryItem, retryHistoryItem, deleteHistoryItem, loadDemoRecord }) => (
 <div className="moreimg-sidebar w-full md:w-[320px] h-auto md:h-full flex-shrink-0 flex flex-col bg-white/60 md:bg-white/40 backdrop-blur-3xl border-b md:border-b-0 md:border-r border-white/60 shadow-sm md:shadow-[8px_0_32px_rgba(31,38,135,0.05)] z-20 p-4 md:p-6 relative">
 
   <div className="sidebar-brand-row z-10 shrink-0">
@@ -2007,8 +2299,18 @@ const AppSidebar = ({ history, isProcessing, activeHistoryId, showResults, setIs
   </button>
 
   <div className="moreimg-history hidden md:flex mt-10 flex-1 relative shrink-0 flex-col min-h-0">
-    <div className="flex items-center text-[12px] font-bold text-slate-400 mb-4 tracking-wide uppercase shrink-0">
-      历史记录
+    <div className="flex items-center justify-between mb-4 shrink-0">
+      <div className="text-[12px] font-bold text-amber-600 tracking-wide uppercase">历史记录</div>
+      <button
+        type="button"
+        onClick={loadDemoRecord}
+        disabled={isProcessing}
+        className="text-[11px] font-bold text-slate-400 hover:text-slate-500 transition-colors disabled:opacity-40"
+        aria-label="载入示例记录，查看应用完整能力"
+        title="载入示例记录（含视觉生成与对比），不消耗 API"
+      >
+        载入示例
+      </button>
     </div>
     <div className="space-y-3 overflow-y-auto custom-scrollbar flex-1 pb-4 pr-1">
       <HistoryItems {...{ history, isProcessing, activeHistoryId, showResults, setIsHistoryOpen, loadHistoryItem, retryHistoryItem, deleteHistoryItem }} />
@@ -2358,6 +2660,7 @@ const AppView = ({
   isHistoryOpen,
   isProcessing,
   lastImageDiagnostic,
+  loadDemoRecord,
   loadHistoryItem,
   messagesEndRef,
   resultContent,
@@ -2376,9 +2679,9 @@ const AppView = ({
 }) => (
   <div className="moreimg-app-shell flex flex-col md:flex-row h-screen overflow-hidden font-sans text-slate-800 relative bg-transparent">
     {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
-    <AppSidebar {...{ history, isProcessing, activeHistoryId, showResults, setIsHistoryOpen, setIsConfigOpen, inputText, setInputText, handleStopProcessing, handleStartProcessing, isButtonDisabled, loadHistoryItem, retryHistoryItem, deleteHistoryItem }} />
+    <AppSidebar {...{ history, isProcessing, activeHistoryId, showResults, setIsHistoryOpen, setIsConfigOpen, inputText, setInputText, handleStopProcessing, handleStartProcessing, isButtonDisabled, loadHistoryItem, retryHistoryItem, deleteHistoryItem, loadDemoRecord }} />
     <MainWorkspace {...{ isProcessing, showResults, internalStage, activeStageTab, currentSession, setActiveStageTab, resultsStageNavRef, resultScrollRef, resultContent, messagesEndRef }} />
-    <MobileHistoryDialog {...{ isHistoryOpen, setIsHistoryOpen, history, isProcessing, activeHistoryId, showResults, loadHistoryItem, retryHistoryItem, deleteHistoryItem }} />
+    <MobileHistoryDialog {...{ isHistoryOpen, setIsHistoryOpen, history, isProcessing, activeHistoryId, showResults, loadHistoryItem, retryHistoryItem, deleteHistoryItem, loadDemoRecord }} />
     <SettingsDialog {...{ isConfigOpen, setIsConfigOpen, apiConfig, setApiConfig, configTools, handleLoadModels, handleTestTextConnection, handleModelSelection, textModels, imageModels, lastImageDiagnostic, handleSaveConfig }} />
   </div>
 );
@@ -2417,7 +2720,7 @@ const AppView = ({
         const savedConfig = localStorage.getItem('agent_api_config');
         if (!savedConfig) return false;
         const parsedConfig = JSON.parse(savedConfig);
-        return Boolean(parsedConfig.apiKey);
+        return Boolean(parsedConfig.apiKey?.trim());
       } catch {
         return false;
       }
@@ -2596,6 +2899,7 @@ const renderStageContent = () => {
               ) : sId === 5 ? (
                 (() => {
                   const { promptSections, htmlCards } = parsedSession;
+                  const isBuiltInDemo = Boolean(currentSession.isDemo);
 
                   if (promptSections.length > 0) {
                     const selectedPromptSection = promptSections.find(section => section.title === activeVisualPage) || promptSections[0];
@@ -2644,7 +2948,7 @@ const renderStageContent = () => {
                             <div className="visual-panel-actions">
                               <button
                                 onClick={() => handleGenerateImage(selectedPromptSection.title, visualOnlyPrompt, 'visual-only')}
-                                disabled={imageResult?.status === 'loading'}
+                                disabled={isBuiltInDemo || imageResult?.status === 'loading'}
                                 aria-busy={imageResult?.status === 'loading'}
                                 className="mi-button mi-button-standard visual-button visual-button-primary"
                               >
@@ -2653,7 +2957,7 @@ const renderStageContent = () => {
                               </button>
                               <button
                                 onClick={() => handleGenerateImage(selectedPromptSection.title, fullImagePrompt, 'full')}
-                                disabled={!matchingCard || fullImageResult?.status === 'loading'}
+                                disabled={isBuiltInDemo || !matchingCard || fullImageResult?.status === 'loading'}
                                 aria-busy={fullImageResult?.status === 'loading'}
                                 className="mi-button mi-button-standard visual-button"
                               >
@@ -2662,7 +2966,7 @@ const renderStageContent = () => {
                               </button>
                             </div>
                           </div>
-                          <div className="mi-feedback mi-feedback-info visual-notice visual-panel-notice"><Icon name="Info" className="mt-0.5 h-3.5 w-3.5 shrink-0" /><span>HTML 成品卡用于准确中文交付；AI 整图用于视觉候选，生成后仍需核对文字。</span></div>
+                          <div className="mi-feedback mi-feedback-info visual-notice visual-panel-notice"><Icon name="Info" className="mt-0.5 h-3.5 w-3.5 shrink-0" /><span>{isBuiltInDemo ? '内置示例仅用于查看流程；图片为本地占位图，不调用图片 API。' : 'HTML 成品卡用于准确中文交付；AI 整图用于视觉候选，生成后仍需核对文字。'}</span></div>
 
                           <div className="visual-workspace-grid">
                             <div className="visual-results-column">
@@ -2677,14 +2981,14 @@ const renderStageContent = () => {
                                 {imageResult?.status === 'success' ? (
                                   <div className="mi-surface mi-surface-card visual-result-item">
                                     <div className="visual-result-item-header">
-                                      <span>HTML 主视觉</span>
+                                      <span>{isBuiltInDemo ? '内置示例占位图' : 'HTML 主视觉'}</span>
                                       <button type="button" onClick={() => downloadImage(selectedPromptSection.title, imageResult.imageUrl)} className="mi-icon-button mi-icon-button-compact visual-result-action" aria-label="下载主视觉" title="下载主视觉"><Icon name="Download" className="h-3.5 w-3.5" /></button>
                                     </div>
                                     <VisualPreview imageUrl={imageResult.imageUrl} alt={`${selectedPromptSection.title} 生成结果`} />
                                   </div>
                                 ) : (
                                   <div className="mi-surface mi-surface-card visual-result-item">
-                                    <div className="visual-result-item-header"><span>HTML 主视觉</span></div>
+                                    <div className="visual-result-item-header"><span>{isBuiltInDemo ? '内置示例占位图' : 'HTML 主视觉'}</span></div>
                                     <div className="mi-empty-state mi-empty-state-media visual-result-slot-empty">
                                       <div className="mi-empty-state-icon"><Icon name={imageResult?.status === 'loading' ? 'LoaderCircle' : 'ImagePlus'} className={`h-5 w-5 ${imageResult?.status === 'loading' ? 'animate-spin' : ''}`} /></div>
                                       <span className="mt-3 text-[11px] font-bold">{imageResult?.status === 'loading' ? '生成中' : '等待生成'}</span>
@@ -2695,7 +2999,7 @@ const renderStageContent = () => {
                                 {fullImageResult?.status === 'success' && !hiddenFullImages[selectedPromptSection.title] ? (
                                   <div className="mi-surface mi-surface-card visual-result-item">
                                     <div className="visual-result-item-header">
-                                      <span>AI 整图</span>
+                                      <span>{isBuiltInDemo ? '内置示例占位图' : 'AI 整图'}</span>
                                       <div className="visual-result-actions">
                                         <button type="button" onClick={() => downloadImage(`${selectedPromptSection.title}-AI整图`, fullImageResult.imageUrl)} className="mi-icon-button mi-icon-button-compact visual-result-action" aria-label="下载 AI 整图" title="下载 AI 整图"><Icon name="Download" className="h-3.5 w-3.5" /></button>
                                         <button type="button" onClick={() => setHiddenFullImages(prev => ({ ...prev, [selectedPromptSection.title]: true }))} className="mi-icon-button mi-icon-button-compact visual-result-action" aria-label="隐藏 AI 整图" title="隐藏 AI 整图"><Icon name="EyeOff" className="h-3.5 w-3.5" /></button>
@@ -2706,7 +3010,7 @@ const renderStageContent = () => {
                                 ) : (
                                   <div className="mi-surface mi-surface-card visual-result-item">
                                     <div className="visual-result-item-header">
-                                      <span>AI 整图</span>
+                                      <span>{isBuiltInDemo ? '内置示例占位图' : 'AI 整图'}</span>
                                       {fullImageResult?.status === 'success' && hiddenFullImages[selectedPromptSection.title] && <button type="button" onClick={() => setHiddenFullImages(prev => ({ ...prev, [selectedPromptSection.title]: false }))} className="mi-icon-button mi-icon-button-compact visual-result-action" aria-label="显示 AI 整图" title="显示 AI 整图"><Icon name="Eye" className="h-3.5 w-3.5" /></button>}
                                     </div>
                                     <div className="mi-empty-state mi-empty-state-media visual-result-slot-empty">
@@ -2801,15 +3105,15 @@ const renderStageContent = () => {
                                         />
                                         {!selectedHtmlCardReady && <span className="html-card-placeholder-badge">等待主视觉</span>}
                                       </HtmlCardPreview>
-                                      <div className="visual-comparison-meta"><span><strong>预览框 3:4</strong> · {selectedHtmlCardReady ? 'HTML 成品' : '排版占位'}</span><span>{selectedHtmlCardReady ? '导出 1242×1656' : '待生成主视觉'}</span></div>
+                                      <div className="visual-comparison-meta"><span><strong>预览框 3:4</strong> · {isBuiltInDemo ? '内置示例占位图' : selectedHtmlCardReady ? 'HTML 成品' : '排版占位'}</span><span>{isBuiltInDemo ? '本地演示素材' : selectedHtmlCardReady ? '导出 1242×1656' : '待生成主视觉'}</span></div>
                                       {selectedHtmlImageResult?.status !== 'success' && <p className={`mt-3 text-center text-[11px] ${selectedHtmlLegacyResult?.status === 'success' ? 'text-amber-600' : 'text-slate-400'}`}>{selectedHtmlLegacyResult?.status === 'success' ? '旧版主视觉不再用于 HTML 成品卡，请重新生成无字主视觉。' : '当前使用视觉占位，生成无字主视觉后会自动替换。'}</p>}
                                     </div>
                                     <div className="mi-surface mi-surface-card visual-comparison-item">
-                                      <div className="visual-comparison-label">AI 整图</div>
+                                      <div className="visual-comparison-label">{isBuiltInDemo ? '内置示例占位图' : 'AI 整图'}</div>
                                       {fullImageResult?.status === 'success' && !hiddenFullImages[selectedPromptSection.title] ? (
                                         <>
                                         <div className="visual-comparison-preview-frame"><img src={fullImageResult.imageUrl} alt={`${selectedHtmlCard.label} AI 整图对比`} loading="lazy" decoding="async" className="visual-comparison-image" /></div>
-                                        <div className="visual-comparison-meta"><span><strong>预览框 3:4</strong> · AI 整图</span><span>模型排版输出</span></div>
+                                        <div className="visual-comparison-meta"><span><strong>预览框 3:4</strong> · {isBuiltInDemo ? '内置示例占位图' : 'AI 整图'}</span><span>{isBuiltInDemo ? '本地演示素材' : '模型排版输出'}</span></div>
                                         </>
                                       ) : (
                                         <>
@@ -2819,7 +3123,7 @@ const renderStageContent = () => {
                                               <span className="mt-3 text-[11px] font-bold">{fullImageResult?.status === 'loading' ? 'AI 整图生成中' : fullImageResult?.status === 'success' ? 'AI 整图已隐藏' : '尚未生成 AI 整图'}</span>
                                             </div>
                                           </div>
-                                          <div className="visual-comparison-meta"><span><strong>预览框 3:4</strong> · AI 整图</span><span>固定对比槽位</span></div>
+                                          <div className="visual-comparison-meta"><span><strong>预览框 3:4</strong> · {isBuiltInDemo ? '内置示例占位图' : 'AI 整图'}</span><span>固定对比槽位</span></div>
                                         </>
                                       )}
                                     </div>
@@ -2938,6 +3242,9 @@ const resultContent = useMemo(() => {
       });
       const messagesEndRef = useRef(null);
       const processingAbortRef = useRef(null);
+      const historyLoadTokenRef = useRef(0);
+      const imageAbortControllersRef = useRef(new Map());
+      const demoLoadInFlightRef = useRef(false);
       const imageObjectUrlsRef = useRef([]);
       const htmlCardRefs = useRef({});
       const htmlExportInFlightRef = useRef(false);
@@ -3012,9 +3319,15 @@ const resultContent = useMemo(() => {
           .catch(error => setToast({ message: `画面焦点保存失败: ${error.message}`, type: 'error' }));
       };
 
-      const restoreSessionImages = async (sessionId) => {
+      const abortImageRequests = () => {
+        imageAbortControllersRef.current.forEach(controller => controller.abort());
+        imageAbortControllersRef.current.clear();
+      };
+
+      const restoreSessionImages = async (sessionId, requestToken) => {
         try {
           const storedImages = await loadSessionImages(sessionId);
+          if (requestToken !== historyLoadTokenRef.current) return;
           const nextResults = {};
           storedImages.forEach(item => {
             const imageUrl = URL.createObjectURL(item.blob);
@@ -3028,6 +3341,7 @@ const resultContent = useMemo(() => {
             });
           }
         } catch (error) {
+          if (requestToken !== historyLoadTokenRef.current) return;
           if (loadLastImageDiagnostic()?.sessionId === sessionId) {
             saveLastImageDiagnostic({ restoreStatus: '失败', failureReason: getDiagnosticFailureReason(error, 'restore') });
           }
@@ -3042,15 +3356,43 @@ const resultContent = useMemo(() => {
           if (savedHistory) {
             try {
               const parsedHistory = JSON.parse(savedHistory);
-              if (isActive && Array.isArray(parsedHistory)) setHistory(parsedHistory);
+              if (!Array.isArray(parsedHistory)) throw new Error('历史索引格式无效');
+              const candidateHistory = parsedHistory.filter(item => item?.id && item?.title !== undefined).slice(0, HISTORY_LIMIT);
+              const reconciledHistory = await filterExistingHistoryIndex(candidateHistory);
+              if (isActive) {
+                setHistory(reconciledHistory);
+                if (reconciledHistory.length !== candidateHistory.length) {
+                  localStorage.setItem(HISTORY_INDEX_KEY, JSON.stringify(reconciledHistory));
+                }
+              }
+              return;
             } catch {
               localStorage.removeItem(HISTORY_INDEX_KEY);
             }
-            return;
           }
 
           const legacyValue = localStorage.getItem(LEGACY_HISTORY_KEY);
-          if (!legacyValue) return;
+          if (!legacyValue) {
+            // 首次启动：预置一条示例记录，让第一次使用的人直接查看完整能力（含视觉生成与成品对比）
+            try {
+              const existingDemo = await loadSessionRecord(DEMO_SESSION_ID).catch(() => null);
+              if (existingDemo?.isDemo) {
+                const demoIndex = [toHistoryIndex(existingDemo)];
+                if (isActive) setHistory(demoIndex);
+                localStorage.setItem(HISTORY_INDEX_KEY, JSON.stringify(demoIndex));
+              } else if (shouldSeedDemo() && !(await hasAnySessionRecords())) {
+                const demoRecord = await seedDemoHistory();
+                if (isActive) {
+                  const demoIndex = [toHistoryIndex(demoRecord)];
+                  setHistory(demoIndex);
+                  localStorage.setItem(HISTORY_INDEX_KEY, JSON.stringify(demoIndex));
+                }
+              }
+            } catch (error) {
+              if (isActive) setToast({ message: `示例记录初始化失败: ${error.message}`, type: 'error', duration: 5000 });
+            }
+            return;
+          }
           try {
             const migratedHistory = await migrateLegacyHistory(JSON.parse(legacyValue));
             if (!isActive) return;
@@ -3064,21 +3406,31 @@ const resultContent = useMemo(() => {
 
         const savedConfig = localStorage.getItem('agent_api_config');
         if (savedConfig) {
-          const parsedConfig = JSON.parse(savedConfig);
-          delete parsedConfig.systemPrompt;
-          parsedConfig.promptVersion = DEFAULT_PROMPT_VERSION;
-          parsedConfig.processingPreferences = {
-            ...createDefaultProcessingPreferences(),
-            ...(parsedConfig.processingPreferences || {})
-          };
-          parsedConfig.imageApiUrl = parsedConfig.imageApiUrl || 'https://api.openai.com/v1/images/generations';
-          parsedConfig.imageModel = parsedConfig.imageModel || 'gpt-image-1';
-          parsedConfig.imageApiKey = parsedConfig.imageApiKey || '';
-          parsedConfig.imageSize = parsedConfig.imageSize || '768x1024';
-          localStorage.setItem('agent_api_config', JSON.stringify(parsedConfig));
-          setApiConfig(parsedConfig);
-          if (parsedConfig.apiKey) {
-            setIsConfigOpen(false);
+          let parsedConfig = null;
+          try {
+            parsedConfig = JSON.parse(savedConfig);
+            if (!parsedConfig || typeof parsedConfig !== 'object' || Array.isArray(parsedConfig)) throw new Error('配置格式无效');
+          } catch {
+            localStorage.removeItem('agent_api_config');
+            setIsConfigOpen(true);
+            setToast({ message: '本地配置已损坏，请重新填写接口设置', type: 'error', duration: 5000 });
+          }
+          if (parsedConfig) {
+            delete parsedConfig.systemPrompt;
+            parsedConfig.promptVersion = DEFAULT_PROMPT_VERSION;
+            parsedConfig.processingPreferences = {
+              ...createDefaultProcessingPreferences(),
+              ...(parsedConfig.processingPreferences || {})
+            };
+            parsedConfig.imageApiUrl = parsedConfig.imageApiUrl || 'https://api.openai.com/v1/images/generations';
+            parsedConfig.imageModel = parsedConfig.imageModel || 'gpt-image-1';
+            parsedConfig.imageApiKey = parsedConfig.imageApiKey || '';
+            parsedConfig.imageSize = parsedConfig.imageSize || '768x1024';
+            localStorage.setItem('agent_api_config', JSON.stringify(parsedConfig));
+            setApiConfig(parsedConfig);
+            if (parsedConfig.apiKey?.trim()) {
+              setIsConfigOpen(false);
+            }
           }
         } else {
           setIsConfigOpen(true);
@@ -3088,6 +3440,7 @@ const resultContent = useMemo(() => {
       }, []);
 
       useEffect(() => () => {
+        abortImageRequests();
         imageObjectUrlsRef.current.forEach(url => URL.revokeObjectURL(url));
       }, []);
 
@@ -3191,6 +3544,10 @@ const resultContent = useMemo(() => {
       };
 
       const handleGenerateImage = async (cardTitle, prompt, mode = 'visual') => {
+        if (currentSession.isDemo) {
+          setToast({ message: '内置示例仅用于查看流程，不调用图片 API。请输入自己的文章开始加工。', type: 'success', duration: 5000 });
+          return;
+        }
         if (!apiConfig.imageApiUrl.trim() || !apiConfig.imageModel.trim() || !apiConfig.imageApiKey.trim()) {
           setToast({ message: '请先配置图片接口、模型和密钥', type: 'error' });
           setIsConfigOpen(true);
@@ -3198,6 +3555,15 @@ const resultContent = useMemo(() => {
         }
 
         const resultKey = `${mode}:${cardTitle}`;
+        imageAbortControllersRef.current.get(resultKey)?.abort();
+        const requestController = new AbortController();
+        imageAbortControllersRef.current.set(resultKey, requestController);
+        const operationToken = historyLoadTokenRef.current;
+        let imageTimedOut = false;
+        const imageTimeout = setTimeout(() => {
+          imageTimedOut = true;
+          requestController.abort();
+        }, IMAGE_REQUEST_TIMEOUT_MS);
         const imageEndpoint = resolveApiEndpoint(apiConfig.imageApiUrl, 'image');
         const imageTransport = getRequestTransport(imageEndpoint, 'image');
         const previousFocusY = imageResults[resultKey]?.focusY;
@@ -3230,7 +3596,8 @@ const resultContent = useMemo(() => {
               prompt,
               size: apiConfig.imageSize.trim() || '768x1024',
               n: 1
-            })
+            }),
+            signal: requestController.signal
           });
 
           const data = await response.json();
@@ -3249,11 +3616,14 @@ const resultContent = useMemo(() => {
             storageStatus: '保存中'
           });
 
-          const imageBlob = dataUrl ? dataUrlToBlob(dataUrl) : await fetch(remoteUrl).then(imageResponse => {
+          if (requestController.signal.aborted || operationToken !== historyLoadTokenRef.current) return;
+          const imageBlob = dataUrl ? dataUrlToBlob(dataUrl) : await fetch(remoteUrl, { signal: requestController.signal }).then(imageResponse => {
             if (!imageResponse.ok) throw new Error(`图片下载失败 HTTP ${imageResponse.status}`);
             return imageResponse.blob();
           });
+          if (requestController.signal.aborted || operationToken !== historyLoadTokenRef.current) return;
           await saveImageBlob(sessionId, cardTitle, imageBlob, mode, previousFocusY);
+          if (requestController.signal.aborted || operationToken !== historyLoadTokenRef.current) return;
           saveLastImageDiagnostic({ storageBackend: 'IndexedDB', storageStatus: '成功', restoreStatus: '尚未验证', failureReason: '' });
           const imageUrl = URL.createObjectURL(imageBlob);
 
@@ -3267,12 +3637,19 @@ const resultContent = useMemo(() => {
           const generationLabel = mode === 'full' ? 'AI 整图' : mode === 'visual-only' ? '无字主视觉' : '主视觉';
           setToast({ message: `[${cardTitle}] ${generationLabel}生成完成`, type: 'success' });
         } catch (error) {
+          if (operationToken !== historyLoadTokenRef.current || (requestController.signal.aborted && !imageTimedOut)) return;
+          if (imageTimedOut) error = new Error('图片生成超过 300 秒，已自动停止。');
           saveLastImageDiagnostic({
             storageStatus: diagnosticPhase === 'storage' ? '失败' : '未开始',
             failureReason: getDiagnosticFailureReason(error, diagnosticPhase)
           });
           setImageResults(prev => ({ ...prev, [resultKey]: { status: 'error', imageUrl: '', error: error.message, mode } }));
           setToast({ message: `图片生成失败: ${error.message}`, type: 'error', duration: 5000 });
+        } finally {
+          clearTimeout(imageTimeout);
+          if (imageAbortControllersRef.current.get(resultKey) === requestController) {
+            imageAbortControllersRef.current.delete(resultKey);
+          }
         }
       };
 
@@ -3366,21 +3743,53 @@ const resultContent = useMemo(() => {
         }
       };
 
-      const deleteHistoryItem = (id, e) => {
+      const deleteHistoryItem = async (id, e) => {
         e.stopPropagation();
+        historyLoadTokenRef.current += 1;
+        abortImageRequests();
+        const previousHistory = history;
         const updatedHistory = history.filter(item => item.id !== id);
         setHistory(updatedHistory);
-        localStorage.setItem(HISTORY_INDEX_KEY, JSON.stringify(updatedHistory));
-        deleteSessionRecord(id).catch(() => {});
-        deleteSessionImages(id).catch(() => {});
-
-        if (activeHistoryId === id) {
-          setActiveHistoryId(null);
-          setShowResults(false);
-          setCurrentSession({ rawText: '', packageData: null, stages: { 1: '', 2: '', 3: '', 4: '', 5: '', 6: '' }, isHalted: false, stopReason: '', warning: '' });
-          replaceImageResults({});
+        try {
+          localStorage.setItem(HISTORY_INDEX_KEY, JSON.stringify(updatedHistory));
+          await Promise.all([deleteSessionRecord(id), deleteSessionImages(id)]);
+          if (activeHistoryId === id) {
+            setActiveHistoryId(null);
+            setShowResults(false);
+            setCurrentSession({ rawText: '', packageData: null, stages: { 1: '', 2: '', 3: '', 4: '', 5: '', 6: '' }, isHalted: false, stopReason: '', warning: '' });
+            replaceImageResults({});
+          }
+          setToast({ message: '已删除该条记录', type: 'success' });
+        } catch (error) {
+          setHistory(previousHistory);
+          try { localStorage.setItem(HISTORY_INDEX_KEY, JSON.stringify(previousHistory)); } catch {}
+          setToast({ message: `历史记录删除失败: ${error.message}`, type: 'error', duration: 5000 });
         }
-        setToast({ message: '已删除该条记录', type: 'success' });
+      };
+
+      // 手动载入示例记录：老用户 / 已删示例的人也能随时查看应用完整能力（含视觉生成与对比）
+      const loadDemoRecord = async () => {
+        if (isProcessing || demoLoadInFlightRef.current) return;
+        demoLoadInFlightRef.current = true;
+        historyLoadTokenRef.current += 1;
+        abortImageRequests();
+        try {
+          const demoRecord = await loadDemoHistory();
+          const demoIndex = toHistoryIndex(demoRecord);
+          const updatedHistory = [demoIndex, ...history.filter(item => item.id !== demoIndex.id)].slice(0, HISTORY_LIMIT);
+          const removedHistory = history.filter(historyItem => !updatedHistory.some(item => item.id === historyItem.id));
+          setHistory(updatedHistory);
+          localStorage.setItem(HISTORY_INDEX_KEY, JSON.stringify(updatedHistory));
+          removedHistory.forEach(item => {
+            deleteSessionRecord(item.id).catch(() => {});
+            deleteSessionImages(item.id).catch(() => {});
+          });
+          setToast({ message: '示例记录已载入，点击即可查看完整流程', type: 'success' });
+        } catch (error) {
+          setToast({ message: `示例记录载入失败: ${error.message}`, type: 'error' });
+        } finally {
+          demoLoadInFlightRef.current = false;
+        }
       };
 
       const requestProcessingText = (messages, externalSignal) => runWithRequestControl(async signal => {
@@ -3434,10 +3843,12 @@ const resultContent = useMemo(() => {
       const handleStartProcessing = async (overrideText = null) => {
         const textToProcess = (typeof overrideText === 'string' ? overrideText : inputText).trim();
 
-        if (!apiConfig.apiKey) { setToast({ message: '请先配置密钥', type: 'error' }); setIsConfigOpen(true); return; }
+        if (!apiConfig.apiKey?.trim()) { setToast({ message: '请先配置密钥', type: 'error' }); setIsConfigOpen(true); return; }
         if (!textToProcess) { setToast({ message: '请输入需加工的文章或文案', type: 'error' }); return; }
 
         setInputText(textToProcess);
+        historyLoadTokenRef.current += 1;
+        abortImageRequests();
         setIsProcessing(true);
         setShowResults(false);
         setInternalStage(1);
@@ -3513,11 +3924,20 @@ const resultContent = useMemo(() => {
       };
 
       const loadHistoryItem = async (id) => {
-        const item = await loadSessionRecord(id);
+        const requestToken = ++historyLoadTokenRef.current;
+        abortImageRequests();
+        let item = null;
+        try {
+          item = await loadSessionRecord(id);
+        } catch (error) {
+          if (requestToken === historyLoadTokenRef.current) setToast({ message: `历史记录读取失败: ${error.message}`, type: 'error' });
+          return;
+        }
+        if (requestToken !== historyLoadTokenRef.current) return;
         if (item) {
           setActiveHistoryId(id);
-          setCurrentSession(item.sessionData);
-          restoreSessionImages(id);
+          setCurrentSession({ ...item.sessionData, isDemo: Boolean(item.isDemo) });
+          restoreSessionImages(id, requestToken);
           if (item.sessionData.packageData?.status === 'complete') {
             setInternalStage(5);
             setShowResults(true);
@@ -3540,6 +3960,10 @@ const resultContent = useMemo(() => {
 
       const retryHistoryItem = async (id) => {
         const item = await loadSessionRecord(id);
+        if (item?.isDemo) {
+          setToast({ message: '示例记录仅用于查看应用能力，不会调用真实接口。粘贴原文后点击「开始加工」即可体验完整流程。', type: 'success', duration: 5000 });
+          return;
+        }
         if (!item?.originalInput) {
           setToast({ message: '该记录缺少原文备份，无法重试', type: 'error' });
           return;
@@ -3600,7 +4024,7 @@ const resultContent = useMemo(() => {
       });
 
       // 运算中按钮切换为停止操作；空配置只阻止发起新请求。
-      const isButtonDisabled = !isProcessing && (!apiConfig.apiKey || !inputText.trim());
+      const isButtonDisabled = !isProcessing && (!apiConfig.apiKey?.trim() || !inputText.trim());
 
       return <AppView {...{
         activeHistoryId,
@@ -3624,6 +4048,7 @@ const resultContent = useMemo(() => {
         isHistoryOpen,
         isProcessing,
         lastImageDiagnostic,
+        loadDemoRecord,
         loadHistoryItem,
         messagesEndRef,
         resultContent,

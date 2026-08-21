@@ -20,6 +20,7 @@ const AppView = ({
   isHistoryOpen,
   isProcessing,
   lastImageDiagnostic,
+  loadDemoRecord,
   loadHistoryItem,
   messagesEndRef,
   resultContent,
@@ -38,9 +39,9 @@ const AppView = ({
 }) => (
   <div className="moreimg-app-shell flex flex-col md:flex-row h-screen overflow-hidden font-sans text-slate-800 relative bg-transparent">
     {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
-    <AppSidebar {...{ history, isProcessing, activeHistoryId, showResults, setIsHistoryOpen, setIsConfigOpen, inputText, setInputText, handleStopProcessing, handleStartProcessing, isButtonDisabled, loadHistoryItem, retryHistoryItem, deleteHistoryItem }} />
+    <AppSidebar {...{ history, isProcessing, activeHistoryId, showResults, setIsHistoryOpen, setIsConfigOpen, inputText, setInputText, handleStopProcessing, handleStartProcessing, isButtonDisabled, loadHistoryItem, retryHistoryItem, deleteHistoryItem, loadDemoRecord }} />
     <MainWorkspace {...{ isProcessing, showResults, internalStage, activeStageTab, currentSession, setActiveStageTab, resultsStageNavRef, resultScrollRef, resultContent, messagesEndRef }} />
-    <MobileHistoryDialog {...{ isHistoryOpen, setIsHistoryOpen, history, isProcessing, activeHistoryId, showResults, loadHistoryItem, retryHistoryItem, deleteHistoryItem }} />
+    <MobileHistoryDialog {...{ isHistoryOpen, setIsHistoryOpen, history, isProcessing, activeHistoryId, showResults, loadHistoryItem, retryHistoryItem, deleteHistoryItem, loadDemoRecord }} />
     <SettingsDialog {...{ isConfigOpen, setIsConfigOpen, apiConfig, setApiConfig, configTools, handleLoadModels, handleTestTextConnection, handleModelSelection, textModels, imageModels, lastImageDiagnostic, handleSaveConfig }} />
   </div>
 );

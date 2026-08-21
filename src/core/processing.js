@@ -42,6 +42,7 @@
     const PROCESSING_MAX_OUTPUT_TOKENS = 12000;
     const TEXT_REQUEST_TIMEOUT_MS = 300000;
     const TEXT_TEST_TIMEOUT_MS = 30000;
+    const IMAGE_REQUEST_TIMEOUT_MS = 300000;
 
     const runWithRequestControl = (task, options = {}) => {
       const {
