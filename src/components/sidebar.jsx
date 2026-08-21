@@ -52,7 +52,7 @@ const AppSidebar = ({ history, isProcessing, activeHistoryId, showResults, setIs
     {isProcessing ? (
        <><Icon name="Square" className="w-4 h-4 mr-2 text-white" fill="currentColor" /> 停止运算</>
     ) : (
-       <><Icon name="Zap" className={`w-4 h-4 mr-2 ${isButtonDisabled ? 'text-slate-400' : 'text-white'}`} strokeWidth={2} />一键提取提示词物料包</>
+       <><Icon name="Zap" className={`w-4 h-4 mr-2 ${isButtonDisabled ? 'text-slate-400' : 'text-white'}`} strokeWidth={2} />一键生成 AI 物料包</>
     )}
   </button>
 
@@ -70,7 +70,7 @@ const AppSidebar = ({ history, isProcessing, activeHistoryId, showResults, setIs
         载入示例
       </button>
     </div>
-    <div className="space-y-3 overflow-y-auto custom-scrollbar flex-1 pb-4 pr-1">
+    <div className="history-list space-y-3 overflow-y-auto custom-scrollbar flex-1 pb-4">
       <HistoryItems {...{ history, isProcessing, activeHistoryId, showResults, setIsHistoryOpen, loadHistoryItem, retryHistoryItem, deleteHistoryItem }} />
     </div>
   </div>

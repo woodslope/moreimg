@@ -2196,7 +2196,7 @@ var HistoryItems = function HistoryItems(_ref1) {
       className: "mi-surface mi-surface-list history-item relative group backdrop-blur-sm shrink-0\n          ".concat(isProcessing ? 'mi-surface-disabled' : '', "\n          ").concat(activeHistoryId === item.id && showResults ? 'mi-surface-selected' : '')
     }, React.createElement("button", {
       type: "button",
-      className: "history-item-main pr-16",
+      className: "history-item-main min-w-0",
       onClick: function onClick() {
         if (isProcessing) return;
         if (closeAfterOpen) setIsHistoryOpen(false);
@@ -2206,13 +2206,11 @@ var HistoryItems = function HistoryItems(_ref1) {
       "aria-current": activeHistoryId === item.id && showResults ? 'true' : undefined,
       "aria-label": "\u6253\u5F00\u5386\u53F2\u8BB0\u5F55\uFF1A".concat(item.title || '未命名')
     }, React.createElement("div", {
-      className: "text-[13px] font-bold truncate flex items-center ".concat(activeHistoryId === item.id && showResults ? 'text-indigo-600' : 'text-slate-700')
-    }, item.title || '未命名', item.isDemo && React.createElement("span", {
-      className: "ml-1.5 shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-600 border border-amber-200"
-    }, "\u793A\u4F8B")), React.createElement("div", {
+      className: "history-item-title min-w-0 text-[13px] font-bold ".concat(activeHistoryId === item.id && showResults ? 'text-indigo-600' : 'text-slate-700')
+    }, item.title || '未命名'), React.createElement("div", {
       className: "mt-1.5 font-mono text-[11px] text-slate-400"
     }, item.date)), !isProcessing && React.createElement("div", {
-      className: "history-item-actions absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-all"
+      className: "history-item-actions flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-all"
     }, React.createElement("button", {
       type: "button",
       onClick: function onClick(event) {
@@ -2399,7 +2397,7 @@ var AppSidebar = function AppSidebar(_ref11) {
     name: "Zap",
     className: "w-4 h-4 mr-2 ".concat(isButtonDisabled ? 'text-slate-400' : 'text-white'),
     strokeWidth: 2
-  }), "\u4E00\u952E\u63D0\u53D6\u63D0\u793A\u8BCD\u7269\u6599\u5305")), React.createElement("div", {
+  }), "\u4E00\u952E\u751F\u6210 AI \u7269\u6599\u5305")), React.createElement("div", {
     className: "moreimg-history hidden md:flex mt-10 flex-1 relative shrink-0 flex-col min-h-0"
   }, React.createElement("div", {
     className: "flex items-center justify-between mb-4 shrink-0"
@@ -2413,7 +2411,7 @@ var AppSidebar = function AppSidebar(_ref11) {
     "aria-label": "\u8F7D\u5165\u793A\u4F8B\u8BB0\u5F55\uFF0C\u67E5\u770B\u5E94\u7528\u5B8C\u6574\u80FD\u529B",
     title: "\u8F7D\u5165\u793A\u4F8B\u8BB0\u5F55\uFF08\u542B\u89C6\u89C9\u751F\u6210\u4E0E\u5BF9\u6BD4\uFF09\uFF0C\u4E0D\u6D88\u8017 API"
   }, "\u8F7D\u5165\u793A\u4F8B")), React.createElement("div", {
-    className: "space-y-3 overflow-y-auto custom-scrollbar flex-1 pb-4 pr-1"
+    className: "history-list space-y-3 overflow-y-auto custom-scrollbar flex-1 pb-4"
   }, React.createElement(HistoryItems, {
     history: history,
     isProcessing: isProcessing,
@@ -3215,7 +3213,7 @@ var useResultContent = function useResultContent(_ref17) {
       })) : sId === 4 ? function () {
         if (isJsonPackage) {
           return React.createElement("div", {
-            className: "grid grid-cols-1 md:grid-cols-2 gap-8"
+            className: "content-card-grid grid grid-cols-1 md:grid-cols-2 gap-8"
           }, currentSession.packageData.pages.map(function (page, index, pages) {
             return React.createElement("div", {
               key: page.page_id,
@@ -3254,7 +3252,7 @@ var useResultContent = function useResultContent(_ref17) {
           cardHeaders = parsedSession.cardHeaders;
         if (cardBlocks.length > 0 && cardHeaders.length === cardBlocks.length) {
           return React.createElement("div", {
-            className: "grid grid-cols-1 md:grid-cols-2 gap-8"
+            className: "content-card-grid grid grid-cols-1 md:grid-cols-2 gap-8"
           }, cardBlocks.map(function (block, i) {
             return React.createElement("div", {
               key: i,

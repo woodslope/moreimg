@@ -61,7 +61,7 @@ const renderStageContent = () => {
                 (() => {
                   if (isJsonPackage) {
                     return (
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                      <div className="content-card-grid grid grid-cols-1 md:grid-cols-2 gap-8">
                         {currentSession.packageData.pages.map((page, index, pages) => (
                           <div key={page.page_id} className="mi-surface mi-surface-panel content-card-panel">
                             <h3 className="text-[18px] font-bold text-slate-800 mb-6 flex items-center">
@@ -92,7 +92,7 @@ const renderStageContent = () => {
                   const { cardBlocks, cardHeaders } = parsedSession;
                   if (cardBlocks.length > 0 && cardHeaders.length === cardBlocks.length) {
                     return (
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                      <div className="content-card-grid grid grid-cols-1 md:grid-cols-2 gap-8">
                         {cardBlocks.map((block, i) => (
                           <div key={i} className="mi-surface mi-surface-panel content-card-panel">
                             <h3 className="text-[18px] font-bold text-slate-800 mb-6 flex items-center">

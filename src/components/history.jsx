@@ -19,7 +19,7 @@ const HistoryItems = ({ history, isProcessing, activeHistoryId, showResults, set
       >
         <button
           type="button"
-          className="history-item-main pr-16"
+          className="history-item-main min-w-0"
           onClick={() => {
             if (isProcessing) return;
             if (closeAfterOpen) setIsHistoryOpen(false);
@@ -29,14 +29,13 @@ const HistoryItems = ({ history, isProcessing, activeHistoryId, showResults, set
           aria-current={activeHistoryId === item.id && showResults ? 'true' : undefined}
           aria-label={`打开历史记录：${item.title || '未命名'}`}
         >
-          <div className={`text-[13px] font-bold truncate flex items-center ${activeHistoryId === item.id && showResults ? 'text-indigo-600' : 'text-slate-700'}`}>
+          <div className={`history-item-title min-w-0 text-[13px] font-bold ${activeHistoryId === item.id && showResults ? 'text-indigo-600' : 'text-slate-700'}`}>
             {item.title || '未命名'}
-            {item.isDemo && <span className="ml-1.5 shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-600 border border-amber-200">示例</span>}
           </div>
           <div className="mt-1.5 font-mono text-[11px] text-slate-400">{item.date}</div>
         </button>
         {!isProcessing && (
-          <div className="history-item-actions absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-all">
+          <div className="history-item-actions flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-all">
             <button
               type="button"
               onClick={(event) => {

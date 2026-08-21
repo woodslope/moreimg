@@ -19,6 +19,19 @@
   <script src="vendor/lucide-moreimg.js?v=dc142db48914"></script>
 
   <style>
+    /* 页面滚动由工作区内部容器承担，避免回弹时露出 body 顶部缝隙。 */
+    html, body, #root {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+    }
+    html, body {
+      overscroll-behavior: none;
+    }
+    body {
+      background: #f8fafc;
+    }
+
     /* 全局滚动条优化 */
     .custom-scrollbar::-webkit-scrollbar { width: 5px; height: 5px; }
     .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
@@ -120,6 +133,7 @@
     .visual-page-tab:hover { background: rgba(255,255,255,.64); color: #3730a3; }
     .visual-page-tab-active { border-color: rgba(99,102,241,.22); background: #fff; color: #4338ca; box-shadow: 0 1px 2px rgba(15,23,42,.05); }
     .visual-panel { overflow: hidden; }
+    .content-card-grid { grid-auto-rows: 1fr; align-items: stretch; }
     .content-card-panel { padding: 24px; content-visibility: auto; contain-intrinsic-size: auto 240px; }
     .moreimg-empty-icon { background: rgba(255,255,255,.72); box-shadow: 0 10px 28px rgba(76,81,124,.1); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); }
     .moreimg-feature-card { border-color: rgba(255,255,255,.8); background: rgba(255,255,255,.58); backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px); }
@@ -226,6 +240,26 @@
     .sidebar-input:hover { background: rgba(255,255,255,.6); box-shadow: inset 0 0 0 1px rgba(255,255,255,.8); }
     .sidebar-input:focus { outline: none; background: rgba(255,255,255,.9); box-shadow: inset 0 0 0 1px transparent; }
     .history-item-main { display: block; width: 100%; text-align: left; }
+    .history-item { position: relative; }
+    .history-item-main { min-width: 0; padding-right: 0 !important; }
+    .history-item-actions {
+      position: absolute !important;
+      top: 50%;
+      right: 8px;
+      z-index: 2;
+      transform: translateY(-50%) !important;
+      border: 1px solid rgba(226,232,240,.86);
+      border-radius: 10px;
+      padding: 3px;
+      background: rgba(255,255,255,.94);
+      box-shadow: 0 4px 12px rgba(15,23,42,.08);
+      pointer-events: none;
+    }
+    .history-item:hover .history-item-actions,
+    .history-item:focus-within .history-item-actions,
+    .mobile-history-dialog .history-item-actions {
+      pointer-events: auto;
+    }
     .history-item-main:focus-visible { outline: 2px solid var(--mi-focus-ring); outline-offset: 2px; }
     .history-item:focus-within .history-item-actions { opacity: 1; }
     .mobile-history-overlay { position: fixed; inset: 0; z-index: 40; display: flex; align-items: center; justify-content: center; padding: 16px; background: rgba(15,23,42,.4); }
@@ -374,6 +408,9 @@
       --mi-disabled-bg: rgba(248,250,252,.78);
       --mi-disabled-text: #94a3b8;
       flex-direction: column;
+      min-height: 100%;
+      height: 100dvh;
+      overflow: hidden;
       background-color: #f8fafc;
       background-image:
         radial-gradient(ellipse at 0% 18%, rgba(129,140,248,.4) 0%, rgba(129,140,248,.2) 30%, transparent 60%),
@@ -381,8 +418,22 @@
         radial-gradient(ellipse at 28% 100%, rgba(192,132,252,.34) 0%, rgba(192,132,252,.14) 36%, transparent 64%);
       background-repeat: no-repeat;
     }
+    .moreimg-main-scroll {
+      overscroll-behavior: contain;
+    }
     .moreimg-sidebar { width: 100%; height: auto; }
     .moreimg-history, .moreimg-brand { display: none; }
+    .history-list { width: 100%; padding-right: 0; }
+    .history-list { scrollbar-width: none; }
+    .history-list::-webkit-scrollbar { display: none; }
+    .history-item-title {
+      display: -webkit-box;
+      -webkit-box-orient: vertical;
+      -webkit-line-clamp: 2;
+      overflow: hidden;
+      line-height: 1.45;
+      overflow-wrap: anywhere;
+    }
 
     @media (min-width: 768px) {
       .moreimg-app-shell { flex-direction: row; }
@@ -396,6 +447,6 @@
 </head>
 <body class="antialiased text-slate-800 bg-slate-50">
   <div id="root"></div>
-  <script src="app.js?v=36aa110538a9" defer></script>
+  <script src="app.js?v=47719ae2f6ee" defer></script>
 </body>
 </html>

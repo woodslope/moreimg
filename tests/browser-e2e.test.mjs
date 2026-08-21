@@ -454,13 +454,13 @@ try {
   await evaluate(`(() => { window.fetch = window.__moreimgOriginalFetch; return true; })()`);
   await evaluate(`document.querySelector('button[aria-label="关闭设置"]').click()`);
   assert.equal(
-    await evaluate(`[...document.querySelectorAll('button')].find(item=>item.textContent.includes('一键提取提示词物料包')).disabled`),
+    await evaluate(`[...document.querySelectorAll('button')].find(item=>item.textContent.includes('一键生成 AI 物料包')).disabled`),
     true,
     '空输入时不应允许启动加工'
   );
   await evaluate(`(() => { const input=document.querySelector('textarea'); const setter=Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set; setter.call(input,'   '); input.dispatchEvent(new Event('input',{bubbles:true})); return true; })()`);
   assert.equal(
-    await evaluate(`[...document.querySelectorAll('button')].find(item=>item.textContent.includes('一键提取提示词物料包')).disabled`),
+    await evaluate(`[...document.querySelectorAll('button')].find(item=>item.textContent.includes('一键生成 AI 物料包')).disabled`),
     true,
     '纯空格输入时不应允许启动加工'
   );
@@ -478,7 +478,7 @@ try {
   for (const testCase of lengthCases) {
     const previousRequestCount = processedInputLengths.length;
     await evaluate(`(() => { const input=document.querySelector('textarea'); const setter=Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set; setter.call(input,${JSON.stringify(testCase.input)}); input.dispatchEvent(new Event('input',{bubbles:true})); return true; })()`);
-    await evaluate(`(() => { const button=[...document.querySelectorAll('button')].find(item=>item.textContent.includes('一键提取提示词物料包')); button.click(); return true; })()`);
+    await evaluate(`(() => { const button=[...document.querySelectorAll('button')].find(item=>item.textContent.includes('一键生成 AI 物料包')); button.click(); return true; })()`);
     await waitFor(() => processedInputLengths.length === previousRequestCount + 1);
     const expectedTitle = `${testCase.input.substring(0, 20)}...`;
     await waitFor(() => evaluate(`!document.body.innerText.includes('停止运算') && document.body.innerText.includes(${JSON.stringify(expectedTitle)})`));
@@ -521,7 +521,7 @@ try {
         outlineWidth: parseFloat(style.outlineWidth)
       };
     };
-    const primaryAction = [...document.querySelectorAll('button')].find(item => item.textContent.includes('一键提取提示词物料包'));
+    const primaryAction = [...document.querySelectorAll('button')].find(item => item.textContent.includes('一键生成 AI 物料包'));
     const stageTab = document.querySelector('.results-stage-tab');
     return [inspect(primaryAction), inspect(stageTab)];
   })()`);

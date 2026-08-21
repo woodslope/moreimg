@@ -22,6 +22,19 @@
   <script src="vendor/lucide-moreimg.js"></script>
 
   <style>
+    /* 页面滚动由工作区内部容器承担，避免回弹时露出 body 顶部缝隙。 */
+    html, body, #root {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+    }
+    html, body {
+      overscroll-behavior: none;
+    }
+    body {
+      background: #f8fafc;
+    }
+
     /* 全局滚动条优化 */
     .custom-scrollbar::-webkit-scrollbar { width: 5px; height: 5px; }
     .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
@@ -123,6 +136,7 @@
     .visual-page-tab:hover { background: rgba(255,255,255,.64); color: #3730a3; }
     .visual-page-tab-active { border-color: rgba(99,102,241,.22); background: #fff; color: #4338ca; box-shadow: 0 1px 2px rgba(15,23,42,.05); }
     .visual-panel { overflow: hidden; }
+    .content-card-grid { grid-auto-rows: 1fr; align-items: stretch; }
     .content-card-panel { padding: 24px; content-visibility: auto; contain-intrinsic-size: auto 240px; }
     .moreimg-empty-icon { background: rgba(255,255,255,.72); box-shadow: 0 10px 28px rgba(76,81,124,.1); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); }
     .moreimg-feature-card { border-color: rgba(255,255,255,.8); background: rgba(255,255,255,.58); backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px); }
@@ -229,6 +243,26 @@
     .sidebar-input:hover { background: rgba(255,255,255,.6); box-shadow: inset 0 0 0 1px rgba(255,255,255,.8); }
     .sidebar-input:focus { outline: none; background: rgba(255,255,255,.9); box-shadow: inset 0 0 0 1px transparent; }
     .history-item-main { display: block; width: 100%; text-align: left; }
+    .history-item { position: relative; }
+    .history-item-main { min-width: 0; padding-right: 0 !important; }
+    .history-item-actions {
+      position: absolute !important;
+      top: 50%;
+      right: 8px;
+      z-index: 2;
+      transform: translateY(-50%) !important;
+      border: 1px solid rgba(226,232,240,.86);
+      border-radius: 10px;
+      padding: 3px;
+      background: rgba(255,255,255,.94);
+      box-shadow: 0 4px 12px rgba(15,23,42,.08);
+      pointer-events: none;
+    }
+    .history-item:hover .history-item-actions,
+    .history-item:focus-within .history-item-actions,
+    .mobile-history-dialog .history-item-actions {
+      pointer-events: auto;
+    }
     .history-item-main:focus-visible { outline: 2px solid var(--mi-focus-ring); outline-offset: 2px; }
     .history-item:focus-within .history-item-actions { opacity: 1; }
     .mobile-history-overlay { position: fixed; inset: 0; z-index: 40; display: flex; align-items: center; justify-content: center; padding: 16px; background: rgba(15,23,42,.4); }
@@ -377,6 +411,9 @@
       --mi-disabled-bg: rgba(248,250,252,.78);
       --mi-disabled-text: #94a3b8;
       flex-direction: column;
+      min-height: 100%;
+      height: 100dvh;
+      overflow: hidden;
       background-color: #f8fafc;
       background-image:
         radial-gradient(ellipse at 0% 18%, rgba(129,140,248,.4) 0%, rgba(129,140,248,.2) 30%, transparent 60%),
@@ -384,8 +421,22 @@
         radial-gradient(ellipse at 28% 100%, rgba(192,132,252,.34) 0%, rgba(192,132,252,.14) 36%, transparent 64%);
       background-repeat: no-repeat;
     }
+    .moreimg-main-scroll {
+      overscroll-behavior: contain;
+    }
     .moreimg-sidebar { width: 100%; height: auto; }
     .moreimg-history, .moreimg-brand { display: none; }
+    .history-list { width: 100%; padding-right: 0; }
+    .history-list { scrollbar-width: none; }
+    .history-list::-webkit-scrollbar { display: none; }
+    .history-item-title {
+      display: -webkit-box;
+      -webkit-box-orient: vertical;
+      -webkit-line-clamp: 2;
+      overflow: hidden;
+      line-height: 1.45;
+      overflow-wrap: anywhere;
+    }
 
     @media (min-width: 768px) {
       .moreimg-app-shell { flex-direction: row; }
@@ -2146,7 +2197,7 @@ const HistoryItems = ({ history, isProcessing, activeHistoryId, showResults, set
       >
         <button
           type="button"
-          className="history-item-main pr-16"
+          className="history-item-main min-w-0"
           onClick={() => {
             if (isProcessing) return;
             if (closeAfterOpen) setIsHistoryOpen(false);
@@ -2156,14 +2207,13 @@ const HistoryItems = ({ history, isProcessing, activeHistoryId, showResults, set
           aria-current={activeHistoryId === item.id && showResults ? 'true' : undefined}
           aria-label={`打开历史记录：${item.title || '未命名'}`}
         >
-          <div className={`text-[13px] font-bold truncate flex items-center ${activeHistoryId === item.id && showResults ? 'text-indigo-600' : 'text-slate-700'}`}>
+          <div className={`history-item-title min-w-0 text-[13px] font-bold ${activeHistoryId === item.id && showResults ? 'text-indigo-600' : 'text-slate-700'}`}>
             {item.title || '未命名'}
-            {item.isDemo && <span className="ml-1.5 shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-600 border border-amber-200">示例</span>}
           </div>
           <div className="mt-1.5 font-mono text-[11px] text-slate-400">{item.date}</div>
         </button>
         {!isProcessing && (
-          <div className="history-item-actions absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-all">
+          <div className="history-item-actions flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-all">
             <button
               type="button"
               onClick={(event) => {
@@ -2294,7 +2344,7 @@ const AppSidebar = ({ history, isProcessing, activeHistoryId, showResults, setIs
     {isProcessing ? (
        <><Icon name="Square" className="w-4 h-4 mr-2 text-white" fill="currentColor" /> 停止运算</>
     ) : (
-       <><Icon name="Zap" className={`w-4 h-4 mr-2 ${isButtonDisabled ? 'text-slate-400' : 'text-white'}`} strokeWidth={2} />一键提取提示词物料包</>
+       <><Icon name="Zap" className={`w-4 h-4 mr-2 ${isButtonDisabled ? 'text-slate-400' : 'text-white'}`} strokeWidth={2} />一键生成 AI 物料包</>
     )}
   </button>
 
@@ -2312,7 +2362,7 @@ const AppSidebar = ({ history, isProcessing, activeHistoryId, showResults, setIs
         载入示例
       </button>
     </div>
-    <div className="space-y-3 overflow-y-auto custom-scrollbar flex-1 pb-4 pr-1">
+    <div className="history-list space-y-3 overflow-y-auto custom-scrollbar flex-1 pb-4">
       <HistoryItems {...{ history, isProcessing, activeHistoryId, showResults, setIsHistoryOpen, loadHistoryItem, retryHistoryItem, deleteHistoryItem }} />
     </div>
   </div>
@@ -2844,7 +2894,7 @@ const renderStageContent = () => {
                 (() => {
                   if (isJsonPackage) {
                     return (
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                      <div className="content-card-grid grid grid-cols-1 md:grid-cols-2 gap-8">
                         {currentSession.packageData.pages.map((page, index, pages) => (
                           <div key={page.page_id} className="mi-surface mi-surface-panel content-card-panel">
                             <h3 className="text-[18px] font-bold text-slate-800 mb-6 flex items-center">
@@ -2875,7 +2925,7 @@ const renderStageContent = () => {
                   const { cardBlocks, cardHeaders } = parsedSession;
                   if (cardBlocks.length > 0 && cardHeaders.length === cardBlocks.length) {
                     return (
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                      <div className="content-card-grid grid grid-cols-1 md:grid-cols-2 gap-8">
                         {cardBlocks.map((block, i) => (
                           <div key={i} className="mi-surface mi-surface-panel content-card-panel">
                             <h3 className="text-[18px] font-bold text-slate-800 mb-6 flex items-center">
