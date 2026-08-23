@@ -99,7 +99,7 @@ assert.match(source, /className="sidebar-brand-mark mr-3"/);
 assert.match(source, /className="mi-icon-button mi-icon-button-standard sidebar-icon-button" aria-label="打开设置"/);
 assert.match(source, /className="sidebar-input custom-scrollbar/);
 assert.match(source, /className="mi-field config-input/);
-assert.match(source, /className="config-dialog flex flex-col/);
+assert.match(source, /dialogClassName="config-dialog flex flex-col/);
 assert.match(source, /className="mi-field config-preference-textarea"/);
 assert.doesNotMatch(source, /className="w-full h-11 px-4/);
 assert.match(source, /\.sidebar-input \{[^}]*height: 180px/);
@@ -136,7 +136,7 @@ assert.match(source, /IMAGE_DB_NAME/);
 assert.match(source, /saveImageBlob/);
 assert.match(source, /loadSessionImages/);
 assert.match(source, /URL\.createObjectURL/);
-assert.match(source, /flex-col md:flex-row/);
-assert.match(source, /w-full md:w-\[320px\]/);
+assert.match(source, /flex-col lg:flex-row/);
+assert.match(source, /w-full lg:w-\[320px\]/);
 
 console.log('Single-image generation controls are present.');

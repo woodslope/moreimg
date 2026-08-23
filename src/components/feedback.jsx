@@ -1,4 +1,13 @@
+    const TOAST_TYPE_CONFIG = Object.freeze({
+      success: { icon: 'CheckCircle2' },
+      error: { icon: 'AlertCircle' },
+      warning: { icon: 'CircleAlert' },
+      neutral: { icon: 'Info' }
+    });
+
     const Toast = ({ message, type = 'success', onClose, duration = 3000 }) => {
+      const feedbackType = TOAST_TYPE_CONFIG[type] ? type : 'success';
+      const iconName = TOAST_TYPE_CONFIG[feedbackType].icon;
       useEffect(() => {
         const timer = setTimeout(onClose, duration);
         return () => clearTimeout(timer);
@@ -6,13 +15,13 @@
 
       return (
         <div
-          className={`mi-toast mi-feedback mi-feedback-${type === 'error' ? 'error' : 'success'} animate-fade-in-down`}
-          role={type === 'error' ? 'alert' : 'status'}
-          aria-live={type === 'error' ? 'assertive' : 'polite'}
+          className={`mi-toast mi-feedback mi-feedback-${feedbackType} animate-fade-in-down`}
+          role={feedbackType === 'error' ? 'alert' : 'status'}
+          aria-live={feedbackType === 'error' ? 'assertive' : 'polite'}
           aria-atomic="true"
         >
           <div className="mi-toast-icon">
-            <Icon name={type === 'error' ? 'AlertCircle' : 'CheckCircle2'} className="h-4 w-4" />
+            <Icon name={iconName} className="h-4 w-4" />
           </div>
           <span className="mi-toast-message">{message}</span>
           <button type="button" onClick={onClose} className="mi-icon-button mi-icon-button-compact mi-toast-dismiss" aria-label="关闭通知" title="关闭通知">

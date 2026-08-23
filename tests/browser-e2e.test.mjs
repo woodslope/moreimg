@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
-import { access, mkdtemp, readFile, readdir, rm, stat } from 'node:fs/promises';
+import { access, mkdir, mkdtemp, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -145,7 +145,12 @@ const waitFor = async (check, timeoutMs = 15000) => {
 const tempRoot = await mkdtemp(path.join(tmpdir(), 'moreimg-e2e-'));
 const profilePath = path.join(tempRoot, 'profile');
 const downloadPath = path.join(tempRoot, 'downloads');
-await import('node:fs/promises').then(({ mkdir }) => Promise.all([mkdir(profilePath), mkdir(downloadPath)]));
+const auditScreenshotDirectory = process.env.MOREIMG_UI_AUDIT_DIR || '';
+await Promise.all([
+  mkdir(profilePath),
+  mkdir(downloadPath),
+  ...(auditScreenshotDirectory ? [mkdir(auditScreenshotDirectory, { recursive: true })] : [])
+]);
 let artifactPath = '';
 let imageRequestCount = 0;
 const processedInputLengths = [];
@@ -238,6 +243,11 @@ try {
     }
     return result.result.value;
   };
+  const captureAuditScreenshot = async name => {
+    if (!auditScreenshotDirectory) return;
+    const screenshot = await client.send('Page.captureScreenshot', { format: 'png', fromSurface: true, captureBeyondViewport: false });
+    await writeFile(path.join(auditScreenshotDirectory, `${name}.png`), Buffer.from(screenshot.data, 'base64'));
+  };
   await client.send('Page.navigate', { url: appUrl });
   await waitFor(() => evaluate(`location.origin === 'http://127.0.0.1:${appPort}' && document.readyState === 'complete'`));
   const config = {
@@ -258,8 +268,24 @@ try {
     0,
     '首屏 Lucide 子集不应出现缺失图标'
   );
-  await evaluate(`document.querySelector('button[aria-label="打开设置"]').click()`);
+  await evaluate(`(() => { const trigger = document.querySelector('button[aria-label="打开设置"]'); trigger.focus(); trigger.click(); })()`);
   await waitFor(() => evaluate(`Boolean(document.querySelector('.config-dialog'))`));
+  await waitFor(() => evaluate(`document.activeElement?.matches('.config-dialog input[data-dialog-initial-focus="true"]')`));
+  const settingsDialogContract = await evaluate(`(() => {
+    const dialog = document.querySelector('.config-dialog');
+    return {
+      role: dialog.getAttribute('role'),
+      ariaModal: dialog.getAttribute('aria-modal'),
+      labelledBy: dialog.getAttribute('aria-labelledby'),
+      titleId: dialog.querySelector('h3')?.id,
+      focused: document.activeElement?.className || ''
+    };
+  })()`);
+  assert.deepEqual(
+    [settingsDialogContract.role, settingsDialogContract.ariaModal, settingsDialogContract.labelledBy, settingsDialogContract.titleId],
+    ['dialog', 'true', 'settings-dialog-title', 'settings-dialog-title'],
+    `设置弹窗应消费共享模态语义: ${JSON.stringify(settingsDialogContract)}`
+  );
   const modelLoadButtonCount = await evaluate(`document.querySelectorAll('button').length && [...document.querySelectorAll('button')].filter(button => button.textContent.trim() === '读取模型').length`);
   assert.equal(modelLoadButtonCount, 2, '设置弹窗应提供文本和图片两个模型读取入口');
   await evaluate(`([...document.querySelectorAll('button')].filter(button => button.textContent.trim() === '读取模型')[0]).click()`);
@@ -452,6 +478,13 @@ try {
     '配置加载状态应保持尺寸稳定并暴露 disabled/aria-busy'
   );
   await evaluate(`(() => { window.fetch = window.__moreimgOriginalFetch; return true; })()`);
+  await client.send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 });
+  await client.send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 });
+  await waitFor(() => evaluate(`!document.querySelector('.config-dialog')`));
+  await waitFor(() => evaluate(`document.activeElement?.getAttribute('aria-label') === '打开设置'`));
+  await evaluate(`document.querySelector('button[aria-label="打开设置"]').click()`);
+  await waitFor(() => evaluate(`Boolean(document.querySelector('.config-dialog'))`));
+  assert.equal(await evaluate(`Boolean(document.querySelector('.config-status-loading'))`), false, '关闭设置应取消模型请求并清理 loading 状态');
   await evaluate(`document.querySelector('button[aria-label="关闭设置"]').click()`);
   assert.equal(
     await evaluate(`[...document.querySelectorAll('button')].find(item=>item.textContent.includes('一键生成 AI 物料包')).disabled`),
@@ -482,6 +515,7 @@ try {
     await waitFor(() => processedInputLengths.length === previousRequestCount + 1);
     const expectedTitle = `${testCase.input.substring(0, 20)}...`;
     await waitFor(() => evaluate(`!document.body.innerText.includes('停止运算') && document.body.innerText.includes(${JSON.stringify(expectedTitle)})`));
+    await waitFor(() => evaluate(`JSON.parse(localStorage.getItem('moreimg_history_index') || '[]').some(item => item.title === ${JSON.stringify(expectedTitle)})`));
     assert.equal(await evaluate(`document.body.innerText.includes('流程未完整完成')`), false);
     assert.equal(
       await evaluate(`document.body.innerText.includes('标准模式正文保留率低于 65%')`),
@@ -521,7 +555,7 @@ try {
         outlineWidth: parseFloat(style.outlineWidth)
       };
     };
-    const primaryAction = [...document.querySelectorAll('button')].find(item => item.textContent.includes('一键生成 AI 物料包'));
+    const primaryAction = [...document.querySelectorAll('button')].find(item => item.textContent.trim() === '新建文章');
     const stageTab = document.querySelector('.results-stage-tab');
     return [inspect(primaryAction), inspect(stageTab)];
   })()`);
@@ -530,7 +564,7 @@ try {
     true,
     `核心操作缺少统一键盘焦点: ${JSON.stringify(keyboardFocusEvidence)}`
   );
-  assert.deepEqual(keyboardFocusEvidence.map(item => item.height), [48, 40], '主加工操作与阶段标签应遵循 48/40px 合同');
+  assert.deepEqual(keyboardFocusEvidence.map(item => item.height), [40, 40], '结果态新建入口与阶段标签应遵循 40px 合同');
   assert.equal(keyboardFocusEvidence[1].ariaSelected, 'true', '当前阶段标签应暴露选中语义');
   await client.send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'ArrowRight', code: 'ArrowRight', windowsVirtualKeyCode: 39 });
   await client.send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'ArrowRight', code: 'ArrowRight', windowsVirtualKeyCode: 39 });
@@ -619,6 +653,15 @@ try {
   await client.send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Home', code: 'Home', windowsVirtualKeyCode: 36 });
   await client.send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Home', code: 'Home', windowsVirtualKeyCode: 36 });
   await waitFor(() => evaluate(`document.querySelector('.visual-page-tab[aria-selected="true"]') === document.querySelector('.visual-page-tab')`));
+  const promptDisclosureContract = await evaluate(`(() => [...document.querySelectorAll('.visual-disclosure')].map(item => ({
+    open: item.open,
+    summary: item.querySelector('summary')?.textContent.trim(),
+    copyVisible: item.querySelector('button')?.getClientRects().length > 0
+  })))()`);
+  assert.equal(promptDisclosureContract.length, 2, '当前视觉页应提供两个提示词 disclosure');
+  assert.equal(promptDisclosureContract.every(item => !item.open && !item.copyVisible), true, `提示词应默认折叠并让媒体保持优先: ${JSON.stringify(promptDisclosureContract)}`);
+  await evaluate(`document.querySelector('.visual-disclosure summary').click()`);
+  await waitFor(() => evaluate(`document.querySelector('.visual-disclosure')?.open === true`));
   await evaluate(`document.querySelector('button[aria-label="复制原始视觉提示词"]').click()`);
   await waitFor(() => evaluate(`Boolean(document.querySelector('.mi-toast'))`));
   await sleep(550);
@@ -697,23 +740,42 @@ try {
     input.dispatchEvent(new Event('input', { bubbles: true }));
   })()`);
   await waitFor(() => evaluate(`document.querySelector('.moreimg-export-card')?.style.getPropertyValue('--moreimg-card-focus-y') === '37%'`));
-  await waitFor(() => evaluate(`(async () => {
-    const history = JSON.parse(localStorage.getItem('moreimg_history_index') || '[]');
-    const sessionId = history[0]?.id;
-    if (!sessionId) return false;
-    const database = await new Promise((resolve, reject) => {
-      const request = indexedDB.open('moreimg_images', 2);
-      request.onsuccess = () => resolve(request.result);
-      request.onerror = () => reject(request.error);
-    });
-    const record = await new Promise((resolve, reject) => {
-      const request = database.transaction('generated_images', 'readonly').objectStore('generated_images').get(sessionId + ':visual-only:封面');
-      request.onsuccess = () => resolve(request.result);
-      request.onerror = () => reject(request.error);
-    });
-    database.close();
-    return record?.focusY === 37;
-  })()`));
+  try {
+    await waitFor(() => evaluate(`(async () => {
+      const history = JSON.parse(localStorage.getItem('moreimg_history_index') || '[]');
+      const sessionId = history[0]?.id;
+      if (!sessionId) return false;
+      const database = await new Promise((resolve, reject) => {
+        const request = indexedDB.open('moreimg_images', 2);
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+      });
+      const record = await new Promise((resolve, reject) => {
+        const request = database.transaction('generated_images', 'readonly').objectStore('generated_images').get(sessionId + ':visual-only:封面');
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+      });
+      database.close();
+      return record?.focusY === 37;
+    })()`));
+  } catch (error) {
+    const focusState = await evaluate(`(async () => {
+      const history = JSON.parse(localStorage.getItem('moreimg_history_index') || '[]');
+      const database = await new Promise((resolve, reject) => {
+        const request = indexedDB.open('moreimg_images', 2);
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+      });
+      const records = await new Promise((resolve, reject) => {
+        const request = database.transaction('generated_images', 'readonly').objectStore('generated_images').getAll();
+        request.onsuccess = () => resolve(request.result || []);
+        request.onerror = () => reject(request.error);
+      });
+      database.close();
+      return { history, records: records.map(item => ({ id: item.id, sessionId: item.sessionId, cardTitle: item.cardTitle, mode: item.mode, focusY: item.focusY })) };
+    })()`);
+    throw new Error(`${error.message}; focusState=${JSON.stringify(focusState)}`);
+  }
   assert.equal(await evaluate(`document.querySelector('.visual-preview-image')?.decoding`), 'async', '生成结果预览图必须异步解码');
   const generatedPreviewBounds = await evaluate(`(() => {
     const frame = document.querySelector('.visual-preview');
@@ -820,6 +882,37 @@ try {
   );
   assert.ok(historyKeyboardContract.retryLabel && historyKeyboardContract.deleteLabel, '历史记录图标操作应提供可访问名称');
   await waitFor(() => evaluate(`parseFloat(getComputedStyle(document.querySelector('.history-item-actions')).opacity) === 1`), 2000);
+  const historyCountBeforeDelete = await evaluate(`JSON.parse(localStorage.getItem('moreimg_history_index') || '[]').length`);
+  await evaluate(`document.querySelector('.history-item-actions button[aria-label^="删除记录"]').click()`);
+  await waitFor(() => evaluate(`Boolean(document.querySelector('.confirm-dialog'))`));
+  await waitFor(() => evaluate(`document.activeElement?.textContent.trim() === '取消'`));
+  const deleteConfirmContract = await evaluate(`(() => {
+    const dialog = document.querySelector('.confirm-dialog');
+    const cancel = [...dialog.querySelectorAll('button')].find(button => button.textContent.trim() === '取消');
+    return {
+      role: dialog.getAttribute('role'),
+      ariaModal: dialog.getAttribute('aria-modal'),
+      title: dialog.querySelector('h2')?.textContent.trim(),
+      cancelFocused: document.activeElement === cancel,
+      copy: dialog.textContent.trim()
+    };
+  })()`);
+  assert.deepEqual(
+    [deleteConfirmContract.role, deleteConfirmContract.ariaModal, deleteConfirmContract.title, deleteConfirmContract.cancelFocused],
+    ['dialog', 'true', '删除这条记录？', true],
+    `危险删除应明确目标且默认聚焦取消: ${JSON.stringify(deleteConfirmContract)}`
+  );
+  assert.equal(deleteConfirmContract.copy.includes('永久删除') && deleteConfirmContract.copy.includes('无法恢复'), true, '删除确认应解释后果');
+  await client.send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9, modifiers: 8 });
+  await client.send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9, modifiers: 8 });
+  assert.equal(await evaluate(`document.activeElement?.textContent.includes('确认删除')`), true, '从首个操作反向 Tab 应回到模态内最后一个操作');
+  await client.send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9 });
+  await client.send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9 });
+  assert.equal(await evaluate(`document.activeElement?.textContent.trim() === '取消'`), true, '从最后一个操作 Tab 应回到模态内首个操作');
+  await client.send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 });
+  await client.send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 });
+  await waitFor(() => evaluate(`!document.querySelector('.confirm-dialog')`));
+  assert.equal(await evaluate(`JSON.parse(localStorage.getItem('moreimg_history_index') || '[]').length`), historyCountBeforeDelete, '取消删除不得修改历史记录');
   await evaluate(`document.querySelector('.history-item-main').click()`);
   await waitFor(() => evaluate(`document.body.innerText.includes('视觉生成与对比')`));
   const selectedHistorySurface = await evaluate(`(() => {
@@ -865,6 +958,52 @@ try {
   assert.equal(visualWarningContract.noticeWidth < visualWarningContract.columnWidth - 1, true, `短提示不应无理由横跨整个结果列: ${JSON.stringify(visualWarningContract)}`);
   assert.equal(Math.abs(visualWarningContract.topGap - 14) < 1, true, `视觉警告与说明文本的上间距应为 14px: ${JSON.stringify(visualWarningContract)}`);
   assert.equal(Math.abs(visualWarningContract.bottomGap - 14) < 1, true, `视觉警告与结果网格的下间距应为 14px: ${JSON.stringify(visualWarningContract)}`);
+  await captureAuditScreenshot('1440-results');
+
+  await client.send('Emulation.setDeviceMetricsOverride', { width: 1024, height: 900, deviceScaleFactor: 1, mobile: false });
+  await sleep(300);
+  const compactDesktopContract = await evaluate(`(() => {
+    const sidebar = document.querySelector('.moreimg-sidebar');
+    const trigger = [...document.querySelectorAll('button')].find(button => button.getAttribute('aria-label')?.startsWith('打开历史记录'));
+    return {
+      sidebarWidth: sidebar.getBoundingClientRect().width,
+      sidebarHeight: sidebar.getBoundingClientRect().height,
+      composerDisplay: getComputedStyle(document.querySelector('.sidebar-composer')).display,
+      triggerDisplay: getComputedStyle(trigger).display,
+      rootOverflow: document.documentElement.scrollWidth - document.documentElement.clientWidth
+    };
+  })()`);
+  assert.deepEqual(compactDesktopContract, { sidebarWidth: 320, sidebarHeight: 900, composerDisplay: 'none', triggerDisplay: 'none', rootOverflow: 0 }, `1024px 结果态应使用桌面侧栏并折叠输入区: ${JSON.stringify(compactDesktopContract)}`);
+  await evaluate(`document.querySelector('.compact-composer-toggle').click()`);
+  await waitFor(() => evaluate(`getComputedStyle(document.querySelector('.sidebar-composer')).display === 'block' && document.querySelector('.compact-composer-toggle').textContent.includes('收起新建文章')`));
+  await evaluate(`document.querySelector('.compact-composer-toggle').click()`);
+  await waitFor(() => evaluate(`getComputedStyle(document.querySelector('.sidebar-composer')).display === 'none' && document.querySelector('.compact-composer-toggle').textContent.includes('新建文章')`));
+  await captureAuditScreenshot('1024-results');
+
+  await client.send('Emulation.setDeviceMetricsOverride', { width: 768, height: 1024, deviceScaleFactor: 1, mobile: true });
+  await sleep(300);
+  const tabletLayoutContract = await evaluate(`(() => {
+    const sidebar = document.querySelector('.moreimg-sidebar');
+    const panel = document.querySelector('.visual-panel');
+    const resultItems = [...document.querySelectorAll('.visual-result-item')];
+    const composer = document.querySelector('.sidebar-composer');
+    const toggle = document.querySelector('.compact-composer-toggle');
+    return {
+      sidebarWidth: sidebar.getBoundingClientRect().width,
+      sidebarHeight: sidebar.getBoundingClientRect().height,
+      panelWidth: panel.getBoundingClientRect().width,
+      itemWidths: resultItems.map(item => item.getBoundingClientRect().width),
+      composerDisplay: getComputedStyle(composer).display,
+      toggleDisplay: getComputedStyle(toggle).display,
+      rootOverflow: document.documentElement.scrollWidth - document.documentElement.clientWidth
+    };
+  })()`);
+  assert.equal(tabletLayoutContract.sidebarWidth, 768, `768px 不应提前启用 320px 固定侧栏: ${JSON.stringify(tabletLayoutContract)}`);
+  assert.equal(tabletLayoutContract.sidebarHeight < 130, true, `平板结果态顶部壳应保持紧凑: ${JSON.stringify(tabletLayoutContract)}`);
+  assert.equal(tabletLayoutContract.panelWidth > 640, true, `平板结果工作台应获得完整内容宽度: ${JSON.stringify(tabletLayoutContract)}`);
+  assert.equal(tabletLayoutContract.itemWidths.every(width => width >= 240), true, `视觉结果项不得被压缩到合同最小宽度以下: ${JSON.stringify(tabletLayoutContract)}`);
+  assert.deepEqual([tabletLayoutContract.composerDisplay, tabletLayoutContract.toggleDisplay, tabletLayoutContract.rootOverflow], ['none', 'flex', 0], `平板结果态应折叠输入且无横向溢出: ${JSON.stringify(tabletLayoutContract)}`);
+  await captureAuditScreenshot('768-results');
 
   await client.send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: true });
   await sleep(300);
@@ -876,6 +1015,7 @@ try {
   })()`);
   assert.ok(mobileHistoryTrigger?.visible, '窄屏必须提供可见的历史记录入口');
   assert.equal(mobileHistoryTrigger.height, 40, '窄屏历史入口应消费共享 40px 操作合同');
+  await captureAuditScreenshot('390-results');
   await evaluate(`[...document.querySelectorAll('button')].find(button => button.getAttribute('aria-label')?.startsWith('打开历史记录')).click()`);
   await waitFor(() => evaluate(`Boolean(document.querySelector('.mobile-history-dialog'))`));
   await sleep(550);
@@ -887,6 +1027,11 @@ try {
     const actionRail = dialog.querySelector('.history-item-actions');
     const dialogRect = dialog.getBoundingClientRect();
     const bodyRect = body.getBoundingClientRect();
+    const titleActionClearances = [...dialog.querySelectorAll('.history-item')].map(item => {
+      const titleRect = item.querySelector('.history-item-title').getBoundingClientRect();
+      const actionRect = item.querySelector('.history-item-actions').getBoundingClientRect();
+      return actionRect.left - titleRect.right;
+    });
     return {
       role: dialog.getAttribute('role'),
       ariaModal: dialog.getAttribute('aria-modal'),
@@ -897,6 +1042,7 @@ try {
       rootOverflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
       actionOpacity: parseFloat(getComputedStyle(actionRail).opacity),
       actionSizes: actions.map(action => [Math.round(action.getBoundingClientRect().width), Math.round(action.getBoundingClientRect().height)]),
+      titleActionClearances,
       actionLabels: actions.map(action => action.getAttribute('aria-label')),
       closeLabel: dialog.querySelector('button[aria-label="关闭历史记录"]')?.getAttribute('aria-label') || ''
     };
@@ -907,7 +1053,9 @@ try {
   assert.equal(mobileHistoryContract.dialogRect.left >= 16 && mobileHistoryContract.dialogRect.right <= 374, true, `窄屏历史弹窗应保留 16px 边距: ${JSON.stringify(mobileHistoryContract)}`);
   assert.equal(mobileHistoryContract.actionOpacity, 1, '触屏历史辅助操作必须直接可见');
   assert.equal(mobileHistoryContract.actionSizes.every(size => size[0] === 32 && size[1] === 32), true, `触屏历史辅助操作应保持 32px 共享几何: ${JSON.stringify(mobileHistoryContract)}`);
+  assert.equal(mobileHistoryContract.titleActionClearances.every(clearance => clearance >= 0), true, `历史标题不得进入常显辅助操作区: ${JSON.stringify(mobileHistoryContract)}`);
   assert.equal(mobileHistoryContract.actionLabels.every(Boolean) && Boolean(mobileHistoryContract.closeLabel), true, '窄屏历史操作应提供可访问名称');
+  await captureAuditScreenshot('390-history-dialog');
   await evaluate(`document.querySelector('.mobile-history-dialog .history-item-main').click()`);
   await waitFor(() => evaluate(`!document.querySelector('.mobile-history-dialog')`));
   await waitFor(() => evaluate(`document.querySelector('.results-stage-tab[aria-selected="true"]')?.textContent.includes('视觉生成与对比')`));
@@ -938,17 +1086,55 @@ try {
   assert.deepEqual(mobileToastContract.borderWidths, [1, 1, 1, 1], `窄屏 Toast 应保持四边统一细框: ${JSON.stringify(mobileToastContract)}`);
   await evaluate(`document.querySelector('button[aria-label="关闭通知"]').click()`);
   await waitFor(() => evaluate(`!document.querySelector('.mi-toast')`));
+
+  await client.send('Emulation.setDeviceMetricsOverride', { width: 720, height: 500, deviceScaleFactor: 1, mobile: false });
+  await sleep(300);
+  const zoomEquivalentContract = await evaluate(`(() => ({
+    sidebarWidth: document.querySelector('.moreimg-sidebar').getBoundingClientRect().width,
+    toggleDisplay: getComputedStyle(document.querySelector('.compact-composer-toggle')).display,
+    rootOverflow: document.documentElement.scrollWidth - document.documentElement.clientWidth
+  }))()`);
+  assert.deepEqual(zoomEquivalentContract, { sidebarWidth: 720, toggleDisplay: 'flex', rootOverflow: 0 }, '1440px 在 200% 浏览器缩放的等效宽度下，新建入口应可达且无横向溢出');
+  await client.send('Emulation.setPageScaleFactor', { pageScaleFactor: 2 });
+  await sleep(100);
+  assert.equal(await evaluate(`visualViewport?.scale`), 2, '页面应允许用户放大到 200%');
+  await client.send('Emulation.setPageScaleFactor', { pageScaleFactor: 1 });
+
   await client.send('Emulation.clearDeviceMetricsOverride');
   await sleep(300);
   const desktopResponsiveHistory = await evaluate(`(() => {
     const trigger = [...document.querySelectorAll('button')].find(button => button.getAttribute('aria-label')?.startsWith('打开历史记录'));
+    const composer = document.querySelector('.sidebar-composer');
+    const composerToggle = document.querySelector('.compact-composer-toggle');
+    const historyMain = document.querySelector('.history-item-main');
     return {
       triggerDisplay: getComputedStyle(trigger).display,
       desktopHistoryDisplay: getComputedStyle(document.querySelector('.moreimg-history')).display,
+      composerDisplay: getComputedStyle(composer).display,
+      composerToggleDisplay: getComputedStyle(composerToggle).display,
+      historyMainPaddingRight: parseFloat(getComputedStyle(historyMain).paddingRight),
       rootOverflow: document.documentElement.scrollWidth - document.documentElement.clientWidth
     };
   })()`);
-  assert.deepEqual(desktopResponsiveHistory, { triggerDisplay: 'none', desktopHistoryDisplay: 'flex', rootOverflow: 0 }, '桌面应恢复侧栏历史并隐藏移动入口');
+  assert.deepEqual(desktopResponsiveHistory, { triggerDisplay: 'none', desktopHistoryDisplay: 'flex', composerDisplay: 'none', composerToggleDisplay: 'flex', historyMainPaddingRight: 0, rootOverflow: 0 }, '桌面结果态应只显示新建入口，历史标题不应被隐藏操作压缩');
+  const desktopWidthContract = await evaluate(`({ width: innerWidth, sidebarWidth: document.querySelector('.moreimg-sidebar').getBoundingClientRect().width })`);
+  assert.deepEqual(desktopWidthContract, { width: 1440, sidebarWidth: 320 }, '1440px 桌面应保持固定侧栏与完整工作区');
+
+  await client.send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: 'dark' }] });
+  const forcedLightContract = await evaluate(`({
+    colorScheme: getComputedStyle(document.documentElement).colorScheme,
+    bodyBackground: getComputedStyle(document.body).backgroundColor,
+    appBackground: getComputedStyle(document.querySelector('.moreimg-app-shell')).backgroundColor
+  })`);
+  assert.deepEqual(forcedLightContract, { colorScheme: 'light', bodyBackground: 'rgb(248, 250, 252)', appBackground: 'rgb(248, 250, 252)' }, '系统深色偏好下仍应稳定使用项目明确声明的单一浅色主题');
+  await client.send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'reduce' }] });
+  const reducedMotionContract = await evaluate(`({
+    inputBorderAnimation: getComputedStyle(document.querySelector('.sidebar-input-shell'), '::before').animationName,
+    resultEntranceAnimation: getComputedStyle(document.querySelector('.animate-fade-in-down')).animationName,
+    reducedMotionMatches: matchMedia('(prefers-reduced-motion: reduce)').matches
+  })`);
+  assert.deepEqual(reducedMotionContract, { inputBorderAnimation: 'none', resultEntranceAnimation: 'none', reducedMotionMatches: true }, '减少动效偏好下应关闭循环与入场动画');
+  await client.send('Emulation.setEmulatedMedia', { features: [] });
 
   await evaluate(`[...document.querySelectorAll('.visual-page-tab')].find(item => item === document.querySelector('.visual-page-tab'))?.click()`);
   await waitFor(() => evaluate(`Boolean(document.querySelector('button[aria-label="下载主视觉"]'))`));
@@ -1028,13 +1214,22 @@ try {
   });
   assert.ok((await stat(artifactPath)).size > 10000, '导出 PNG 不应为空');
 
+  const historyCountBeforeConfirmedDelete = await evaluate(`JSON.parse(localStorage.getItem('moreimg_history_index') || '[]').length`);
+  await evaluate(`[...document.querySelectorAll('button')].find(button => button.getAttribute('aria-label')?.startsWith('打开历史记录')).click()`);
+  await waitFor(() => evaluate(`Boolean(document.querySelector('.mobile-history-dialog'))`));
+  await evaluate(`document.querySelector('.mobile-history-dialog button[aria-label^="删除记录"]').click()`);
+  await waitFor(() => evaluate(`Boolean(document.querySelector('.confirm-dialog'))`));
+  await evaluate(`[...document.querySelectorAll('.confirm-dialog button')].find(button => button.textContent.includes('确认删除')).click()`);
+  await waitFor(() => evaluate(`JSON.parse(localStorage.getItem('moreimg_history_index') || '[]').length === ${historyCountBeforeConfirmedDelete - 1}`));
+  await waitFor(() => evaluate(`!document.querySelector('.confirm-dialog')`));
+
   await client.send('Page.navigate', { url: `http://127.0.0.1:${appPort}/artifact.png` });
   await waitFor(() => evaluate('document.readyState === "complete" && document.querySelector("img")?.complete'));
   const pixels = await evaluate(`(() => { const image=document.querySelector('img'); const canvas=document.createElement('canvas'); canvas.width=image.naturalWidth; canvas.height=image.naturalHeight; const context=canvas.getContext('2d'); context.drawImage(image,0,0); const data=context.getImageData(0,0,canvas.width,canvas.height).data; let minX=canvas.width,minY=canvas.height,maxX=-1,maxY=-1; for(let y=0;y<canvas.height;y+=4){ for(let x=0;x<canvas.width;x+=4){ if(data[(y*canvas.width+x)*4+3]>8){ minX=Math.min(minX,x);minY=Math.min(minY,y);maxX=Math.max(maxX,x);maxY=Math.max(maxY,y); } } } return {width:canvas.width,height:canvas.height,contentWidth:maxX-minX+1,contentHeight:maxY-minY+1}; })()`);
   assert.deepEqual([pixels.width, pixels.height], [1242, 1656]);
   assert.ok(pixels.contentWidth > 1100, `导出内容宽度异常: ${pixels.contentWidth}`);
   assert.ok(pixels.contentHeight > 1500, `导出内容高度异常: ${pixels.contentHeight}`);
-  console.log('Chrome E2E covers empty input, 20/600/2000/5000-character processing, image restore, export, and full-canvas pixels.');
+  console.log('Chrome E2E covers processing, persistence, dialogs, 390/768/1024/1440 layouts, 200% zoom, media preferences, image restore, export, and full-canvas pixels.');
 } finally {
   client?.close();
   chrome.kill('SIGTERM');

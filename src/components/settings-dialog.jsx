@@ -1,14 +1,18 @@
-const SettingsDialog = ({ isConfigOpen, setIsConfigOpen, apiConfig, setApiConfig, configTools, handleLoadModels, handleTestTextConnection, handleModelSelection, textModels, imageModels, lastImageDiagnostic, handleSaveConfig }) => (
-  isConfigOpen && (
-  <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 animate-fade-in">
-    <div className="config-dialog flex flex-col animate-fade-in-down">
+const SettingsDialog = ({ isConfigOpen, onRequestClose, apiConfig, setApiConfig, configTools, handleLoadModels, handleTestTextConnection, handleModelSelection, textModels, imageModels, lastImageDiagnostic, handleSaveConfig }) => (
+  <ModalFrame
+    isOpen={isConfigOpen}
+    onRequestClose={onRequestClose}
+    titleId="settings-dialog-title"
+    overlayClassName="modal-overlay modal-overlay-settings animate-fade-in"
+    dialogClassName="config-dialog flex flex-col animate-fade-in-down"
+  >
 
       {/* 弹窗 Header */}
       <div className="config-dialog-header">
-        <h3 className="text-[16px] font-extrabold text-slate-800 flex items-center">
+        <h3 id="settings-dialog-title" className="text-[16px] font-extrabold text-slate-800 flex items-center">
           <Icon name="Settings" className="w-5 h-5 mr-2 text-indigo-600" /> 私有引擎及技能配置
         </h3>
-        <button type="button" onClick={() => setIsConfigOpen(false)} className="mi-icon-button mi-icon-button-standard sidebar-icon-button" aria-label="关闭设置" title="关闭设置">
+        <button type="button" onClick={onRequestClose} className="mi-icon-button mi-icon-button-standard sidebar-icon-button" aria-label="关闭设置" title="关闭设置">
           <Icon name="X" className="w-5 h-5" />
         </button>
       </div>
@@ -40,6 +44,7 @@ const SettingsDialog = ({ isConfigOpen, setIsConfigOpen, apiConfig, setApiConfig
                 type="text"
                 value={apiConfig.apiUrl}
                 onChange={(e) => setApiConfig({...apiConfig, apiUrl: e.target.value})}
+                data-dialog-initial-focus="true"
                 className="mi-field config-input placeholder-slate-400"
               />
               <div className="config-hint">实际请求：{resolveApiEndpoint(apiConfig.apiUrl, 'text') || '请填写地址'}；当前协议：{isResponsesApiEndpoint(resolveApiEndpoint(apiConfig.apiUrl, 'text')) ? 'Responses API' : 'Chat Completions'}</div>
@@ -216,7 +221,5 @@ const SettingsDialog = ({ isConfigOpen, setIsConfigOpen, apiConfig, setApiConfig
         </button>
       </div>
 
-    </div>
-  </div>
-)
+  </ModalFrame>
 );

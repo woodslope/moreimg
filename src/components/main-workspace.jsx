@@ -1,21 +1,28 @@
-const MainWorkspace = ({ isProcessing, showResults, internalStage, activeStageTab, currentSession, setActiveStageTab, resultsStageNavRef, resultScrollRef, resultContent, messagesEndRef }) => (
+const MainWorkspace = ({ isProcessing, showResults, processingUiPhase, processingElapsedSeconds, activeStageTab, currentSession, setActiveStageTab, resultsStageNavRef, resultScrollRef, resultContent, messagesEndRef }) => (
 <div className="flex-1 min-h-0 flex flex-col relative h-full z-10 overflow-hidden">
 
   {isProcessing && !showResults && (
     <div className="absolute inset-0 z-30 flex flex-col items-center justify-center bg-slate-50/60 backdrop-blur-xl animate-fade-in">
-      <div className="relative w-40 h-40 mb-12 flex items-center justify-center">
+      <div className="relative w-40 h-40 mb-10 flex items-center justify-center">
         <div className="absolute inset-0 rounded-full border border-slate-200/60 shadow-[inset_0_0_20px_rgba(99,102,241,0.1)]"></div>
         <div className="absolute inset-0 rounded-full border-t-[3px] border-indigo-600 animate-spin" style={{ animationDuration: '2s' }}></div>
         <div className="absolute inset-4 rounded-full border-b-[2px] border-sky-400 animate-spin" style={{ animationDirection: 'reverse', animationDuration: '3s' }}></div>
         <div className="relative z-10 bg-white/90 shadow-xl rounded-2xl w-16 h-16 flex items-center justify-center border border-white/80 backdrop-blur-md">
-           <Icon name={internalStage >= 5 ? "Image" : internalStage >= 3 ? "Cpu" : "Database"} className="w-8 h-8 text-indigo-600 animate-pulse-slow" strokeWidth={1.5} />
+           <Icon name={processingUiPhase === 'validating' ? 'ListChecks' : 'LoaderCircle'} className={`w-8 h-8 text-indigo-600 ${processingUiPhase === 'validating' ? 'animate-pulse-slow' : 'animate-spin'}`} strokeWidth={1.5} />
         </div>
       </div>
 
       <div className="text-center space-y-3">
-        <h3 className="text-[18px] font-extrabold text-slate-800 tracking-tight transition-all duration-300">{STAGE_LOADING_TEXT[internalStage] || "连接核心计算引擎..."}</h3>
-        <div className="w-64 h-1.5 bg-slate-200/50 rounded-full overflow-hidden mx-auto mt-6 backdrop-blur-sm">
-          <div className="h-full bg-gradient-to-r from-indigo-500 to-sky-400 transition-all duration-500 ease-out" style={{ width: `${(internalStage / 6) * 100}%` }}></div>
+        <h3 className="text-[18px] font-extrabold text-slate-800 tracking-tight transition-all duration-300">
+          {processingUiPhase === 'validating' ? '已收到结果，正在校验内容完整性' : '已发送请求，正在等待模型返回'}
+        </h3>
+        <p className="processing-status-copy" role="status" aria-live="polite">
+          {processingUiPhase === 'validating'
+            ? '正在检查 JSON、文章和卡片字段，完成后会进入结果页。'
+            : `已等待 ${processingElapsedSeconds} 秒，最长约 5 分钟；你可以随时停止本次加工。`}
+        </p>
+        <div className="processing-progress-track" aria-hidden="true">
+          <div className="processing-progress-indicator"></div>
         </div>
       </div>
     </div>
@@ -68,9 +75,9 @@ const MainWorkspace = ({ isProcessing, showResults, internalStage, activeStageTa
             <Icon name="Bot" className="w-10 h-10 text-indigo-500 relative z-10" strokeWidth={1.5} />
           </div>
           <h2 className="text-[28px] font-extrabold text-slate-900 mb-4 tracking-tight">内容精炼与结构化 <span className="text-indigo-600">Agent</span></h2>
-          <p className="text-[15px] text-slate-500 mb-12 max-w-lg text-center leading-relaxed">深度重构长文逻辑，后台运算完毕后，一键交付结构化卡片与生产级 Midjourney 视觉指令。</p>
+          <p className="text-[15px] text-slate-500 mb-12 max-w-lg text-center leading-relaxed">精修文章结构，拆分知识卡片，并生成可直接使用的视觉提示词与图片成品。</p>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 w-full">
-            {[{ icon: 'ListChecks', title: '深度事实核查', desc: '全网交叉验证，剔除过时与错误信息。' }, { icon: 'Cpu', title: '逻辑精炼重构', desc: '提炼分论点与核心比喻，生成卡片物料包。' }, { icon: 'Image', title: '视觉指令映射', desc: '色彩、构图全量生成 3:4 画面生图提示词。' }].map((feature, idx) => (
+            {[{ icon: 'ListChecks', title: '内容理解与核查', desc: '识别主题、核心论点和明显矛盾，便于继续人工核对。' }, { icon: 'Cpu', title: '文章与卡片重构', desc: '整理文章层次，生成封面、正文和封底内容。' }, { icon: 'Image', title: '视觉生成与导出', desc: '生成 3:4 视觉提示词、主视觉与图片成品。' }].map((feature, idx) => (
               <div key={idx} className="mi-surface mi-surface-panel moreimg-feature-card p-6">
                 <div className="w-10 h-10 rounded-xl bg-white/80 flex items-center justify-center mb-4 border border-white/80 shadow-sm"><Icon name={feature.icon} className="w-5 h-5 text-indigo-600" /></div>
                 <h4 className="text-[15px] font-bold text-slate-800 mb-2">{feature.title}</h4>

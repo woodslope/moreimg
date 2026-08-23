@@ -1,4 +1,4 @@
-const HistoryItems = ({ history, isProcessing, activeHistoryId, showResults, setIsHistoryOpen, loadHistoryItem, retryHistoryItem, deleteHistoryItem, closeAfterOpen = false, mobile = false }) => (
+const HistoryItems = ({ history, isProcessing, activeHistoryId, showResults, setIsHistoryOpen, loadHistoryItem, retryHistoryItem, requestDeleteHistoryItem, closeAfterOpen = false, mobile = false }) => (
   <>
     {history.length === 0 && (
       mobile ? (
@@ -32,7 +32,7 @@ const HistoryItems = ({ history, isProcessing, activeHistoryId, showResults, set
           <div className={`history-item-title min-w-0 text-[13px] font-bold ${activeHistoryId === item.id && showResults ? 'text-indigo-600' : 'text-slate-700'}`}>
             {item.title || '未命名'}
           </div>
-          <div className="mt-1.5 font-mono text-[11px] text-slate-400">{item.date}</div>
+          <div className="history-item-date mt-1.5 font-mono text-[11px] text-slate-400">{item.date}</div>
         </button>
         {!isProcessing && (
           <div className="history-item-actions flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-all">
@@ -51,7 +51,11 @@ const HistoryItems = ({ history, isProcessing, activeHistoryId, showResults, set
             </button>
             <button
               type="button"
-              onClick={(event) => deleteHistoryItem(item.id, event)}
+              onClick={(event) => {
+                event.stopPropagation();
+                if (closeAfterOpen) setIsHistoryOpen(false);
+                requestDeleteHistoryItem(item.id);
+              }}
               className="mi-icon-button mi-icon-button-compact history-item-action bg-red-50/80 text-red-500 hover:bg-red-100 hover:text-red-600 shadow-sm border border-red-100/50"
               aria-label={`删除记录：${item.title || '未命名'}`}
               title="删除记录"
@@ -66,19 +70,14 @@ const HistoryItems = ({ history, isProcessing, activeHistoryId, showResults, set
 );
 
 
-const MobileHistoryDialog = ({ isHistoryOpen, setIsHistoryOpen, history, isProcessing, activeHistoryId, showResults, loadHistoryItem, retryHistoryItem, deleteHistoryItem, loadDemoRecord }) => (
-  isHistoryOpen && (
-  <div
-    className="mobile-history-overlay animate-fade-in"
-    onClick={() => setIsHistoryOpen(false)}
+const MobileHistoryDialog = ({ isHistoryOpen, setIsHistoryOpen, history, isProcessing, activeHistoryId, showResults, loadHistoryItem, retryHistoryItem, requestDeleteHistoryItem, loadDemoRecord }) => (
+  <ModalFrame
+    isOpen={isHistoryOpen}
+    onRequestClose={() => setIsHistoryOpen(false)}
+    titleId="mobile-history-title"
+    overlayClassName="mobile-history-overlay animate-fade-in"
+    dialogClassName="mobile-history-dialog flex flex-col animate-fade-in-down"
   >
-    <section
-      className="mobile-history-dialog flex flex-col animate-fade-in-down"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="mobile-history-title"
-      onClick={(event) => event.stopPropagation()}
-    >
       <div className="mobile-history-dialog-header">
         <div>
           <h2 id="mobile-history-title" className="flex items-center text-[16px] font-extrabold text-slate-800">
@@ -98,16 +97,14 @@ const MobileHistoryDialog = ({ isHistoryOpen, setIsHistoryOpen, history, isProce
             </button>
           </div>
         </div>
-        <button type="button" onClick={() => setIsHistoryOpen(false)} className="mi-icon-button mi-icon-button-standard sidebar-icon-button" aria-label="关闭历史记录" title="关闭历史记录">
+        <button type="button" onClick={() => setIsHistoryOpen(false)} data-dialog-initial-focus="true" className="mi-icon-button mi-icon-button-standard sidebar-icon-button" aria-label="关闭历史记录" title="关闭历史记录">
           <Icon name="X" className="h-5 w-5" />
         </button>
       </div>
       <div className="mobile-history-dialog-body custom-scrollbar">
         <div className="space-y-3">
-          <HistoryItems {...{ history, isProcessing, activeHistoryId, showResults, setIsHistoryOpen, loadHistoryItem, retryHistoryItem, deleteHistoryItem }} closeAfterOpen mobile />
+          <HistoryItems {...{ history, isProcessing, activeHistoryId, showResults, setIsHistoryOpen, loadHistoryItem, retryHistoryItem, requestDeleteHistoryItem }} closeAfterOpen mobile />
         </div>
       </div>
-    </section>
-  </div>
-)
+  </ModalFrame>
 );

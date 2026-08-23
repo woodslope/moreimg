@@ -18,6 +18,9 @@
       const [inputText, setInputText] = useState('');
       const [isProcessing, setIsProcessing] = useState(false);
       const [showResults, setShowResults] = useState(false);
+      const [processingUiPhase, setProcessingUiPhase] = useState('idle');
+      const [processingElapsedSeconds, setProcessingElapsedSeconds] = useState(0);
+      const [isComposerExpanded, setIsComposerExpanded] = useState(false);
       const [internalStage, setInternalStage] = useState(0);
       const [activeStageTab, setActiveStageTab] = useState('step1');
       const [activeVisualPage, setActiveVisualPage] = useState('');
@@ -28,6 +31,8 @@
       const [hiddenFullImages, setHiddenFullImages] = useState({});
       const [textModels, setTextModels] = useState([]);
       const [imageModels, setImageModels] = useState([]);
+      const [pendingDeleteHistoryId, setPendingDeleteHistoryId] = useState(null);
+      const [isDeletingHistory, setIsDeletingHistory] = useState(false);
       const [configTools, setConfigTools] = useState({
         textModels: { status: 'idle', message: '' },
         imageModels: { status: 'idle', message: '' },
@@ -46,6 +51,7 @@
       const processingAbortRef = useRef(null);
       const historyLoadTokenRef = useRef(0);
       const imageAbortControllersRef = useRef(new Map());
+      const configRequestControllersRef = useRef(new Map());
       const demoLoadInFlightRef = useRef(false);
       const imageObjectUrlsRef = useRef([]);
       const htmlCardRefs = useRef({});
@@ -100,8 +106,8 @@
 
       useEffect(() => {
         if (!isProcessing || showResults) return;
-        setInternalStage(1);
-        const timer = setInterval(() => setInternalStage(stage => Math.min(stage + 1, 5)), 7000);
+        setProcessingElapsedSeconds(0);
+        const timer = setInterval(() => setProcessingElapsedSeconds(seconds => seconds + 1), 1000);
         return () => clearInterval(timer);
       }, [isProcessing, showResults]);
 
@@ -124,6 +130,22 @@
       const abortImageRequests = () => {
         imageAbortControllersRef.current.forEach(controller => controller.abort());
         imageAbortControllersRef.current.clear();
+      };
+
+      const abortConfigRequests = (resetState = true) => {
+        configRequestControllersRef.current.forEach(controller => controller.abort());
+        configRequestControllersRef.current.clear();
+        if (resetState) {
+          setConfigTools(previous => Object.fromEntries(Object.entries(previous).map(([key, state]) => [
+            key,
+            state.status === 'loading' ? { status: 'idle', message: '' } : state
+          ])));
+        }
+      };
+
+      const closeConfigDialog = () => {
+        abortConfigRequests();
+        setIsConfigOpen(false);
       };
 
       const restoreSessionImages = async (sessionId, requestToken) => {
@@ -162,6 +184,8 @@
               const candidateHistory = parsedHistory.filter(item => item?.id && item?.title !== undefined).slice(0, HISTORY_LIMIT);
               const reconciledHistory = await filterExistingHistoryIndex(candidateHistory);
               if (isActive) {
+                // IndexedDB 对账可能比用户首次加工更慢；不要用启动时的旧快照覆盖新写入。
+                if (localStorage.getItem(HISTORY_INDEX_KEY) !== savedHistory) return;
                 setHistory(reconciledHistory);
                 if (reconciledHistory.length !== candidateHistory.length) {
                   localStorage.setItem(HISTORY_INDEX_KEY, JSON.stringify(reconciledHistory));
@@ -180,11 +204,12 @@
               const existingDemo = await loadSessionRecord(DEMO_SESSION_ID).catch(() => null);
               if (existingDemo?.isDemo) {
                 const demoIndex = [toHistoryIndex(existingDemo)];
-                if (isActive) setHistory(demoIndex);
+                if (!isActive || localStorage.getItem(HISTORY_INDEX_KEY)) return;
+                setHistory(demoIndex);
                 localStorage.setItem(HISTORY_INDEX_KEY, JSON.stringify(demoIndex));
               } else if (shouldSeedDemo() && !(await hasAnySessionRecords())) {
                 const demoRecord = await seedDemoHistory();
-                if (isActive) {
+                if (isActive && !localStorage.getItem(HISTORY_INDEX_KEY)) {
                   const demoIndex = [toHistoryIndex(demoRecord)];
                   setHistory(demoIndex);
                   localStorage.setItem(HISTORY_INDEX_KEY, JSON.stringify(demoIndex));
@@ -198,6 +223,8 @@
           try {
             const migratedHistory = await migrateLegacyHistory(JSON.parse(legacyValue));
             if (!isActive) return;
+            // 迁移期间若已有新索引，以新写入为准。
+            if (localStorage.getItem(HISTORY_INDEX_KEY)) return;
             localStorage.setItem(HISTORY_INDEX_KEY, JSON.stringify(migratedHistory));
             localStorage.removeItem(LEGACY_HISTORY_KEY);
             setHistory(migratedHistory);
@@ -242,6 +269,8 @@
       }, []);
 
       useEffect(() => () => {
+        processingAbortRef.current?.abort();
+        abortConfigRequests(false);
         abortImageRequests();
         imageObjectUrlsRef.current.forEach(url => URL.revokeObjectURL(url));
       }, []);
@@ -258,7 +287,7 @@
         localStorage.setItem('agent_api_config', JSON.stringify(nextConfig));
         setApiConfig(nextConfig);
         setToast({ message: 'AI 引擎及技能配置已保存', type: 'success' });
-        setIsConfigOpen(false);
+        closeConfigDialog();
       };
 
       const handleLoadModels = async (kind) => {
@@ -272,21 +301,35 @@
           return;
         }
 
+        configRequestControllersRef.current.get(stateKey)?.abort();
+        const requestController = new AbortController();
+        configRequestControllersRef.current.set(stateKey, requestController);
         updateConfigTool(stateKey, { status: 'loading', message: '正在读取模型列表...' });
         try {
           const modelsEndpoint = deriveModelsEndpoint(endpoint);
-          const response = await fetch(modelsEndpoint, {
+          const response = await runWithRequestControl(signal => fetch(modelsEndpoint, {
             method: 'GET',
-            headers: { 'Authorization': `Bearer ${apiKey}` }
+            headers: { 'Authorization': `Bearer ${apiKey}` },
+            signal
+          }), {
+            timeoutMs: 30000,
+            signal: requestController.signal,
+            timeoutMessage: '读取模型列表超过 30 秒，请检查接口地址或稍后重试。'
           });
           const data = await response.json().catch(() => ({}));
           if (!response.ok) throw new Error(data?.error?.message || data?.message || `HTTP ${response.status}`);
+          if (requestController.signal.aborted || configRequestControllersRef.current.get(stateKey) !== requestController) return;
           const modelIds = extractModelIds(data);
           if (modelIds.length === 0) throw new Error('接口未返回可用模型');
           setModels(modelIds);
           updateConfigTool(stateKey, { status: 'success', message: `已读取 ${modelIds.length} 个模型，可继续手动输入或从建议中选择。` });
         } catch (error) {
+          if (requestController.signal.aborted) return;
           updateConfigTool(stateKey, { status: 'error', message: `读取失败：${error.message}。不影响手动填写。` });
+        } finally {
+          if (configRequestControllersRef.current.get(stateKey) === requestController) {
+            configRequestControllersRef.current.delete(stateKey);
+          }
         }
       };
 
@@ -309,6 +352,9 @@
           return;
         }
 
+        configRequestControllersRef.current.get('textTest')?.abort();
+        const requestController = new AbortController();
+        configRequestControllersRef.current.set('textTest', requestController);
         updateConfigTool('textTest', { status: 'loading', message: '正在发送最小测试请求...' });
         const startedAt = Date.now();
         try {
@@ -333,15 +379,22 @@
             return responseData;
           }, {
             timeoutMs: TEXT_TEST_TIMEOUT_MS,
+            signal: requestController.signal,
             timeoutMessage: '接口测试超过 30 秒，请检查接口地址、模型或服务状态。'
           });
+          if (requestController.signal.aborted || configRequestControllersRef.current.get('textTest') !== requestController) return;
           const responseText = extractProcessingResponseText(data).trim();
           if (!responseText) throw new Error('接口成功响应，但没有可解析文本');
           const elapsedMs = Date.now() - startedAt;
           const preview = responseText.replace(/\s+/g, ' ').slice(0, 48);
           updateConfigTool('textTest', { status: 'success', message: `连接成功，耗时 ${elapsedMs} ms，返回：${preview}` });
         } catch (error) {
+          if (requestController.signal.aborted) return;
           updateConfigTool('textTest', { status: 'error', message: `测试失败：${error.message}` });
+        } finally {
+          if (configRequestControllersRef.current.get('textTest') === requestController) {
+            configRequestControllersRef.current.delete('textTest');
+          }
         }
       };
 
@@ -545,27 +598,43 @@
         }
       };
 
-      const deleteHistoryItem = async (id, e) => {
-        e.stopPropagation();
+      const requestDeleteHistoryItem = (id) => {
+        if (isProcessing || isDeletingHistory) return;
+        setPendingDeleteHistoryId(id);
+      };
+
+      const cancelDeleteHistoryItem = () => {
+        if (!isDeletingHistory) setPendingDeleteHistoryId(null);
+      };
+
+      const confirmDeleteHistoryItem = async () => {
+        const id = pendingDeleteHistoryId;
+        if (!id || isDeletingHistory) return;
+        setIsDeletingHistory(true);
         historyLoadTokenRef.current += 1;
         abortImageRequests();
         const previousHistory = history;
         const updatedHistory = history.filter(item => item.id !== id);
-        setHistory(updatedHistory);
         try {
           localStorage.setItem(HISTORY_INDEX_KEY, JSON.stringify(updatedHistory));
-          await Promise.all([deleteSessionRecord(id), deleteSessionImages(id)]);
+          // 先删图片、再删文章主记录；中途失败时仍能保留可恢复的文章。
+          await deleteSessionImages(id);
+          await deleteSessionRecord(id);
+          setHistory(updatedHistory);
           if (activeHistoryId === id) {
             setActiveHistoryId(null);
             setShowResults(false);
+            setIsComposerExpanded(false);
             setCurrentSession({ rawText: '', packageData: null, stages: { 1: '', 2: '', 3: '', 4: '', 5: '', 6: '' }, isHalted: false, stopReason: '', warning: '' });
             replaceImageResults({});
           }
           setToast({ message: '已删除该条记录', type: 'success' });
         } catch (error) {
-          setHistory(previousHistory);
           try { localStorage.setItem(HISTORY_INDEX_KEY, JSON.stringify(previousHistory)); } catch {}
           setToast({ message: `历史记录删除失败: ${error.message}`, type: 'error', duration: 5000 });
+        } finally {
+          setIsDeletingHistory(false);
+          setPendingDeleteHistoryId(null);
         }
       };
 
@@ -639,13 +708,17 @@
       const handleStopProcessing = () => {
         if (!processingAbortRef.current || processingAbortRef.current.signal.aborted) return;
         processingAbortRef.current.abort();
-        setToast({ message: '正在停止本次运算...', type: 'error' });
+        setToast({ message: '正在停止本次加工...', type: 'neutral' });
       };
 
       const handleStartProcessing = async (overrideText = null) => {
         const textToProcess = (typeof overrideText === 'string' ? overrideText : inputText).trim();
 
-        if (!apiConfig.apiKey?.trim()) { setToast({ message: '请先配置密钥', type: 'error' }); setIsConfigOpen(true); return; }
+        if (!apiConfig.apiUrl?.trim() || !apiConfig.model?.trim() || !apiConfig.apiKey?.trim()) {
+          setToast({ message: '请先完成文本模型配置', type: 'error', duration: 5000 });
+          setIsConfigOpen(true);
+          return;
+        }
         if (!textToProcess) { setToast({ message: '请输入需加工的文章或文案', type: 'error' }); return; }
 
         setInputText(textToProcess);
@@ -653,6 +726,8 @@
         abortImageRequests();
         setIsProcessing(true);
         setShowResults(false);
+        setProcessingUiPhase('waiting');
+        setProcessingElapsedSeconds(0);
         setInternalStage(1);
         setActiveStageTab('step1');
         setCurrentSession({ rawText: '', packageData: null, stages: { 1: '', 2: '', 3: '', 4: '', 5: '', 6: '' }, isHalted: false, stopReason: '', warning: '' });
@@ -666,6 +741,8 @@
         try {
           const initialMessages = buildInitialProcessingMessages(textToProcess, DEFAULT_SYSTEM_PROMPT, apiConfig.processingPreferences);
           const processingResult = await requestProcessingText(initialMessages, processingController.signal);
+          setProcessingUiPhase('validating');
+          await new Promise(resolve => setTimeout(resolve, 0));
           const fullResponseText = processingResult.text;
           const normalizedFinishReason = String(processingResult.finishReason || '').trim().toLowerCase();
           if (['length', 'max_tokens', 'max_output_tokens'].includes(normalizedFinishReason)) {
@@ -686,12 +763,20 @@
             sessionData,
             originalInput: textToProcess
           };
-          const updatedHistory = [toHistoryIndex(newHistoryItem), ...history].slice(0, HISTORY_LIMIT);
           try {
             await saveSessionRecord(newHistoryItem);
+            let historyBeforeSave = history;
+            try {
+              const persistedHistory = JSON.parse(localStorage.getItem(HISTORY_INDEX_KEY) || '[]');
+              if (Array.isArray(persistedHistory)) historyBeforeSave = persistedHistory;
+            } catch {}
+            const updatedHistory = [
+              toHistoryIndex(newHistoryItem),
+              ...historyBeforeSave.filter(item => item.id !== newSessionId)
+            ].slice(0, HISTORY_LIMIT);
             setHistory(updatedHistory);
             localStorage.setItem(HISTORY_INDEX_KEY, JSON.stringify(updatedHistory));
-            history.slice(HISTORY_LIMIT - 1).forEach(item => {
+            historyBeforeSave.slice(HISTORY_LIMIT - 1).forEach(item => {
               deleteSessionRecord(item.id).catch(() => {});
               deleteSessionImages(item.id).catch(() => {});
             });
@@ -706,6 +791,7 @@
             duration: isHalted ? 6000 : 3000
           });
           shouldShowResults = true;
+          setIsComposerExpanded(false);
         } catch (error) {
           const isCancelled = error.message === '已停止运算';
           const errorMessage = isCancelled ? '已停止本次运算' : formatProcessingError(error);
@@ -714,13 +800,14 @@
           }
           setToast({
             message: errorMessage,
-            type: 'error',
+            type: isCancelled ? 'neutral' : 'error',
             duration: isCancelled ? 3000 : 8000
           });
           shouldShowResults = !isCancelled;
         } finally {
           if (processingAbortRef.current === processingController) processingAbortRef.current = null;
           setIsProcessing(false);
+          setProcessingUiPhase('idle');
           setShowResults(shouldShowResults);
         }
       };
@@ -738,6 +825,7 @@
         if (requestToken !== historyLoadTokenRef.current) return;
         if (item) {
           setActiveHistoryId(id);
+          setIsComposerExpanded(false);
           setCurrentSession({ ...item.sessionData, isDemo: Boolean(item.isDemo) });
           restoreSessionImages(id, requestToken);
           if (item.sessionData.packageData?.status === 'complete') {
@@ -825,34 +913,72 @@
         showResults
       });
 
-      // 运算中按钮切换为停止操作；空配置只阻止发起新请求。
-      const isButtonDisabled = !isProcessing && (!apiConfig.apiKey?.trim() || !inputText.trim());
+      const hasTextConfig = Boolean(apiConfig.apiUrl?.trim() && apiConfig.model?.trim() && apiConfig.apiKey?.trim());
+      const processingActionMode = isProcessing
+        ? 'running'
+        : !inputText.trim()
+          ? 'empty'
+          : !hasTextConfig
+            ? 'needs-config'
+            : 'ready';
+      const processingActionLabel = processingActionMode === 'running'
+        ? '停止本次加工'
+        : processingActionMode === 'needs-config'
+          ? '配置文本模型后开始'
+          : '一键生成 AI 物料包';
+      const processingActionHint = processingActionMode === 'empty'
+        ? '请先粘贴需要加工的文章或文案。'
+        : processingActionMode === 'needs-config'
+          ? '还需填写文本接口地址、模型和 API Key。'
+          : '';
+      const handleProcessingAction = () => {
+        if (isProcessing) {
+          handleStopProcessing();
+          return;
+        }
+        if (!inputText.trim()) return;
+        if (!hasTextConfig) {
+          setIsConfigOpen(true);
+          setToast({ message: '完成文本模型配置后即可开始加工', type: 'error', duration: 5000 });
+          return;
+        }
+        handleStartProcessing();
+      };
+      const pendingDeleteHistoryItem = history.find(item => item.id === pendingDeleteHistoryId) || null;
 
       return <AppView {...{
         activeHistoryId,
         activeStageTab,
         apiConfig,
+        cancelDeleteHistoryItem,
         configTools,
+        confirmDeleteHistoryItem,
         currentSession,
-        deleteHistoryItem,
         handleLoadModels,
         handleModelSelection,
+        handleProcessingAction,
         handleSaveConfig,
-        handleStartProcessing,
-        handleStopProcessing,
         handleTestTextConnection,
         history,
         imageModels,
         inputText,
-        internalStage,
-        isButtonDisabled,
+        isComposerExpanded,
         isConfigOpen,
+        isDeletingHistory,
         isHistoryOpen,
         isProcessing,
         lastImageDiagnostic,
         loadDemoRecord,
         loadHistoryItem,
         messagesEndRef,
+        onRequestCloseConfig: closeConfigDialog,
+        pendingDeleteHistoryItem,
+        processingActionHint,
+        processingActionLabel,
+        processingActionMode,
+        processingElapsedSeconds,
+        processingUiPhase,
+        requestDeleteHistoryItem,
         resultContent,
         resultScrollRef,
         resultsStageNavRef,
@@ -860,6 +986,7 @@
         setActiveStageTab,
         setApiConfig,
         setInputText,
+        setIsComposerExpanded,
         setIsConfigOpen,
         setIsHistoryOpen,
         setToast,

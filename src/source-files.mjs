@@ -10,6 +10,7 @@ export const sourceFiles = [
   'core/cards.js',
   'components/cards.jsx',
   'components/feedback.jsx',
+  'components/dialog.jsx',
   'components/history.jsx',
   'components/sidebar.jsx',
   'components/main-workspace.jsx',

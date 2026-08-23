@@ -1027,14 +1027,6 @@ var NEW_STAGES = [{
   icon: 'Image',
   subStages: [5]
 }];
-var STAGE_LOADING_TEXT = {
-  1: "正在注入原料，执行 AI 准入判型...",
-  2: "引擎运转：全网事实核查与结构拆解中...",
-  3: "逻辑精装中，正在重构文章框架...",
-  4: "正在切片：模块化封装知识卡片包...",
-  5: "视觉中枢唤醒：渲染生产级中文提示词...",
-  6: "最终质量验收，校验卡片与指令匹配度..."
-};
 var parseStreamedText = function parseStreamedText(fullText) {
   var stages = {
     1: '',
@@ -2114,6 +2106,20 @@ var handleTabListKeyDown = function handleTabListKeyDown(event) {
   tabs[nextIndex].focus();
   tabs[nextIndex].click();
 };
+var TOAST_TYPE_CONFIG = Object.freeze({
+  success: {
+    icon: 'CheckCircle2'
+  },
+  error: {
+    icon: 'AlertCircle'
+  },
+  warning: {
+    icon: 'CircleAlert'
+  },
+  neutral: {
+    icon: 'Info'
+  }
+});
 var Toast = function Toast(_ref8) {
   var message = _ref8.message,
     _ref8$type = _ref8.type,
@@ -2121,6 +2127,8 @@ var Toast = function Toast(_ref8) {
     onClose = _ref8.onClose,
     _ref8$duration = _ref8.duration,
     duration = _ref8$duration === void 0 ? 3000 : _ref8$duration;
+  var feedbackType = TOAST_TYPE_CONFIG[type] ? type : 'success';
+  var iconName = TOAST_TYPE_CONFIG[feedbackType].icon;
   useEffect(function () {
     var timer = setTimeout(onClose, duration);
     return function () {
@@ -2128,14 +2136,14 @@ var Toast = function Toast(_ref8) {
     };
   }, [onClose, duration]);
   return React.createElement("div", {
-    className: "mi-toast mi-feedback mi-feedback-".concat(type === 'error' ? 'error' : 'success', " animate-fade-in-down"),
-    role: type === 'error' ? 'alert' : 'status',
-    "aria-live": type === 'error' ? 'assertive' : 'polite',
+    className: "mi-toast mi-feedback mi-feedback-".concat(feedbackType, " animate-fade-in-down"),
+    role: feedbackType === 'error' ? 'alert' : 'status',
+    "aria-live": feedbackType === 'error' ? 'assertive' : 'polite',
     "aria-atomic": "true"
   }, React.createElement("div", {
     className: "mi-toast-icon"
   }, React.createElement(Icon, {
-    name: type === 'error' ? 'AlertCircle' : 'CheckCircle2',
+    name: iconName,
     className: "h-4 w-4"
   })), React.createElement("span", {
     className: "mi-toast-message"
@@ -2168,19 +2176,155 @@ var ResultsPanel = React.memo(function (_ref0) {
   var content = _ref0.content;
   return content;
 });
-var HistoryItems = function HistoryItems(_ref1) {
-  var history = _ref1.history,
-    isProcessing = _ref1.isProcessing,
-    activeHistoryId = _ref1.activeHistoryId,
-    showResults = _ref1.showResults,
-    setIsHistoryOpen = _ref1.setIsHistoryOpen,
-    loadHistoryItem = _ref1.loadHistoryItem,
-    retryHistoryItem = _ref1.retryHistoryItem,
-    deleteHistoryItem = _ref1.deleteHistoryItem,
-    _ref1$closeAfterOpen = _ref1.closeAfterOpen,
-    closeAfterOpen = _ref1$closeAfterOpen === void 0 ? false : _ref1$closeAfterOpen,
-    _ref1$mobile = _ref1.mobile,
-    mobile = _ref1$mobile === void 0 ? false : _ref1$mobile;
+var DIALOG_FOCUSABLE_SELECTOR = ['button:not([disabled])', '[href]', 'input:not([disabled])', 'select:not([disabled])', 'textarea:not([disabled])', '[tabindex]:not([tabindex="-1"])'].join(',');
+var ModalFrame = function ModalFrame(_ref1) {
+  var isOpen = _ref1.isOpen,
+    onRequestClose = _ref1.onRequestClose,
+    titleId = _ref1.titleId,
+    overlayClassName = _ref1.overlayClassName,
+    dialogClassName = _ref1.dialogClassName,
+    _ref1$closeOnBackdrop = _ref1.closeOnBackdrop,
+    closeOnBackdrop = _ref1$closeOnBackdrop === void 0 ? true : _ref1$closeOnBackdrop,
+    _ref1$initialFocusSel = _ref1.initialFocusSelector,
+    initialFocusSelector = _ref1$initialFocusSel === void 0 ? '[data-dialog-initial-focus="true"]' : _ref1$initialFocusSel,
+    children = _ref1.children;
+  var dialogRef = useRef(null);
+  var returnFocusRef = useRef(null);
+  var closeHandlerRef = useRef(onRequestClose);
+  useEffect(function () {
+    closeHandlerRef.current = onRequestClose;
+  }, [onRequestClose]);
+  useEffect(function () {
+    if (!isOpen) return undefined;
+    returnFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    var getFocusable = function getFocusable() {
+      var _dialogRef$current;
+      return _toConsumableArray(((_dialogRef$current = dialogRef.current) === null || _dialogRef$current === void 0 ? void 0 : _dialogRef$current.querySelectorAll(DIALOG_FOCUSABLE_SELECTOR)) || []).filter(function (element) {
+        return !element.hidden && element.getAttribute('aria-hidden') !== 'true' && element.getClientRects().length > 0;
+      });
+    };
+    var focusInitialControl = function focusInitialControl() {
+      var _dialogRef$current2;
+      var preferredControl = (_dialogRef$current2 = dialogRef.current) === null || _dialogRef$current2 === void 0 ? void 0 : _dialogRef$current2.querySelector(initialFocusSelector);
+      var target = preferredControl || getFocusable()[0] || dialogRef.current;
+      target === null || target === void 0 || target.focus({
+        preventScroll: true
+      });
+    };
+    var animationFrame = requestAnimationFrame(focusInitialControl);
+    var handleDocumentKeyDown = function handleDocumentKeyDown(event) {
+      var _dialogRef$current4;
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        closeHandlerRef.current();
+        return;
+      }
+      if (event.key !== 'Tab') return;
+      var focusable = getFocusable();
+      if (!focusable.length) {
+        var _dialogRef$current3;
+        event.preventDefault();
+        (_dialogRef$current3 = dialogRef.current) === null || _dialogRef$current3 === void 0 || _dialogRef$current3.focus({
+          preventScroll: true
+        });
+        return;
+      }
+      var first = focusable[0];
+      var last = focusable.at(-1);
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      } else if (!((_dialogRef$current4 = dialogRef.current) !== null && _dialogRef$current4 !== void 0 && _dialogRef$current4.contains(document.activeElement))) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+    document.addEventListener('keydown', handleDocumentKeyDown);
+    return function () {
+      cancelAnimationFrame(animationFrame);
+      document.removeEventListener('keydown', handleDocumentKeyDown);
+      var returnTarget = returnFocusRef.current;
+      requestAnimationFrame(function () {
+        if (returnTarget !== null && returnTarget !== void 0 && returnTarget.isConnected) returnTarget.focus({
+          preventScroll: true
+        });
+      });
+    };
+  }, [isOpen, initialFocusSelector]);
+  if (!isOpen) return null;
+  return React.createElement("div", {
+    className: overlayClassName,
+    onMouseDown: function onMouseDown(event) {
+      if (closeOnBackdrop && event.target === event.currentTarget) onRequestClose();
+    }
+  }, React.createElement("div", {
+    ref: dialogRef,
+    className: dialogClassName,
+    role: "dialog",
+    "aria-modal": "true",
+    "aria-labelledby": titleId,
+    tabIndex: -1
+  }, children));
+};
+var ConfirmDeleteDialog = function ConfirmDeleteDialog(_ref10) {
+  var item = _ref10.item,
+    isDeleting = _ref10.isDeleting,
+    onCancel = _ref10.onCancel,
+    onConfirm = _ref10.onConfirm;
+  return React.createElement(ModalFrame, {
+    isOpen: Boolean(item),
+    onRequestClose: function onRequestClose() {
+      if (!isDeleting) onCancel();
+    },
+    titleId: "delete-history-title",
+    overlayClassName: "modal-overlay modal-overlay-confirm animate-fade-in",
+    dialogClassName: "confirm-dialog animate-fade-in-down",
+    closeOnBackdrop: false
+  }, React.createElement("div", {
+    className: "confirm-dialog-icon",
+    "aria-hidden": "true"
+  }, React.createElement(Icon, {
+    name: "Trash2",
+    className: "h-5 w-5"
+  })), React.createElement("div", {
+    className: "confirm-dialog-copy"
+  }, React.createElement("h2", {
+    id: "delete-history-title"
+  }, "\u5220\u9664\u8FD9\u6761\u8BB0\u5F55\uFF1F"), React.createElement("p", null, "\u300C", (item === null || item === void 0 ? void 0 : item.title) || '未命名', "\u300D\u7684\u6587\u7AE0\u7ED3\u679C\u548C\u5DF2\u751F\u6210\u56FE\u7247\u4F1A\u4ECE\u672C\u673A\u6C38\u4E45\u5220\u9664\uFF0C\u5220\u9664\u540E\u65E0\u6CD5\u6062\u590D\u3002")), React.createElement("div", {
+    className: "confirm-dialog-actions"
+  }, React.createElement("button", {
+    type: "button",
+    onClick: onCancel,
+    disabled: isDeleting,
+    "data-dialog-initial-focus": "true",
+    className: "mi-button mi-button-standard confirm-cancel-button"
+  }, "\u53D6\u6D88"), React.createElement("button", {
+    type: "button",
+    onClick: onConfirm,
+    disabled: isDeleting,
+    "aria-busy": isDeleting,
+    className: "mi-button mi-button-standard confirm-delete-button"
+  }, React.createElement(Icon, {
+    name: isDeleting ? 'LoaderCircle' : 'Trash2',
+    className: "h-4 w-4 ".concat(isDeleting ? 'animate-spin' : '')
+  }), isDeleting ? '正在删除' : '确认删除')));
+};
+var HistoryItems = function HistoryItems(_ref11) {
+  var history = _ref11.history,
+    isProcessing = _ref11.isProcessing,
+    activeHistoryId = _ref11.activeHistoryId,
+    showResults = _ref11.showResults,
+    setIsHistoryOpen = _ref11.setIsHistoryOpen,
+    loadHistoryItem = _ref11.loadHistoryItem,
+    retryHistoryItem = _ref11.retryHistoryItem,
+    requestDeleteHistoryItem = _ref11.requestDeleteHistoryItem,
+    _ref11$closeAfterOpen = _ref11.closeAfterOpen,
+    closeAfterOpen = _ref11$closeAfterOpen === void 0 ? false : _ref11$closeAfterOpen,
+    _ref11$mobile = _ref11.mobile,
+    mobile = _ref11$mobile === void 0 ? false : _ref11$mobile;
   return React.createElement(React.Fragment, null, history.length === 0 && (mobile ? React.createElement("div", {
     className: "mobile-history-empty"
   }, React.createElement(Icon, {
@@ -2208,7 +2352,7 @@ var HistoryItems = function HistoryItems(_ref1) {
     }, React.createElement("div", {
       className: "history-item-title min-w-0 text-[13px] font-bold ".concat(activeHistoryId === item.id && showResults ? 'text-indigo-600' : 'text-slate-700')
     }, item.title || '未命名'), React.createElement("div", {
-      className: "mt-1.5 font-mono text-[11px] text-slate-400"
+      className: "history-item-date mt-1.5 font-mono text-[11px] text-slate-400"
     }, item.date)), !isProcessing && React.createElement("div", {
       className: "history-item-actions flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-all"
     }, React.createElement("button", {
@@ -2227,7 +2371,9 @@ var HistoryItems = function HistoryItems(_ref1) {
     })), React.createElement("button", {
       type: "button",
       onClick: function onClick(event) {
-        return deleteHistoryItem(item.id, event);
+        event.stopPropagation();
+        if (closeAfterOpen) setIsHistoryOpen(false);
+        requestDeleteHistoryItem(item.id);
       },
       className: "mi-icon-button mi-icon-button-compact history-item-action bg-red-50/80 text-red-500 hover:bg-red-100 hover:text-red-600 shadow-sm border border-red-100/50",
       "aria-label": "\u5220\u9664\u8BB0\u5F55\uFF1A".concat(item.title || '未命名'),
@@ -2238,30 +2384,25 @@ var HistoryItems = function HistoryItems(_ref1) {
     }))));
   }));
 };
-var MobileHistoryDialog = function MobileHistoryDialog(_ref10) {
-  var isHistoryOpen = _ref10.isHistoryOpen,
-    setIsHistoryOpen = _ref10.setIsHistoryOpen,
-    history = _ref10.history,
-    isProcessing = _ref10.isProcessing,
-    activeHistoryId = _ref10.activeHistoryId,
-    showResults = _ref10.showResults,
-    loadHistoryItem = _ref10.loadHistoryItem,
-    retryHistoryItem = _ref10.retryHistoryItem,
-    deleteHistoryItem = _ref10.deleteHistoryItem,
-    loadDemoRecord = _ref10.loadDemoRecord;
-  return isHistoryOpen && React.createElement("div", {
-    className: "mobile-history-overlay animate-fade-in",
-    onClick: function onClick() {
+var MobileHistoryDialog = function MobileHistoryDialog(_ref12) {
+  var isHistoryOpen = _ref12.isHistoryOpen,
+    setIsHistoryOpen = _ref12.setIsHistoryOpen,
+    history = _ref12.history,
+    isProcessing = _ref12.isProcessing,
+    activeHistoryId = _ref12.activeHistoryId,
+    showResults = _ref12.showResults,
+    loadHistoryItem = _ref12.loadHistoryItem,
+    retryHistoryItem = _ref12.retryHistoryItem,
+    requestDeleteHistoryItem = _ref12.requestDeleteHistoryItem,
+    loadDemoRecord = _ref12.loadDemoRecord;
+  return React.createElement(ModalFrame, {
+    isOpen: isHistoryOpen,
+    onRequestClose: function onRequestClose() {
       return setIsHistoryOpen(false);
-    }
-  }, React.createElement("section", {
-    className: "mobile-history-dialog flex flex-col animate-fade-in-down",
-    role: "dialog",
-    "aria-modal": "true",
-    "aria-labelledby": "mobile-history-title",
-    onClick: function onClick(event) {
-      return event.stopPropagation();
-    }
+    },
+    titleId: "mobile-history-title",
+    overlayClassName: "mobile-history-overlay animate-fade-in",
+    dialogClassName: "mobile-history-dialog flex flex-col animate-fade-in-down"
   }, React.createElement("div", {
     className: "mobile-history-dialog-header"
   }, React.createElement("div", null, React.createElement("h2", {
@@ -2286,6 +2427,7 @@ var MobileHistoryDialog = function MobileHistoryDialog(_ref10) {
     onClick: function onClick() {
       return setIsHistoryOpen(false);
     },
+    "data-dialog-initial-focus": "true",
     className: "mi-icon-button mi-icon-button-standard sidebar-icon-button",
     "aria-label": "\u5173\u95ED\u5386\u53F2\u8BB0\u5F55",
     title: "\u5173\u95ED\u5386\u53F2\u8BB0\u5F55"
@@ -2304,29 +2446,32 @@ var MobileHistoryDialog = function MobileHistoryDialog(_ref10) {
     setIsHistoryOpen: setIsHistoryOpen,
     loadHistoryItem: loadHistoryItem,
     retryHistoryItem: retryHistoryItem,
-    deleteHistoryItem: deleteHistoryItem,
+    requestDeleteHistoryItem: requestDeleteHistoryItem,
     closeAfterOpen: true,
     mobile: true
-  })))));
+  }))));
 };
-var AppSidebar = function AppSidebar(_ref11) {
-  var history = _ref11.history,
-    isProcessing = _ref11.isProcessing,
-    activeHistoryId = _ref11.activeHistoryId,
-    showResults = _ref11.showResults,
-    setIsHistoryOpen = _ref11.setIsHistoryOpen,
-    setIsConfigOpen = _ref11.setIsConfigOpen,
-    inputText = _ref11.inputText,
-    setInputText = _ref11.setInputText,
-    handleStopProcessing = _ref11.handleStopProcessing,
-    handleStartProcessing = _ref11.handleStartProcessing,
-    isButtonDisabled = _ref11.isButtonDisabled,
-    loadHistoryItem = _ref11.loadHistoryItem,
-    retryHistoryItem = _ref11.retryHistoryItem,
-    deleteHistoryItem = _ref11.deleteHistoryItem,
-    loadDemoRecord = _ref11.loadDemoRecord;
+var AppSidebar = function AppSidebar(_ref13) {
+  var history = _ref13.history,
+    isProcessing = _ref13.isProcessing,
+    activeHistoryId = _ref13.activeHistoryId,
+    showResults = _ref13.showResults,
+    setIsHistoryOpen = _ref13.setIsHistoryOpen,
+    setIsConfigOpen = _ref13.setIsConfigOpen,
+    inputText = _ref13.inputText,
+    setInputText = _ref13.setInputText,
+    handleProcessingAction = _ref13.handleProcessingAction,
+    processingActionMode = _ref13.processingActionMode,
+    processingActionLabel = _ref13.processingActionLabel,
+    processingActionHint = _ref13.processingActionHint,
+    isComposerExpanded = _ref13.isComposerExpanded,
+    setIsComposerExpanded = _ref13.setIsComposerExpanded,
+    loadHistoryItem = _ref13.loadHistoryItem,
+    retryHistoryItem = _ref13.retryHistoryItem,
+    requestDeleteHistoryItem = _ref13.requestDeleteHistoryItem,
+    loadDemoRecord = _ref13.loadDemoRecord;
   return React.createElement("div", {
-    className: "moreimg-sidebar w-full md:w-[320px] h-auto md:h-full flex-shrink-0 flex flex-col bg-white/60 md:bg-white/40 backdrop-blur-3xl border-b md:border-b-0 md:border-r border-white/60 shadow-sm md:shadow-[8px_0_32px_rgba(31,38,135,0.05)] z-20 p-4 md:p-6 relative"
+    className: "moreimg-sidebar w-full lg:w-[320px] h-auto lg:h-full flex-shrink-0 flex flex-col bg-white/60 lg:bg-white/40 backdrop-blur-3xl border-b lg:border-b-0 lg:border-r border-white/60 shadow-sm lg:shadow-[8px_0_32px_rgba(31,38,135,0.05)] z-20 p-4 lg:p-6 relative ".concat(showResults ? 'is-result-view' : '', " ").concat(isComposerExpanded ? 'is-composer-expanded' : '')
   }, React.createElement("div", {
     className: "sidebar-brand-row z-10 shrink-0"
   }, React.createElement("h1", {
@@ -2372,13 +2517,29 @@ var AppSidebar = function AppSidebar(_ref11) {
     name: "Settings",
     className: "w-5 h-5",
     strokeWidth: 2
-  })))), React.createElement("div", {
+  })))), showResults && !isProcessing && React.createElement("button", {
+    type: "button",
+    onClick: function onClick() {
+      return setIsComposerExpanded(function (expanded) {
+        return !expanded;
+      });
+    },
+    className: "mi-button mi-button-standard compact-composer-toggle",
+    "aria-expanded": isComposerExpanded,
+    "aria-controls": "moreimg-composer"
+  }, React.createElement(Icon, {
+    name: isComposerExpanded ? 'ChevronUp' : 'Plus',
+    className: "h-4 w-4"
+  }), isComposerExpanded ? '收起新建文章' : '新建文章'), React.createElement("div", {
+    id: "moreimg-composer",
+    className: "sidebar-composer"
+  }, React.createElement("div", {
     className: "sidebar-input-shell"
   }, React.createElement("div", {
     className: "sidebar-input-clip"
   }, React.createElement("textarea", {
     className: "sidebar-input custom-scrollbar placeholder-slate-400 focus:placeholder-slate-300",
-    placeholder: "\u5728\u6B64\u6CE8\u5165\u539F\u59CB\u957F\u6587\uFF0C\u5524\u9192 AI \u91CD\u5851\u5F15\u64CE...",
+    placeholder: "\u7C98\u8D34\u9700\u8981\u52A0\u5DE5\u7684\u6587\u7AE0\u6216\u6587\u6848...",
     value: inputText,
     onChange: function onChange(e) {
       return setInputText(e.target.value);
@@ -2386,19 +2547,23 @@ var AppSidebar = function AppSidebar(_ref11) {
     disabled: isProcessing,
     spellCheck: "false"
   }))), React.createElement("button", {
-    onClick: isProcessing ? handleStopProcessing : handleStartProcessing,
-    disabled: isButtonDisabled,
-    className: "mi-button mi-button-prominent processing-action-button w-full shrink-0 font-bold text-[14px] relative overflow-hidden z-10 backdrop-blur-sm\n      ".concat(isButtonDisabled ? 'is-disabled' : isProcessing ? 'is-running' : 'is-ready')
+    onClick: handleProcessingAction,
+    disabled: processingActionMode === 'empty',
+    "aria-describedby": processingActionHint ? 'processing-action-hint' : undefined,
+    className: "mi-button mi-button-prominent processing-action-button w-full shrink-0 font-bold text-[14px] relative overflow-hidden z-10 backdrop-blur-sm is-".concat(processingActionMode)
   }, isProcessing ? React.createElement(React.Fragment, null, React.createElement(Icon, {
     name: "Square",
     className: "w-4 h-4 mr-2 text-white",
     fill: "currentColor"
-  }), " \u505C\u6B62\u8FD0\u7B97") : React.createElement(React.Fragment, null, React.createElement(Icon, {
-    name: "Zap",
-    className: "w-4 h-4 mr-2 ".concat(isButtonDisabled ? 'text-slate-400' : 'text-white'),
+  }), " ", processingActionLabel) : React.createElement(React.Fragment, null, React.createElement(Icon, {
+    name: processingActionMode === 'needs-config' ? 'Settings' : 'Zap',
+    className: "w-4 h-4 mr-2 ".concat(processingActionMode === 'empty' ? 'text-slate-400' : 'text-white'),
     strokeWidth: 2
-  }), "\u4E00\u952E\u751F\u6210 AI \u7269\u6599\u5305")), React.createElement("div", {
-    className: "moreimg-history hidden md:flex mt-10 flex-1 relative shrink-0 flex-col min-h-0"
+  }), processingActionLabel)), processingActionHint && React.createElement("p", {
+    id: "processing-action-hint",
+    className: "processing-action-hint"
+  }, processingActionHint)), React.createElement("div", {
+    className: "moreimg-history hidden lg:flex mt-10 flex-1 relative shrink-0 flex-col min-h-0"
   }, React.createElement("div", {
     className: "flex items-center justify-between mb-4 shrink-0"
   }, React.createElement("div", {
@@ -2420,31 +2585,32 @@ var AppSidebar = function AppSidebar(_ref11) {
     setIsHistoryOpen: setIsHistoryOpen,
     loadHistoryItem: loadHistoryItem,
     retryHistoryItem: retryHistoryItem,
-    deleteHistoryItem: deleteHistoryItem
+    requestDeleteHistoryItem: requestDeleteHistoryItem
   }))), React.createElement("div", {
-    className: "moreimg-brand brand-attribution hidden md:block",
+    className: "moreimg-brand brand-attribution hidden lg:block",
     "aria-label": "\u9879\u76EE\u5F52\u5C5E\u4E0E\u7248\u6743"
   }, React.createElement("div", {
     className: "brand-attribution-name"
   }, "MoreImg \xB7 LINPO LAB"), React.createElement("div", null, "\xA9 2026 LINPO LAB. All rights reserved.")));
 };
-var MainWorkspace = function MainWorkspace(_ref12) {
-  var isProcessing = _ref12.isProcessing,
-    showResults = _ref12.showResults,
-    internalStage = _ref12.internalStage,
-    activeStageTab = _ref12.activeStageTab,
-    currentSession = _ref12.currentSession,
-    setActiveStageTab = _ref12.setActiveStageTab,
-    resultsStageNavRef = _ref12.resultsStageNavRef,
-    resultScrollRef = _ref12.resultScrollRef,
-    resultContent = _ref12.resultContent,
-    messagesEndRef = _ref12.messagesEndRef;
+var MainWorkspace = function MainWorkspace(_ref14) {
+  var isProcessing = _ref14.isProcessing,
+    showResults = _ref14.showResults,
+    processingUiPhase = _ref14.processingUiPhase,
+    processingElapsedSeconds = _ref14.processingElapsedSeconds,
+    activeStageTab = _ref14.activeStageTab,
+    currentSession = _ref14.currentSession,
+    setActiveStageTab = _ref14.setActiveStageTab,
+    resultsStageNavRef = _ref14.resultsStageNavRef,
+    resultScrollRef = _ref14.resultScrollRef,
+    resultContent = _ref14.resultContent,
+    messagesEndRef = _ref14.messagesEndRef;
   return React.createElement("div", {
     className: "flex-1 min-h-0 flex flex-col relative h-full z-10 overflow-hidden"
   }, isProcessing && !showResults && React.createElement("div", {
     className: "absolute inset-0 z-30 flex flex-col items-center justify-center bg-slate-50/60 backdrop-blur-xl animate-fade-in"
   }, React.createElement("div", {
-    className: "relative w-40 h-40 mb-12 flex items-center justify-center"
+    className: "relative w-40 h-40 mb-10 flex items-center justify-center"
   }, React.createElement("div", {
     className: "absolute inset-0 rounded-full border border-slate-200/60 shadow-[inset_0_0_20px_rgba(99,102,241,0.1)]"
   }), React.createElement("div", {
@@ -2461,20 +2627,22 @@ var MainWorkspace = function MainWorkspace(_ref12) {
   }), React.createElement("div", {
     className: "relative z-10 bg-white/90 shadow-xl rounded-2xl w-16 h-16 flex items-center justify-center border border-white/80 backdrop-blur-md"
   }, React.createElement(Icon, {
-    name: internalStage >= 5 ? "Image" : internalStage >= 3 ? "Cpu" : "Database",
-    className: "w-8 h-8 text-indigo-600 animate-pulse-slow",
+    name: processingUiPhase === 'validating' ? 'ListChecks' : 'LoaderCircle',
+    className: "w-8 h-8 text-indigo-600 ".concat(processingUiPhase === 'validating' ? 'animate-pulse-slow' : 'animate-spin'),
     strokeWidth: 1.5
   }))), React.createElement("div", {
     className: "text-center space-y-3"
   }, React.createElement("h3", {
     className: "text-[18px] font-extrabold text-slate-800 tracking-tight transition-all duration-300"
-  }, STAGE_LOADING_TEXT[internalStage] || "连接核心计算引擎..."), React.createElement("div", {
-    className: "w-64 h-1.5 bg-slate-200/50 rounded-full overflow-hidden mx-auto mt-6 backdrop-blur-sm"
+  }, processingUiPhase === 'validating' ? '已收到结果，正在校验内容完整性' : '已发送请求，正在等待模型返回'), React.createElement("p", {
+    className: "processing-status-copy",
+    role: "status",
+    "aria-live": "polite"
+  }, processingUiPhase === 'validating' ? '正在检查 JSON、文章和卡片字段，完成后会进入结果页。' : "\u5DF2\u7B49\u5F85 ".concat(processingElapsedSeconds, " \u79D2\uFF0C\u6700\u957F\u7EA6 5 \u5206\u949F\uFF1B\u4F60\u53EF\u4EE5\u968F\u65F6\u505C\u6B62\u672C\u6B21\u52A0\u5DE5\u3002")), React.createElement("div", {
+    className: "processing-progress-track",
+    "aria-hidden": "true"
   }, React.createElement("div", {
-    className: "h-full bg-gradient-to-r from-indigo-500 to-sky-400 transition-all duration-500 ease-out",
-    style: {
-      width: "".concat(internalStage / 6 * 100, "%")
-    }
+    className: "processing-progress-indicator"
   })))), showResults && React.createElement("div", {
     className: "w-full pl-8 pr-[calc(2rem+5px)] md:pl-12 md:pr-[calc(3rem+5px)] pt-8 pb-4 z-20 shrink-0 relative animate-fade-in-down"
   }, React.createElement("div", {
@@ -2527,20 +2695,20 @@ var MainWorkspace = function MainWorkspace(_ref12) {
     className: "text-indigo-600"
   }, "Agent")), React.createElement("p", {
     className: "text-[15px] text-slate-500 mb-12 max-w-lg text-center leading-relaxed"
-  }, "\u6DF1\u5EA6\u91CD\u6784\u957F\u6587\u903B\u8F91\uFF0C\u540E\u53F0\u8FD0\u7B97\u5B8C\u6BD5\u540E\uFF0C\u4E00\u952E\u4EA4\u4ED8\u7ED3\u6784\u5316\u5361\u7247\u4E0E\u751F\u4EA7\u7EA7 Midjourney \u89C6\u89C9\u6307\u4EE4\u3002"), React.createElement("div", {
+  }, "\u7CBE\u4FEE\u6587\u7AE0\u7ED3\u6784\uFF0C\u62C6\u5206\u77E5\u8BC6\u5361\u7247\uFF0C\u5E76\u751F\u6210\u53EF\u76F4\u63A5\u4F7F\u7528\u7684\u89C6\u89C9\u63D0\u793A\u8BCD\u4E0E\u56FE\u7247\u6210\u54C1\u3002"), React.createElement("div", {
     className: "grid grid-cols-1 md:grid-cols-3 gap-6 w-full"
   }, [{
     icon: 'ListChecks',
-    title: '深度事实核查',
-    desc: '全网交叉验证，剔除过时与错误信息。'
+    title: '内容理解与核查',
+    desc: '识别主题、核心论点和明显矛盾，便于继续人工核对。'
   }, {
     icon: 'Cpu',
-    title: '逻辑精炼重构',
-    desc: '提炼分论点与核心比喻，生成卡片物料包。'
+    title: '文章与卡片重构',
+    desc: '整理文章层次，生成封面、正文和封底内容。'
   }, {
     icon: 'Image',
-    title: '视觉指令映射',
-    desc: '色彩、构图全量生成 3:4 画面生图提示词。'
+    title: '视觉生成与导出',
+    desc: '生成 3:4 视觉提示词、主视觉与图片成品。'
   }].map(function (feature, idx) {
     return React.createElement("div", {
       key: idx,
@@ -2561,36 +2729,37 @@ var MainWorkspace = function MainWorkspace(_ref12) {
     ref: messagesEndRef
   }))));
 };
-var SettingsDialog = function SettingsDialog(_ref13) {
+var SettingsDialog = function SettingsDialog(_ref15) {
   var _apiConfig$processing, _apiConfig$processing2, _apiConfig$processing3, _apiConfig$processing4, _apiConfig$processing5;
-  var isConfigOpen = _ref13.isConfigOpen,
-    setIsConfigOpen = _ref13.setIsConfigOpen,
-    apiConfig = _ref13.apiConfig,
-    setApiConfig = _ref13.setApiConfig,
-    configTools = _ref13.configTools,
-    handleLoadModels = _ref13.handleLoadModels,
-    handleTestTextConnection = _ref13.handleTestTextConnection,
-    handleModelSelection = _ref13.handleModelSelection,
-    textModels = _ref13.textModels,
-    imageModels = _ref13.imageModels,
-    lastImageDiagnostic = _ref13.lastImageDiagnostic,
-    handleSaveConfig = _ref13.handleSaveConfig;
-  return isConfigOpen && React.createElement("div", {
-    className: "fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 animate-fade-in"
-  }, React.createElement("div", {
-    className: "config-dialog flex flex-col animate-fade-in-down"
+  var isConfigOpen = _ref15.isConfigOpen,
+    onRequestClose = _ref15.onRequestClose,
+    apiConfig = _ref15.apiConfig,
+    setApiConfig = _ref15.setApiConfig,
+    configTools = _ref15.configTools,
+    handleLoadModels = _ref15.handleLoadModels,
+    handleTestTextConnection = _ref15.handleTestTextConnection,
+    handleModelSelection = _ref15.handleModelSelection,
+    textModels = _ref15.textModels,
+    imageModels = _ref15.imageModels,
+    lastImageDiagnostic = _ref15.lastImageDiagnostic,
+    handleSaveConfig = _ref15.handleSaveConfig;
+  return React.createElement(ModalFrame, {
+    isOpen: isConfigOpen,
+    onRequestClose: onRequestClose,
+    titleId: "settings-dialog-title",
+    overlayClassName: "modal-overlay modal-overlay-settings animate-fade-in",
+    dialogClassName: "config-dialog flex flex-col animate-fade-in-down"
   }, React.createElement("div", {
     className: "config-dialog-header"
   }, React.createElement("h3", {
+    id: "settings-dialog-title",
     className: "text-[16px] font-extrabold text-slate-800 flex items-center"
   }, React.createElement(Icon, {
     name: "Settings",
     className: "w-5 h-5 mr-2 text-indigo-600"
   }), " \u79C1\u6709\u5F15\u64CE\u53CA\u6280\u80FD\u914D\u7F6E"), React.createElement("button", {
     type: "button",
-    onClick: function onClick() {
-      return setIsConfigOpen(false);
-    },
+    onClick: onRequestClose,
     className: "mi-icon-button mi-icon-button-standard sidebar-icon-button",
     "aria-label": "\u5173\u95ED\u8BBE\u7F6E",
     title: "\u5173\u95ED\u8BBE\u7F6E"
@@ -2646,6 +2815,7 @@ var SettingsDialog = function SettingsDialog(_ref13) {
         apiUrl: e.target.value
       }));
     },
+    "data-dialog-initial-focus": "true",
     className: "mi-field config-input placeholder-slate-400"
   }), React.createElement("div", {
     className: "config-hint"
@@ -2950,10 +3120,10 @@ var SettingsDialog = function SettingsDialog(_ref13) {
     className: "mi-surface mi-surface-card image-diagnostic"
   }, React.createElement("summary", null, "\u6700\u8FD1\u4E00\u6B21\u751F\u56FE\u8BCA\u65AD", React.createElement("span", null, lastImageDiagnostic !== null && lastImageDiagnostic !== void 0 && lastImageDiagnostic.updatedAt ? new Date(lastImageDiagnostic.updatedAt).toLocaleString() : '暂无记录')), lastImageDiagnostic ? React.createElement("dl", {
     className: "image-diagnostic-grid"
-  }, [['请求方式', lastImageDiagnostic.requestMode], ['请求接口', lastImageDiagnostic.endpointPath], ['请求格式', lastImageDiagnostic.requestedFormat], ['实际返回', lastImageDiagnostic.actualFormat], ['图片来源', lastImageDiagnostic.imageHost], ['保存方式', lastImageDiagnostic.storageBackend], ['保存结果', lastImageDiagnostic.storageStatus], ['刷新恢复', lastImageDiagnostic.restoreStatus], ['失败原因', lastImageDiagnostic.failureReason || '无']].map(function (_ref14) {
-    var _ref15 = _slicedToArray(_ref14, 2),
-      label = _ref15[0],
-      value = _ref15[1];
+  }, [['请求方式', lastImageDiagnostic.requestMode], ['请求接口', lastImageDiagnostic.endpointPath], ['请求格式', lastImageDiagnostic.requestedFormat], ['实际返回', lastImageDiagnostic.actualFormat], ['图片来源', lastImageDiagnostic.imageHost], ['保存方式', lastImageDiagnostic.storageBackend], ['保存结果', lastImageDiagnostic.storageStatus], ['刷新恢复', lastImageDiagnostic.restoreStatus], ['失败原因', lastImageDiagnostic.failureReason || '无']].map(function (_ref16) {
+    var _ref17 = _slicedToArray(_ref16, 2),
+      label = _ref17[0],
+      value = _ref17[1];
     return React.createElement("div", {
       className: "image-diagnostic-item",
       key: label
@@ -2965,51 +3135,61 @@ var SettingsDialog = function SettingsDialog(_ref13) {
   }, React.createElement("button", {
     onClick: handleSaveConfig,
     className: "mi-button mi-button-prominent visual-button visual-button-primary w-full"
-  }, "\u4FDD\u5B58\u5E76\u5E94\u7528\u914D\u7F6E"))));
+  }, "\u4FDD\u5B58\u5E76\u5E94\u7528\u914D\u7F6E")));
 };
-var AppView = function AppView(_ref16) {
-  var activeHistoryId = _ref16.activeHistoryId,
-    activeStageTab = _ref16.activeStageTab,
-    apiConfig = _ref16.apiConfig,
-    configTools = _ref16.configTools,
-    currentSession = _ref16.currentSession,
-    deleteHistoryItem = _ref16.deleteHistoryItem,
-    handleLoadModels = _ref16.handleLoadModels,
-    handleModelSelection = _ref16.handleModelSelection,
-    handleSaveConfig = _ref16.handleSaveConfig,
-    handleStartProcessing = _ref16.handleStartProcessing,
-    handleStopProcessing = _ref16.handleStopProcessing,
-    handleTestTextConnection = _ref16.handleTestTextConnection,
-    history = _ref16.history,
-    imageModels = _ref16.imageModels,
-    inputText = _ref16.inputText,
-    internalStage = _ref16.internalStage,
-    isButtonDisabled = _ref16.isButtonDisabled,
-    isConfigOpen = _ref16.isConfigOpen,
-    isHistoryOpen = _ref16.isHistoryOpen,
-    isProcessing = _ref16.isProcessing,
-    lastImageDiagnostic = _ref16.lastImageDiagnostic,
-    loadDemoRecord = _ref16.loadDemoRecord,
-    loadHistoryItem = _ref16.loadHistoryItem,
-    messagesEndRef = _ref16.messagesEndRef,
-    resultContent = _ref16.resultContent,
-    resultScrollRef = _ref16.resultScrollRef,
-    resultsStageNavRef = _ref16.resultsStageNavRef,
-    retryHistoryItem = _ref16.retryHistoryItem,
-    setActiveStageTab = _ref16.setActiveStageTab,
-    setApiConfig = _ref16.setApiConfig,
-    setInputText = _ref16.setInputText,
-    setIsConfigOpen = _ref16.setIsConfigOpen,
-    setIsHistoryOpen = _ref16.setIsHistoryOpen,
-    setToast = _ref16.setToast,
-    showResults = _ref16.showResults,
-    textModels = _ref16.textModels,
-    toast = _ref16.toast;
+var AppView = function AppView(_ref18) {
+  var activeHistoryId = _ref18.activeHistoryId,
+    activeStageTab = _ref18.activeStageTab,
+    apiConfig = _ref18.apiConfig,
+    cancelDeleteHistoryItem = _ref18.cancelDeleteHistoryItem,
+    configTools = _ref18.configTools,
+    confirmDeleteHistoryItem = _ref18.confirmDeleteHistoryItem,
+    currentSession = _ref18.currentSession,
+    handleLoadModels = _ref18.handleLoadModels,
+    handleModelSelection = _ref18.handleModelSelection,
+    handleProcessingAction = _ref18.handleProcessingAction,
+    handleSaveConfig = _ref18.handleSaveConfig,
+    handleTestTextConnection = _ref18.handleTestTextConnection,
+    history = _ref18.history,
+    imageModels = _ref18.imageModels,
+    inputText = _ref18.inputText,
+    isComposerExpanded = _ref18.isComposerExpanded,
+    isConfigOpen = _ref18.isConfigOpen,
+    isDeletingHistory = _ref18.isDeletingHistory,
+    isHistoryOpen = _ref18.isHistoryOpen,
+    isProcessing = _ref18.isProcessing,
+    lastImageDiagnostic = _ref18.lastImageDiagnostic,
+    loadDemoRecord = _ref18.loadDemoRecord,
+    loadHistoryItem = _ref18.loadHistoryItem,
+    messagesEndRef = _ref18.messagesEndRef,
+    onRequestCloseConfig = _ref18.onRequestCloseConfig,
+    pendingDeleteHistoryItem = _ref18.pendingDeleteHistoryItem,
+    processingActionHint = _ref18.processingActionHint,
+    processingActionLabel = _ref18.processingActionLabel,
+    processingActionMode = _ref18.processingActionMode,
+    processingElapsedSeconds = _ref18.processingElapsedSeconds,
+    processingUiPhase = _ref18.processingUiPhase,
+    requestDeleteHistoryItem = _ref18.requestDeleteHistoryItem,
+    resultContent = _ref18.resultContent,
+    resultScrollRef = _ref18.resultScrollRef,
+    resultsStageNavRef = _ref18.resultsStageNavRef,
+    retryHistoryItem = _ref18.retryHistoryItem,
+    setActiveStageTab = _ref18.setActiveStageTab,
+    setApiConfig = _ref18.setApiConfig,
+    setInputText = _ref18.setInputText,
+    setIsComposerExpanded = _ref18.setIsComposerExpanded,
+    setIsConfigOpen = _ref18.setIsConfigOpen,
+    setIsHistoryOpen = _ref18.setIsHistoryOpen,
+    setToast = _ref18.setToast,
+    showResults = _ref18.showResults,
+    textModels = _ref18.textModels,
+    toast = _ref18.toast;
   return React.createElement("div", {
-    className: "moreimg-app-shell flex flex-col md:flex-row h-screen overflow-hidden font-sans text-slate-800 relative bg-transparent"
+    className: "moreimg-app-shell flex flex-col lg:flex-row h-screen overflow-hidden font-sans text-slate-800 relative bg-transparent"
   }, toast && React.createElement(Toast, {
     message: toast.message,
     type: toast.type,
+    duration: toast.duration,
     onClose: function onClose() {
       return setToast(null);
     }
@@ -3022,17 +3202,21 @@ var AppView = function AppView(_ref16) {
     setIsConfigOpen: setIsConfigOpen,
     inputText: inputText,
     setInputText: setInputText,
-    handleStopProcessing: handleStopProcessing,
-    handleStartProcessing: handleStartProcessing,
-    isButtonDisabled: isButtonDisabled,
+    handleProcessingAction: handleProcessingAction,
+    processingActionMode: processingActionMode,
+    processingActionLabel: processingActionLabel,
+    processingActionHint: processingActionHint,
+    isComposerExpanded: isComposerExpanded,
+    setIsComposerExpanded: setIsComposerExpanded,
     loadHistoryItem: loadHistoryItem,
     retryHistoryItem: retryHistoryItem,
-    deleteHistoryItem: deleteHistoryItem,
+    requestDeleteHistoryItem: requestDeleteHistoryItem,
     loadDemoRecord: loadDemoRecord
   }), React.createElement(MainWorkspace, {
     isProcessing: isProcessing,
     showResults: showResults,
-    internalStage: internalStage,
+    processingUiPhase: processingUiPhase,
+    processingElapsedSeconds: processingElapsedSeconds,
     activeStageTab: activeStageTab,
     currentSession: currentSession,
     setActiveStageTab: setActiveStageTab,
@@ -3049,11 +3233,10 @@ var AppView = function AppView(_ref16) {
     showResults: showResults,
     loadHistoryItem: loadHistoryItem,
     retryHistoryItem: retryHistoryItem,
-    deleteHistoryItem: deleteHistoryItem,
+    requestDeleteHistoryItem: requestDeleteHistoryItem,
     loadDemoRecord: loadDemoRecord
   }), React.createElement(SettingsDialog, {
     isConfigOpen: isConfigOpen,
-    setIsConfigOpen: setIsConfigOpen,
     apiConfig: apiConfig,
     setApiConfig: setApiConfig,
     configTools: configTools,
@@ -3063,7 +3246,13 @@ var AppView = function AppView(_ref16) {
     textModels: textModels,
     imageModels: imageModels,
     lastImageDiagnostic: lastImageDiagnostic,
-    handleSaveConfig: handleSaveConfig
+    handleSaveConfig: handleSaveConfig,
+    onRequestClose: onRequestCloseConfig
+  }), React.createElement(ConfirmDeleteDialog, {
+    item: pendingDeleteHistoryItem,
+    isDeleting: isDeletingHistory,
+    onCancel: cancelDeleteHistoryItem,
+    onConfirm: confirmDeleteHistoryItem
   }));
 };
 var DEFAULT_PROMPT_VERSION = 9;
@@ -3152,24 +3341,24 @@ var formatHtmlExportError = function formatHtmlExportError(error, phase) {
   var phaseLabel = HTML_EXPORT_PHASE_LABELS[phase] || '处理导出';
   return "\u5BFC\u51FA\u5931\u8D25\uFF08".concat(phaseLabel, "\uFF09\uFF1A").concat((error === null || error === void 0 ? void 0 : error.message) || '未知错误');
 };
-var useResultContent = function useResultContent(_ref17) {
-  var activeStageTab = _ref17.activeStageTab,
-    currentSession = _ref17.currentSession,
-    parsedSession = _ref17.parsedSession,
-    activeVisualPage = _ref17.activeVisualPage,
-    setActiveVisualPage = _ref17.setActiveVisualPage,
-    imageResults = _ref17.imageResults,
-    htmlExportState = _ref17.htmlExportState,
-    apiConfig = _ref17.apiConfig,
-    handleGenerateImage = _ref17.handleGenerateImage,
-    downloadImage = _ref17.downloadImage,
-    hiddenFullImages = _ref17.hiddenFullImages,
-    setHiddenFullImages = _ref17.setHiddenFullImages,
-    copyToClipboard = _ref17.copyToClipboard,
-    updateImageFocus = _ref17.updateImageFocus,
-    exportHtmlCard = _ref17.exportHtmlCard,
-    htmlCardRefs = _ref17.htmlCardRefs,
-    showResults = _ref17.showResults;
+var useResultContent = function useResultContent(_ref19) {
+  var activeStageTab = _ref19.activeStageTab,
+    currentSession = _ref19.currentSession,
+    parsedSession = _ref19.parsedSession,
+    activeVisualPage = _ref19.activeVisualPage,
+    setActiveVisualPage = _ref19.setActiveVisualPage,
+    imageResults = _ref19.imageResults,
+    htmlExportState = _ref19.htmlExportState,
+    apiConfig = _ref19.apiConfig,
+    handleGenerateImage = _ref19.handleGenerateImage,
+    downloadImage = _ref19.downloadImage,
+    hiddenFullImages = _ref19.hiddenFullImages,
+    setHiddenFullImages = _ref19.setHiddenFullImages,
+    copyToClipboard = _ref19.copyToClipboard,
+    updateImageFocus = _ref19.updateImageFocus,
+    exportHtmlCard = _ref19.exportHtmlCard,
+    htmlCardRefs = _ref19.htmlCardRefs,
+    showResults = _ref19.showResults;
   var renderStageContent = function renderStageContent() {
     var _currentSession$packa;
     var currentStageConfig = NEW_STAGES.find(function (s) {
@@ -3206,7 +3395,7 @@ var useResultContent = function useResultContent(_ref17) {
         className: "visual-stage-heading"
       }, React.createElement("h4", {
         className: "visual-stage-heading-title"
-      }, sId === 1 ? 'AI 准入判型' : sId === 2 ? '深度事实核查与骨架提取' : sId === 3 ? '精修版文章重构' : sId === 4 ? '知识卡片内容包' : sId === 5 ? '视觉生成与成品对比' : '')), React.createElement("div", null, sId === 3 ? React.createElement("div", {
+      }, sId === 1 ? '内容准入与判型' : sId === 2 ? '内容核查与骨架提取' : sId === 3 ? '精修版文章重构' : sId === 4 ? '知识卡片内容包' : sId === 5 ? '视觉生成与成品对比' : '')), React.createElement("div", null, sId === 3 ? React.createElement("div", {
         className: "mi-surface mi-surface-panel stage-content-panel p-8 md:p-10"
       }, React.createElement(FormattedContent, {
         text: content
@@ -3481,14 +3670,21 @@ var useResultContent = function useResultContent(_ref17) {
           }, (fullImageResult === null || fullImageResult === void 0 ? void 0 : fullImageResult.status) === 'loading' ? '生成中' : (fullImageResult === null || fullImageResult === void 0 ? void 0 : fullImageResult.status) === 'success' ? '已隐藏' : '等待生成')), React.createElement("div", {
             className: "visual-preview-meta"
           }, React.createElement("span", null, React.createElement("strong", null, "\u9884\u89C8\u6846 3:4"), " \xB7 \u56FA\u5B9A\u5361\u7247\u69FD\u4F4D"))))), React.createElement("aside", {
-            className: "visual-prompt-column"
-          }, React.createElement("div", {
-            className: "visual-prompt-block"
+            key: selectedPromptSection.title,
+            className: "visual-prompt-column",
+            "aria-label": "\u5F53\u524D\u9875\u9762\u63D0\u793A\u8BCD\u8BE6\u60C5"
+          }, React.createElement("details", {
+            className: "visual-disclosure"
+          }, React.createElement("summary", null, React.createElement("span", null, "\u539F\u59CB\u89C6\u89C9\u63D0\u793A\u8BCD"), React.createElement(Icon, {
+            name: "ChevronDown",
+            className: "visual-disclosure-icon"
+          })), React.createElement("div", {
+            className: "visual-disclosure-body"
           }, React.createElement("div", {
             className: "visual-prompt-block-header"
           }, React.createElement("span", {
             className: "visual-prompt-label"
-          }, "\u539F\u59CB\u89C6\u89C9\u63D0\u793A\u8BCD"), React.createElement("button", {
+          }, "\u5B9E\u9645\u8BF7\u6C42\u5185\u5BB9"), React.createElement("button", {
             type: "button",
             onClick: function onClick() {
               return copyToClipboard(cleanPromptText, "[".concat(selectedPromptSection.title, "] \u539F\u59CB\u89C6\u89C9\u63D0\u793A\u8BCD"));
@@ -3501,13 +3697,18 @@ var useResultContent = function useResultContent(_ref17) {
             className: "h-3.5 w-3.5"
           }))), React.createElement("pre", {
             className: "visual-prompt-copy font-mono"
-          }, React.createElement("code", null, cleanPromptText))), React.createElement("div", {
-            className: "visual-prompt-block"
+          }, React.createElement("code", null, cleanPromptText)))), React.createElement("details", {
+            className: "visual-disclosure"
+          }, React.createElement("summary", null, React.createElement("span", null, "AI \u6574\u56FE\u5B9E\u9645\u8BF7\u6C42"), React.createElement(Icon, {
+            name: "ChevronDown",
+            className: "visual-disclosure-icon"
+          })), React.createElement("div", {
+            className: "visual-disclosure-body"
           }, React.createElement("div", {
             className: "visual-prompt-block-header"
           }, React.createElement("span", {
             className: "visual-prompt-label"
-          }, "AI \u6574\u56FE\u5B9E\u9645\u8BF7\u6C42"), React.createElement("button", {
+          }, "\u5E26\u5361\u7247\u6587\u5B57\u7684\u5B8C\u6574\u8BF7\u6C42"), React.createElement("button", {
             type: "button",
             disabled: !matchingCard,
             onClick: function onClick() {
@@ -3521,7 +3722,7 @@ var useResultContent = function useResultContent(_ref17) {
             className: "h-3.5 w-3.5"
           }))), React.createElement("pre", {
             className: "visual-prompt-copy font-mono"
-          }, React.createElement("code", null, fullImagePrompt)))))), htmlCards.length > 0 && React.createElement("section", {
+          }, React.createElement("code", null, fullImagePrompt))))))), htmlCards.length > 0 && React.createElement("section", {
             className: "visual-section"
           }, React.createElement("div", {
             className: "visual-section-header"
@@ -3682,7 +3883,7 @@ var useResultContent = function useResultContent(_ref17) {
   return resultContent;
 };
 function App() {
-  var _apiConfig$apiKey2;
+  var _apiConfig$apiUrl2, _apiConfig$model2, _apiConfig$apiKey2;
   var _useState3 = useState({
       apiUrl: '',
       model: '',
@@ -3727,51 +3928,71 @@ function App() {
     _useState16 = _slicedToArray(_useState15, 2),
     showResults = _useState16[0],
     setShowResults = _useState16[1];
-  var _useState17 = useState(0),
+  var _useState17 = useState('idle'),
     _useState18 = _slicedToArray(_useState17, 2),
-    internalStage = _useState18[0],
-    setInternalStage = _useState18[1];
-  var _useState19 = useState('step1'),
+    processingUiPhase = _useState18[0],
+    setProcessingUiPhase = _useState18[1];
+  var _useState19 = useState(0),
     _useState20 = _slicedToArray(_useState19, 2),
-    activeStageTab = _useState20[0],
-    setActiveStageTab = _useState20[1];
-  var _useState21 = useState(''),
+    processingElapsedSeconds = _useState20[0],
+    setProcessingElapsedSeconds = _useState20[1];
+  var _useState21 = useState(false),
     _useState22 = _slicedToArray(_useState21, 2),
-    activeVisualPage = _useState22[0],
-    setActiveVisualPage = _useState22[1];
-  var _useState23 = useState(null),
+    isComposerExpanded = _useState22[0],
+    setIsComposerExpanded = _useState22[1];
+  var _useState23 = useState(0),
     _useState24 = _slicedToArray(_useState23, 2),
-    toast = _useState24[0],
-    setToast = _useState24[1];
-  var _useState25 = useState({}),
+    internalStage = _useState24[0],
+    setInternalStage = _useState24[1];
+  var _useState25 = useState('step1'),
     _useState26 = _slicedToArray(_useState25, 2),
-    imageResults = _useState26[0],
-    setImageResults = _useState26[1];
-  var _useState27 = useState(loadLastImageDiagnostic),
+    activeStageTab = _useState26[0],
+    setActiveStageTab = _useState26[1];
+  var _useState27 = useState(''),
     _useState28 = _slicedToArray(_useState27, 2),
-    lastImageDiagnostic = _useState28[0],
-    setLastImageDiagnostic = _useState28[1];
-  var _useState29 = useState({
+    activeVisualPage = _useState28[0],
+    setActiveVisualPage = _useState28[1];
+  var _useState29 = useState(null),
+    _useState30 = _slicedToArray(_useState29, 2),
+    toast = _useState30[0],
+    setToast = _useState30[1];
+  var _useState31 = useState({}),
+    _useState32 = _slicedToArray(_useState31, 2),
+    imageResults = _useState32[0],
+    setImageResults = _useState32[1];
+  var _useState33 = useState(loadLastImageDiagnostic),
+    _useState34 = _slicedToArray(_useState33, 2),
+    lastImageDiagnostic = _useState34[0],
+    setLastImageDiagnostic = _useState34[1];
+  var _useState35 = useState({
       cardId: '',
       status: 'idle',
       error: ''
     }),
-    _useState30 = _slicedToArray(_useState29, 2),
-    htmlExportState = _useState30[0],
-    setHtmlExportState = _useState30[1];
-  var _useState31 = useState({}),
-    _useState32 = _slicedToArray(_useState31, 2),
-    hiddenFullImages = _useState32[0],
-    setHiddenFullImages = _useState32[1];
-  var _useState33 = useState([]),
-    _useState34 = _slicedToArray(_useState33, 2),
-    textModels = _useState34[0],
-    setTextModels = _useState34[1];
-  var _useState35 = useState([]),
     _useState36 = _slicedToArray(_useState35, 2),
-    imageModels = _useState36[0],
-    setImageModels = _useState36[1];
-  var _useState37 = useState({
+    htmlExportState = _useState36[0],
+    setHtmlExportState = _useState36[1];
+  var _useState37 = useState({}),
+    _useState38 = _slicedToArray(_useState37, 2),
+    hiddenFullImages = _useState38[0],
+    setHiddenFullImages = _useState38[1];
+  var _useState39 = useState([]),
+    _useState40 = _slicedToArray(_useState39, 2),
+    textModels = _useState40[0],
+    setTextModels = _useState40[1];
+  var _useState41 = useState([]),
+    _useState42 = _slicedToArray(_useState41, 2),
+    imageModels = _useState42[0],
+    setImageModels = _useState42[1];
+  var _useState43 = useState(null),
+    _useState44 = _slicedToArray(_useState43, 2),
+    pendingDeleteHistoryId = _useState44[0],
+    setPendingDeleteHistoryId = _useState44[1];
+  var _useState45 = useState(false),
+    _useState46 = _slicedToArray(_useState45, 2),
+    isDeletingHistory = _useState46[0],
+    setIsDeletingHistory = _useState46[1];
+  var _useState47 = useState({
       textModels: {
         status: 'idle',
         message: ''
@@ -3785,10 +4006,10 @@ function App() {
         message: ''
       }
     }),
-    _useState38 = _slicedToArray(_useState37, 2),
-    configTools = _useState38[0],
-    setConfigTools = _useState38[1];
-  var _useState39 = useState({
+    _useState48 = _slicedToArray(_useState47, 2),
+    configTools = _useState48[0],
+    setConfigTools = _useState48[1];
+  var _useState49 = useState({
       rawText: '',
       packageData: null,
       stages: {
@@ -3803,13 +4024,14 @@ function App() {
       stopReason: '',
       warning: ''
     }),
-    _useState40 = _slicedToArray(_useState39, 2),
-    currentSession = _useState40[0],
-    setCurrentSession = _useState40[1];
+    _useState50 = _slicedToArray(_useState49, 2),
+    currentSession = _useState50[0],
+    setCurrentSession = _useState50[1];
   var messagesEndRef = useRef(null);
   var processingAbortRef = useRef(null);
   var historyLoadTokenRef = useRef(0);
   var imageAbortControllersRef = useRef(new Map());
+  var configRequestControllersRef = useRef(new Map());
   var demoLoadInFlightRef = useRef(false);
   var imageObjectUrlsRef = useRef([]);
   var htmlCardRefs = useRef({});
@@ -3874,12 +4096,12 @@ function App() {
   }, [activeStageTab, activeHistoryId, showResults]);
   useEffect(function () {
     if (!isProcessing || showResults) return;
-    setInternalStage(1);
+    setProcessingElapsedSeconds(0);
     var timer = setInterval(function () {
-      return setInternalStage(function (stage) {
-        return Math.min(stage + 1, 5);
+      return setProcessingElapsedSeconds(function (seconds) {
+        return seconds + 1;
       });
-    }, 7000);
+    }, 1000);
     return function () {
       return clearInterval(timer);
     };
@@ -3914,6 +4136,30 @@ function App() {
       return controller.abort();
     });
     imageAbortControllersRef.current.clear();
+  };
+  var abortConfigRequests = function abortConfigRequests() {
+    var resetState = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : true;
+    configRequestControllersRef.current.forEach(function (controller) {
+      return controller.abort();
+    });
+    configRequestControllersRef.current.clear();
+    if (resetState) {
+      setConfigTools(function (previous) {
+        return Object.fromEntries(Object.entries(previous).map(function (_ref20) {
+          var _ref21 = _slicedToArray(_ref20, 2),
+            key = _ref21[0],
+            state = _ref21[1];
+          return [key, state.status === 'loading' ? {
+            status: 'idle',
+            message: ''
+          } : state];
+        }));
+      });
+    }
+  };
+  var closeConfigDialog = function closeConfigDialog() {
+    abortConfigRequests();
+    setIsConfigOpen(false);
   };
   var restoreSessionImages = function () {
     var _restoreSessionImages = _asyncToGenerator(_regenerator().m(function _callee12(sessionId, requestToken) {
@@ -3991,7 +4237,7 @@ function App() {
             case 0:
               savedHistory = localStorage.getItem(HISTORY_INDEX_KEY);
               if (!savedHistory) {
-                _context13.n = 5;
+                _context13.n = 7;
                 break;
               }
               _context13.p = 1;
@@ -4009,105 +4255,126 @@ function App() {
               return filterExistingHistoryIndex(candidateHistory);
             case 3:
               reconciledHistory = _context13.v;
-              if (isActive) {
-                setHistory(reconciledHistory);
-                if (reconciledHistory.length !== candidateHistory.length) {
-                  localStorage.setItem(HISTORY_INDEX_KEY, JSON.stringify(reconciledHistory));
-                }
+              if (!isActive) {
+                _context13.n = 5;
+                break;
+              }
+              if (!(localStorage.getItem(HISTORY_INDEX_KEY) !== savedHistory)) {
+                _context13.n = 4;
+                break;
               }
               return _context13.a(2);
             case 4:
-              _context13.p = 4;
+              setHistory(reconciledHistory);
+              if (reconciledHistory.length !== candidateHistory.length) {
+                localStorage.setItem(HISTORY_INDEX_KEY, JSON.stringify(reconciledHistory));
+              }
+            case 5:
+              return _context13.a(2);
+            case 6:
+              _context13.p = 6;
               _t4 = _context13.v;
               localStorage.removeItem(HISTORY_INDEX_KEY);
-            case 5:
+            case 7:
               legacyValue = localStorage.getItem(LEGACY_HISTORY_KEY);
               if (legacyValue) {
-                _context13.n = 15;
+                _context13.n = 18;
                 break;
               }
-              _context13.p = 6;
-              _context13.n = 7;
+              _context13.p = 8;
+              _context13.n = 9;
               return loadSessionRecord(DEMO_SESSION_ID)["catch"](function () {
                 return null;
               });
-            case 7:
+            case 9:
               existingDemo = _context13.v;
               if (!(existingDemo !== null && existingDemo !== void 0 && existingDemo.isDemo)) {
-                _context13.n = 8;
+                _context13.n = 11;
                 break;
               }
               demoIndex = [toHistoryIndex(existingDemo)];
-              if (isActive) setHistory(demoIndex);
-              localStorage.setItem(HISTORY_INDEX_KEY, JSON.stringify(demoIndex));
-              _context13.n = 12;
-              break;
-            case 8:
-              _t5 = shouldSeedDemo();
-              if (!_t5) {
+              if (!(!isActive || localStorage.getItem(HISTORY_INDEX_KEY))) {
                 _context13.n = 10;
                 break;
               }
-              _context13.n = 9;
-              return hasAnySessionRecords();
-            case 9:
-              _t5 = !_context13.v;
+              return _context13.a(2);
             case 10:
+              setHistory(demoIndex);
+              localStorage.setItem(HISTORY_INDEX_KEY, JSON.stringify(demoIndex));
+              _context13.n = 15;
+              break;
+            case 11:
+              _t5 = shouldSeedDemo();
               if (!_t5) {
-                _context13.n = 12;
+                _context13.n = 13;
                 break;
               }
-              _context13.n = 11;
+              _context13.n = 12;
+              return hasAnySessionRecords();
+            case 12:
+              _t5 = !_context13.v;
+            case 13:
+              if (!_t5) {
+                _context13.n = 15;
+                break;
+              }
+              _context13.n = 14;
               return seedDemoHistory();
-            case 11:
+            case 14:
               demoRecord = _context13.v;
-              if (isActive) {
+              if (isActive && !localStorage.getItem(HISTORY_INDEX_KEY)) {
                 _demoIndex = [toHistoryIndex(demoRecord)];
                 setHistory(_demoIndex);
                 localStorage.setItem(HISTORY_INDEX_KEY, JSON.stringify(_demoIndex));
               }
-            case 12:
-              _context13.n = 14;
+            case 15:
+              _context13.n = 17;
               break;
-            case 13:
-              _context13.p = 13;
+            case 16:
+              _context13.p = 16;
               _t6 = _context13.v;
               if (isActive) setToast({
                 message: "\u793A\u4F8B\u8BB0\u5F55\u521D\u59CB\u5316\u5931\u8D25: ".concat(_t6.message),
                 type: 'error',
                 duration: 5000
               });
-            case 14:
+            case 17:
               return _context13.a(2);
-            case 15:
-              _context13.p = 15;
-              _context13.n = 16;
+            case 18:
+              _context13.p = 18;
+              _context13.n = 19;
               return migrateLegacyHistory(JSON.parse(legacyValue));
-            case 16:
+            case 19:
               migratedHistory = _context13.v;
               if (isActive) {
-                _context13.n = 17;
+                _context13.n = 20;
                 break;
               }
               return _context13.a(2);
-            case 17:
+            case 20:
+              if (!localStorage.getItem(HISTORY_INDEX_KEY)) {
+                _context13.n = 21;
+                break;
+              }
+              return _context13.a(2);
+            case 21:
               localStorage.setItem(HISTORY_INDEX_KEY, JSON.stringify(migratedHistory));
               localStorage.removeItem(LEGACY_HISTORY_KEY);
               setHistory(migratedHistory);
-              _context13.n = 19;
+              _context13.n = 23;
               break;
-            case 18:
-              _context13.p = 18;
+            case 22:
+              _context13.p = 22;
               _t7 = _context13.v;
               if (isActive) setToast({
                 message: "\u5386\u53F2\u8BB0\u5F55\u8FC1\u79FB\u5931\u8D25: ".concat(_t7.message),
                 type: 'error',
                 duration: 5000
               });
-            case 19:
+            case 23:
               return _context13.a(2);
           }
-        }, _callee13, null, [[15, 18], [6, 13], [1, 4]]);
+        }, _callee13, null, [[18, 22], [8, 16], [1, 6]]);
       }));
       function loadHistory() {
         return _loadHistory.apply(this, arguments);
@@ -4154,6 +4421,9 @@ function App() {
   }, []);
   useEffect(function () {
     return function () {
+      var _processingAbortRef$c;
+      (_processingAbortRef$c = processingAbortRef.current) === null || _processingAbortRef$c === void 0 || _processingAbortRef$c.abort();
+      abortConfigRequests(false);
       abortImageRequests();
       imageObjectUrlsRef.current.forEach(function (url) {
         return URL.revokeObjectURL(url);
@@ -4171,11 +4441,12 @@ function App() {
       message: 'AI 引擎及技能配置已保存',
       type: 'success'
     });
-    setIsConfigOpen(false);
+    closeConfigDialog();
   };
   var handleLoadModels = function () {
     var _handleLoadModels = _asyncToGenerator(_regenerator().m(function _callee14(kind) {
-      var isImage, endpoint, apiKey, stateKey, setModels, _data$error, modelsEndpoint, response, data, modelIds, _t8;
+      var _configRequestControl;
+      var isImage, endpoint, apiKey, stateKey, setModels, requestController, _data$error, modelsEndpoint, response, data, modelIds, _t8;
       return _regenerator().w(function (_context14) {
         while (1) switch (_context14.p = _context14.n) {
           case 0:
@@ -4194,6 +4465,9 @@ function App() {
             });
             return _context14.a(2);
           case 1:
+            (_configRequestControl = configRequestControllersRef.current.get(stateKey)) === null || _configRequestControl === void 0 || _configRequestControl.abort();
+            requestController = new AbortController();
+            configRequestControllersRef.current.set(stateKey, requestController);
             updateConfigTool(stateKey, {
               status: 'loading',
               message: '正在读取模型列表...'
@@ -4201,11 +4475,18 @@ function App() {
             _context14.p = 2;
             modelsEndpoint = deriveModelsEndpoint(endpoint);
             _context14.n = 3;
-            return fetch(modelsEndpoint, {
-              method: 'GET',
-              headers: {
-                'Authorization': "Bearer ".concat(apiKey)
-              }
+            return runWithRequestControl(function (signal) {
+              return fetch(modelsEndpoint, {
+                method: 'GET',
+                headers: {
+                  'Authorization': "Bearer ".concat(apiKey)
+                },
+                signal: signal
+              });
+            }, {
+              timeoutMs: 30000,
+              signal: requestController.signal,
+              timeoutMessage: '读取模型列表超过 30 秒，请检查接口地址或稍后重试。'
             });
           case 3:
             response = _context14.v;
@@ -4221,31 +4502,49 @@ function App() {
             }
             throw new Error((data === null || data === void 0 || (_data$error = data.error) === null || _data$error === void 0 ? void 0 : _data$error.message) || (data === null || data === void 0 ? void 0 : data.message) || "HTTP ".concat(response.status));
           case 5:
-            modelIds = extractModelIds(data);
-            if (!(modelIds.length === 0)) {
+            if (!(requestController.signal.aborted || configRequestControllersRef.current.get(stateKey) !== requestController)) {
               _context14.n = 6;
               break;
             }
-            throw new Error('接口未返回可用模型');
+            return _context14.a(2);
           case 6:
+            modelIds = extractModelIds(data);
+            if (!(modelIds.length === 0)) {
+              _context14.n = 7;
+              break;
+            }
+            throw new Error('接口未返回可用模型');
+          case 7:
             setModels(modelIds);
             updateConfigTool(stateKey, {
               status: 'success',
               message: "\u5DF2\u8BFB\u53D6 ".concat(modelIds.length, " \u4E2A\u6A21\u578B\uFF0C\u53EF\u7EE7\u7EED\u624B\u52A8\u8F93\u5165\u6216\u4ECE\u5EFA\u8BAE\u4E2D\u9009\u62E9\u3002")
             });
-            _context14.n = 8;
+            _context14.n = 10;
             break;
-          case 7:
-            _context14.p = 7;
+          case 8:
+            _context14.p = 8;
             _t8 = _context14.v;
+            if (!requestController.signal.aborted) {
+              _context14.n = 9;
+              break;
+            }
+            return _context14.a(2);
+          case 9:
             updateConfigTool(stateKey, {
               status: 'error',
               message: "\u8BFB\u53D6\u5931\u8D25\uFF1A".concat(_t8.message, "\u3002\u4E0D\u5F71\u54CD\u624B\u52A8\u586B\u5199\u3002")
             });
-          case 8:
+          case 10:
+            _context14.p = 10;
+            if (configRequestControllersRef.current.get(stateKey) === requestController) {
+              configRequestControllersRef.current["delete"](stateKey);
+            }
+            return _context14.f(10);
+          case 11:
             return _context14.a(2);
         }
-      }, _callee14, null, [[2, 7]]);
+      }, _callee14, null, [[2, 8, 10, 11]]);
     }));
     function handleLoadModels(_x16) {
       return _handleLoadModels.apply(this, arguments);
@@ -4264,7 +4563,8 @@ function App() {
   };
   var handleTestTextConnection = function () {
     var _handleTestTextConnection = _asyncToGenerator(_regenerator().m(function _callee16() {
-      var endpoint, model, apiKey, startedAt, transport, messages, data, responseText, elapsedMs, preview, _t9;
+      var _configRequestControl2;
+      var endpoint, model, apiKey, requestController, startedAt, transport, messages, data, responseText, elapsedMs, preview, _t9;
       return _regenerator().w(function (_context16) {
         while (1) switch (_context16.p = _context16.n) {
           case 0:
@@ -4281,6 +4581,9 @@ function App() {
             });
             return _context16.a(2);
           case 1:
+            (_configRequestControl2 = configRequestControllersRef.current.get('textTest')) === null || _configRequestControl2 === void 0 || _configRequestControl2.abort();
+            requestController = new AbortController();
+            configRequestControllersRef.current.set('textTest', requestController);
             updateConfigTool('textTest', {
               status: 'loading',
               message: '正在发送最小测试请求...'
@@ -4297,7 +4600,7 @@ function App() {
             }];
             _context16.n = 3;
             return runWithRequestControl(function () {
-              var _ref18 = _asyncToGenerator(_regenerator().m(function _callee15(signal) {
+              var _ref22 = _asyncToGenerator(_regenerator().m(function _callee15(signal) {
                 var _responseData$error;
                 var response, responseData;
                 return _regenerator().w(function (_context15) {
@@ -4332,40 +4635,59 @@ function App() {
                 }, _callee15);
               }));
               return function (_x17) {
-                return _ref18.apply(this, arguments);
+                return _ref22.apply(this, arguments);
               };
             }(), {
               timeoutMs: TEXT_TEST_TIMEOUT_MS,
+              signal: requestController.signal,
               timeoutMessage: '接口测试超过 30 秒，请检查接口地址、模型或服务状态。'
             });
           case 3:
             data = _context16.v;
-            responseText = extractProcessingResponseText(data).trim();
-            if (responseText) {
+            if (!(requestController.signal.aborted || configRequestControllersRef.current.get('textTest') !== requestController)) {
               _context16.n = 4;
               break;
             }
-            throw new Error('接口成功响应，但没有可解析文本');
+            return _context16.a(2);
           case 4:
+            responseText = extractProcessingResponseText(data).trim();
+            if (responseText) {
+              _context16.n = 5;
+              break;
+            }
+            throw new Error('接口成功响应，但没有可解析文本');
+          case 5:
             elapsedMs = Date.now() - startedAt;
             preview = responseText.replace(/\s+/g, ' ').slice(0, 48);
             updateConfigTool('textTest', {
               status: 'success',
               message: "\u8FDE\u63A5\u6210\u529F\uFF0C\u8017\u65F6 ".concat(elapsedMs, " ms\uFF0C\u8FD4\u56DE\uFF1A").concat(preview)
             });
-            _context16.n = 6;
+            _context16.n = 8;
             break;
-          case 5:
-            _context16.p = 5;
+          case 6:
+            _context16.p = 6;
             _t9 = _context16.v;
+            if (!requestController.signal.aborted) {
+              _context16.n = 7;
+              break;
+            }
+            return _context16.a(2);
+          case 7:
             updateConfigTool('textTest', {
               status: 'error',
               message: "\u6D4B\u8BD5\u5931\u8D25\uFF1A".concat(_t9.message)
             });
-          case 6:
+          case 8:
+            _context16.p = 8;
+            if (configRequestControllersRef.current.get('textTest') === requestController) {
+              configRequestControllersRef.current["delete"]('textTest');
+            }
+            return _context16.f(8);
+          case 9:
             return _context16.a(2);
         }
-      }, _callee16, null, [[2, 5]]);
+      }, _callee16, null, [[2, 6, 8, 9]]);
     }));
     function handleTestTextConnection() {
       return _handleTestTextConnection.apply(this, arguments);
@@ -4797,28 +5119,46 @@ function App() {
     }
     return exportHtmlCard;
   }();
-  var deleteHistoryItem = function () {
-    var _deleteHistoryItem = _asyncToGenerator(_regenerator().m(function _callee19(id, e) {
-      var previousHistory, updatedHistory, _t11;
+  var requestDeleteHistoryItem = function requestDeleteHistoryItem(id) {
+    if (isProcessing || isDeletingHistory) return;
+    setPendingDeleteHistoryId(id);
+  };
+  var cancelDeleteHistoryItem = function cancelDeleteHistoryItem() {
+    if (!isDeletingHistory) setPendingDeleteHistoryId(null);
+  };
+  var confirmDeleteHistoryItem = function () {
+    var _confirmDeleteHistoryItem = _asyncToGenerator(_regenerator().m(function _callee19() {
+      var id, previousHistory, updatedHistory, _t11;
       return _regenerator().w(function (_context19) {
         while (1) switch (_context19.p = _context19.n) {
           case 0:
-            e.stopPropagation();
+            id = pendingDeleteHistoryId;
+            if (!(!id || isDeletingHistory)) {
+              _context19.n = 1;
+              break;
+            }
+            return _context19.a(2);
+          case 1:
+            setIsDeletingHistory(true);
             historyLoadTokenRef.current += 1;
             abortImageRequests();
             previousHistory = history;
             updatedHistory = history.filter(function (item) {
               return item.id !== id;
             });
-            setHistory(updatedHistory);
-            _context19.p = 1;
+            _context19.p = 2;
             localStorage.setItem(HISTORY_INDEX_KEY, JSON.stringify(updatedHistory));
-            _context19.n = 2;
-            return Promise.all([deleteSessionRecord(id), deleteSessionImages(id)]);
-          case 2:
+            _context19.n = 3;
+            return deleteSessionImages(id);
+          case 3:
+            _context19.n = 4;
+            return deleteSessionRecord(id);
+          case 4:
+            setHistory(updatedHistory);
             if (activeHistoryId === id) {
               setActiveHistoryId(null);
               setShowResults(false);
+              setIsComposerExpanded(false);
               setCurrentSession({
                 rawText: '',
                 packageData: null,
@@ -4840,12 +5180,11 @@ function App() {
               message: '已删除该条记录',
               type: 'success'
             });
-            _context19.n = 4;
+            _context19.n = 6;
             break;
-          case 3:
-            _context19.p = 3;
+          case 5:
+            _context19.p = 5;
             _t11 = _context19.v;
-            setHistory(previousHistory);
             try {
               localStorage.setItem(HISTORY_INDEX_KEY, JSON.stringify(previousHistory));
             } catch (_unused10) {}
@@ -4854,15 +5193,20 @@ function App() {
               type: 'error',
               duration: 5000
             });
-          case 4:
+          case 6:
+            _context19.p = 6;
+            setIsDeletingHistory(false);
+            setPendingDeleteHistoryId(null);
+            return _context19.f(6);
+          case 7:
             return _context19.a(2);
         }
-      }, _callee19, null, [[1, 3]]);
+      }, _callee19, null, [[2, 5, 6, 7]]);
     }));
-    function deleteHistoryItem(_x21, _x22) {
-      return _deleteHistoryItem.apply(this, arguments);
+    function confirmDeleteHistoryItem() {
+      return _confirmDeleteHistoryItem.apply(this, arguments);
     }
-    return deleteHistoryItem;
+    return confirmDeleteHistoryItem;
   }();
   var loadDemoRecord = function () {
     var _loadDemoRecord = _asyncToGenerator(_regenerator().m(function _callee20() {
@@ -4928,7 +5272,7 @@ function App() {
   }();
   var requestProcessingText = function requestProcessingText(messages, externalSignal) {
     return runWithRequestControl(function () {
-      var _ref19 = _asyncToGenerator(_regenerator().m(function _callee21(signal) {
+      var _ref23 = _asyncToGenerator(_regenerator().m(function _callee21(signal) {
         var fullResponseText, finishReason, endpoint, transport, response, responseText, errorMsg, _errorData$error, errorData, processingResponse;
         return _regenerator().w(function (_context21) {
           while (1) switch (_context21.n) {
@@ -4989,8 +5333,8 @@ function App() {
           }
         }, _callee21);
       }));
-      return function (_x23) {
-        return _ref19.apply(this, arguments);
+      return function (_x21) {
+        return _ref23.apply(this, arguments);
       };
     }(), {
       timeoutMs: TEXT_REQUEST_TIMEOUT_MS,
@@ -5002,13 +5346,13 @@ function App() {
     if (!processingAbortRef.current || processingAbortRef.current.signal.aborted) return;
     processingAbortRef.current.abort();
     setToast({
-      message: '正在停止本次运算...',
-      type: 'error'
+      message: '正在停止本次加工...',
+      type: 'neutral'
     });
   };
   var handleStartProcessing = function () {
     var _handleStartProcessing = _asyncToGenerator(_regenerator().m(function _callee22() {
-      var _apiConfig$apiKey;
+      var _apiConfig$apiUrl, _apiConfig$model, _apiConfig$apiKey;
       var overrideText,
         textToProcess,
         newSessionId,
@@ -5024,6 +5368,8 @@ function App() {
         warning,
         sessionData,
         newHistoryItem,
+        historyBeforeSave,
+        persistedHistory,
         _updatedHistory,
         isCancelled,
         errorMessage,
@@ -5035,13 +5381,14 @@ function App() {
           case 0:
             overrideText = _args22.length > 0 && _args22[0] !== undefined ? _args22[0] : null;
             textToProcess = (typeof overrideText === 'string' ? overrideText : inputText).trim();
-            if ((_apiConfig$apiKey = apiConfig.apiKey) !== null && _apiConfig$apiKey !== void 0 && _apiConfig$apiKey.trim()) {
+            if (!(!((_apiConfig$apiUrl = apiConfig.apiUrl) !== null && _apiConfig$apiUrl !== void 0 && _apiConfig$apiUrl.trim()) || !((_apiConfig$model = apiConfig.model) !== null && _apiConfig$model !== void 0 && _apiConfig$model.trim()) || !((_apiConfig$apiKey = apiConfig.apiKey) !== null && _apiConfig$apiKey !== void 0 && _apiConfig$apiKey.trim()))) {
               _context22.n = 1;
               break;
             }
             setToast({
-              message: '请先配置密钥',
-              type: 'error'
+              message: '请先完成文本模型配置',
+              type: 'error',
+              duration: 5000
             });
             setIsConfigOpen(true);
             return _context22.a(2);
@@ -5061,6 +5408,8 @@ function App() {
             abortImageRequests();
             setIsProcessing(true);
             setShowResults(false);
+            setProcessingUiPhase('waiting');
+            setProcessingElapsedSeconds(0);
             setInternalStage(1);
             setActiveStageTab('step1');
             setCurrentSession({
@@ -5089,14 +5438,20 @@ function App() {
             return requestProcessingText(initialMessages, processingController.signal);
           case 4:
             processingResult = _context22.v;
+            setProcessingUiPhase('validating');
+            _context22.n = 5;
+            return new Promise(function (resolve) {
+              return setTimeout(resolve, 0);
+            });
+          case 5:
             _fullResponseText = processingResult.text;
             normalizedFinishReason = String(processingResult.finishReason || '').trim().toLowerCase();
             if (!['length', 'max_tokens', 'max_output_tokens'].includes(normalizedFinishReason)) {
-              _context22.n = 5;
+              _context22.n = 6;
               break;
             }
             throw new Error("\u8F93\u51FA\u8FBE\u5230 ".concat(PROCESSING_MAX_OUTPUT_TOKENS, " Token \u4E0A\u9650\uFF0CJSON \u4E0D\u5B8C\u6574"));
-          case 5:
+          case 6:
             assessment = parseMoreImgPackage(_fullResponseText, textToProcess);
             isHalted = !assessment.canContinue;
             stopReason = assessment.isRejected ? assessment.reason || '文章暂不适合加工' : isHalted ? assessment.reason || 'JSON 物料包不完整' : '';
@@ -5126,28 +5481,35 @@ function App() {
               sessionData: sessionData,
               originalInput: textToProcess
             };
-            _updatedHistory = [toHistoryIndex(newHistoryItem)].concat(_toConsumableArray(history)).slice(0, HISTORY_LIMIT);
-            _context22.p = 6;
-            _context22.n = 7;
+            _context22.p = 7;
+            _context22.n = 8;
             return saveSessionRecord(newHistoryItem);
-          case 7:
+          case 8:
+            historyBeforeSave = history;
+            try {
+              persistedHistory = JSON.parse(localStorage.getItem(HISTORY_INDEX_KEY) || '[]');
+              if (Array.isArray(persistedHistory)) historyBeforeSave = persistedHistory;
+            } catch (_unused11) {}
+            _updatedHistory = [toHistoryIndex(newHistoryItem)].concat(_toConsumableArray(historyBeforeSave.filter(function (item) {
+              return item.id !== newSessionId;
+            }))).slice(0, HISTORY_LIMIT);
             setHistory(_updatedHistory);
             localStorage.setItem(HISTORY_INDEX_KEY, JSON.stringify(_updatedHistory));
-            history.slice(HISTORY_LIMIT - 1).forEach(function (item) {
+            historyBeforeSave.slice(HISTORY_LIMIT - 1).forEach(function (item) {
               deleteSessionRecord(item.id)["catch"](function () {});
               deleteSessionImages(item.id)["catch"](function () {});
             });
-            _context22.n = 9;
+            _context22.n = 10;
             break;
-          case 8:
-            _context22.p = 8;
+          case 9:
+            _context22.p = 9;
             _t13 = _context22.v;
             setToast({
               message: "\u7ED3\u679C\u5DF2\u751F\u6210\uFF0C\u4F46\u5386\u53F2\u8BB0\u5F55\u4FDD\u5B58\u5931\u8D25: ".concat(_t13.message),
               type: 'error',
               duration: 5000
             });
-          case 9:
+          case 10:
             setActiveHistoryId(newSessionId);
             setToast({
               message: assessment.isRejected ? '文章暂不适合加工，流程已停止' : isHalted ? "\u7269\u6599\u5305\u4E0D\u5B8C\u6574\uFF1A".concat(assessment.reason || 'JSON 字段缺失') : 'JSON 物料包生成完毕！',
@@ -5155,10 +5517,11 @@ function App() {
               duration: isHalted ? 6000 : 3000
             });
             shouldShowResults = true;
-            _context22.n = 11;
+            setIsComposerExpanded(false);
+            _context22.n = 12;
             break;
-          case 10:
-            _context22.p = 10;
+          case 11:
+            _context22.p = 11;
             _t14 = _context22.v;
             isCancelled = _t14.message === '已停止运算';
             errorMessage = isCancelled ? '已停止本次运算' : formatProcessingError(_t14);
@@ -5173,20 +5536,21 @@ function App() {
             }
             setToast({
               message: errorMessage,
-              type: 'error',
+              type: isCancelled ? 'neutral' : 'error',
               duration: isCancelled ? 3000 : 8000
             });
             shouldShowResults = !isCancelled;
-          case 11:
-            _context22.p = 11;
+          case 12:
+            _context22.p = 12;
             if (processingAbortRef.current === processingController) processingAbortRef.current = null;
             setIsProcessing(false);
+            setProcessingUiPhase('idle');
             setShowResults(shouldShowResults);
-            return _context22.f(11);
-          case 12:
+            return _context22.f(12);
+          case 13:
             return _context22.a(2);
         }
-      }, _callee22, null, [[6, 8], [3, 10, 11, 12]]);
+      }, _callee22, null, [[7, 9], [3, 11, 12, 13]]);
     }));
     function handleStartProcessing() {
       return _handleStartProcessing.apply(this, arguments);
@@ -5229,6 +5593,7 @@ function App() {
               break;
             }
             setActiveHistoryId(id);
+            setIsComposerExpanded(false);
             setCurrentSession(_objectSpread(_objectSpread({}, item.sessionData), {}, {
               isDemo: Boolean(item.isDemo)
             }));
@@ -5277,7 +5642,7 @@ function App() {
         }
       }, _callee23, null, [[1, 3]]);
     }));
-    function loadHistoryItem(_x24) {
+    function loadHistoryItem(_x22) {
       return _loadHistoryItem.apply(this, arguments);
     }
     return loadHistoryItem;
@@ -5319,7 +5684,7 @@ function App() {
         }
       }, _callee24);
     }));
-    function retryHistoryItem(_x25) {
+    function retryHistoryItem(_x23) {
       return _retryHistoryItem.apply(this, arguments);
     }
     return retryHistoryItem;
@@ -5396,7 +5761,7 @@ function App() {
         }
       }, _callee25, null, [[5, 7], [1, 4]]);
     }));
-    function copyToClipboard(_x26, _x27) {
+    function copyToClipboard(_x24, _x25) {
       return _copyToClipboard.apply(this, arguments);
     }
     return copyToClipboard;
@@ -5420,32 +5785,63 @@ function App() {
     htmlCardRefs: htmlCardRefs,
     showResults: showResults
   });
-  var isButtonDisabled = !isProcessing && (!((_apiConfig$apiKey2 = apiConfig.apiKey) !== null && _apiConfig$apiKey2 !== void 0 && _apiConfig$apiKey2.trim()) || !inputText.trim());
+  var hasTextConfig = Boolean(((_apiConfig$apiUrl2 = apiConfig.apiUrl) === null || _apiConfig$apiUrl2 === void 0 ? void 0 : _apiConfig$apiUrl2.trim()) && ((_apiConfig$model2 = apiConfig.model) === null || _apiConfig$model2 === void 0 ? void 0 : _apiConfig$model2.trim()) && ((_apiConfig$apiKey2 = apiConfig.apiKey) === null || _apiConfig$apiKey2 === void 0 ? void 0 : _apiConfig$apiKey2.trim()));
+  var processingActionMode = isProcessing ? 'running' : !inputText.trim() ? 'empty' : !hasTextConfig ? 'needs-config' : 'ready';
+  var processingActionLabel = processingActionMode === 'running' ? '停止本次加工' : processingActionMode === 'needs-config' ? '配置文本模型后开始' : '一键生成 AI 物料包';
+  var processingActionHint = processingActionMode === 'empty' ? '请先粘贴需要加工的文章或文案。' : processingActionMode === 'needs-config' ? '还需填写文本接口地址、模型和 API Key。' : '';
+  var handleProcessingAction = function handleProcessingAction() {
+    if (isProcessing) {
+      handleStopProcessing();
+      return;
+    }
+    if (!inputText.trim()) return;
+    if (!hasTextConfig) {
+      setIsConfigOpen(true);
+      setToast({
+        message: '完成文本模型配置后即可开始加工',
+        type: 'error',
+        duration: 5000
+      });
+      return;
+    }
+    handleStartProcessing();
+  };
+  var pendingDeleteHistoryItem = history.find(function (item) {
+    return item.id === pendingDeleteHistoryId;
+  }) || null;
   return React.createElement(AppView, {
     activeHistoryId: activeHistoryId,
     activeStageTab: activeStageTab,
     apiConfig: apiConfig,
+    cancelDeleteHistoryItem: cancelDeleteHistoryItem,
     configTools: configTools,
+    confirmDeleteHistoryItem: confirmDeleteHistoryItem,
     currentSession: currentSession,
-    deleteHistoryItem: deleteHistoryItem,
     handleLoadModels: handleLoadModels,
     handleModelSelection: handleModelSelection,
+    handleProcessingAction: handleProcessingAction,
     handleSaveConfig: handleSaveConfig,
-    handleStartProcessing: handleStartProcessing,
-    handleStopProcessing: handleStopProcessing,
     handleTestTextConnection: handleTestTextConnection,
     history: history,
     imageModels: imageModels,
     inputText: inputText,
-    internalStage: internalStage,
-    isButtonDisabled: isButtonDisabled,
+    isComposerExpanded: isComposerExpanded,
     isConfigOpen: isConfigOpen,
+    isDeletingHistory: isDeletingHistory,
     isHistoryOpen: isHistoryOpen,
     isProcessing: isProcessing,
     lastImageDiagnostic: lastImageDiagnostic,
     loadDemoRecord: loadDemoRecord,
     loadHistoryItem: loadHistoryItem,
     messagesEndRef: messagesEndRef,
+    onRequestCloseConfig: closeConfigDialog,
+    pendingDeleteHistoryItem: pendingDeleteHistoryItem,
+    processingActionHint: processingActionHint,
+    processingActionLabel: processingActionLabel,
+    processingActionMode: processingActionMode,
+    processingElapsedSeconds: processingElapsedSeconds,
+    processingUiPhase: processingUiPhase,
+    requestDeleteHistoryItem: requestDeleteHistoryItem,
     resultContent: resultContent,
     resultScrollRef: resultScrollRef,
     resultsStageNavRef: resultsStageNavRef,
@@ -5453,6 +5849,7 @@ function App() {
     setActiveStageTab: setActiveStageTab,
     setApiConfig: setApiConfig,
     setInputText: setInputText,
+    setIsComposerExpanded: setIsComposerExpanded,
     setIsConfigOpen: setIsConfigOpen,
     setIsHistoryOpen: setIsHistoryOpen,
     setToast: setToast,

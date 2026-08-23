@@ -2,7 +2,7 @@
 
 ## Product Shape
 
-MoreImg is a light blue-purple glassmorphism content-production workbench. New features must preserve the original atmosphere and component proportions while keeping text and actions readable.
+MoreImg is a single light-theme, blue-purple glassmorphism content-production workbench. New features must preserve the original atmosphere and component proportions while keeping text and actions readable. The product shell declares `color-scheme: light`; generated export cards remain an independent publishing surface and may use light or dark Style Lock values.
 
 ## Visual Tokens
 
@@ -29,11 +29,14 @@ MoreImg is a light blue-purple glassmorphism content-production workbench. New f
 - Icon-only buttons use a stable `40px` square, `12px` radius, translucent white surface, and must include `aria-label` and `title`.
 - Feedback containers use one complete, uniform border with a light semantic background, icon, and concise copy. Do not add a standalone thick left rule; notices must read as lightweight feedback rather than content cards.
 - Prompt details use a plain disclosure separated by rules; expanded content must scroll vertically without causing page overflow.
+- Settings, mobile history, and destructive confirmation dialogs consume one modal behavior owner: labelled native dialog semantics, predictable initial focus, contained Tab navigation, Escape dismissal where safe, and focus return to the opening control.
+- Irreversible history deletion always shows the target record and the article/image consequence before deletion. Default focus belongs to Cancel; storage mutation starts only after explicit confirmation.
 - Preview, checklist, and actions belong to one result band. Checklist uses borders and spacing rather than a second card.
 - Fluid color fields remain visible behind empty, processing, and result states.
 - Stage and visual-page navigation consume `.mi-tab` and share a `40px` height and focus contract. Stage tabs use `12px` radius; visual-page tabs use `10px` radius. Selected state is paired with `aria-selected="true"`; unreachable stages use the native `disabled` state.
 - Brand mark is `32px / 10px`; settings is `40px / 12px`. Their difference is intentional: identity mark versus interactive control.
 - The article input is `180px / 16px` on desktop and `96px / 16px` on mobile, with the original animated gradient outline and frosted surface.
+- A restored or newly generated result collapses the composer into a labelled “新建文章” disclosure at every viewport size so history and results retain priority. The empty/new-task state remains expanded, and collapsing never clears a draft.
 - Configuration dialogs use `24px` radius and one `.mi-field` `48px / 12px` field component for all text, password, URL, model, image, select, checkbox, and preference controls. Textareas may grow vertically but keep the same surface, radius, focus, and disabled contract.
 - Configuration dialogs have one scroll owner: the dialog body. Long prompt editors expand to their content and must not introduce a competing inner scrollbar or resize handle.
 - Hidden help content must not contribute to the dialog's scroll geometry. Prefer native titles or in-flow disclosure content over opacity-hidden absolute panels inside a scroll container.
@@ -93,8 +96,10 @@ MoreImg is a light blue-purple glassmorphism content-production workbench. New f
 - Static informational notes do not announce themselves through `aria-live`. Dynamic success/loading uses `status`; blocking or urgent failure uses `alert`.
 - Toasts are the shared response for copy, save, delete, generation success, and command failure.
 - Toasts remain dismissible while their auto-close timer is active; long text wraps inside the message column and must not cover sticky or primary actions on narrow screens.
+- Toast duration is part of the shared response contract: success defaults to `3s`, ordinary errors to `5s`, and errors that require reading to `8s`; the caller-provided duration must reach the Toast component.
 - Every asynchronous or browser-dependent command must handle both success and failure. Silent rejection is not allowed.
 - Destructive actions require confirmation when recovery is not immediate.
+- Model-list requests cancel the previous request, stop when settings closes, ignore stale responses, and fail with a readable timeout after `30s`.
 - Stage switching and history restoration reset the result content region to its top so the new context starts from its heading.
 - Generated results preserve existing images and history unless the user explicitly deletes or regenerates them.
 - Narrow screens expose history through the header's labeled history action and a viewport-bounded dialog; responsive simplification may not remove restore, retry, or delete access.
@@ -104,6 +109,7 @@ MoreImg is a light blue-purple glassmorphism content-production workbench. New f
 - Background color fields provide atmosphere and must never move content geometry. Keep long scrolling result views static unless measured evidence shows motion does not cause continuous blur repaint.
 - Control transitions use approximately `180-300ms`; motion communicates hover, focus, loading, or state change.
 - Loading spinners and progress indicators must respect stable container dimensions.
+- Text generation shows only observable lifecycle states: waiting for the model and validating the received package. Do not convert elapsed time into fictional internal stages or a fake completion percentage.
 - Layer order: background below application, sidebar/content in normal product layer, Toast above content, modal overlay above Toast-sensitive page controls, Tooltip/help above its owning dialog content.
 - Avoid adding new z-index values unless the component belongs to a documented layer.
 
@@ -121,13 +127,15 @@ MoreImg is a light blue-purple glassmorphism content-production workbench. New f
 
 ## Responsive Rules
 
-- Desktop may use two-column output grids.
+- Desktop may use two-column output grids. Repeated visual results use available-width auto-fit and keep each result item at least `240px` wide.
 - Mobile keeps the same task order and lets action groups wrap as a unit.
 - Text buttons may grow; icon buttons remain fixed.
 - No horizontal page overflow, clipped labels, hidden primary actions, or nested competing scroll regions.
 - Horizontally scrollable stage navigation must keep the selected stage fully visible after history restoration, stage changes, and viewport resizing.
+- The fixed `320px` history/input sidebar starts at `1024px`; narrower screens use the top composer and mobile history dialog so tablet result content is not squeezed by a desktop sidebar.
 - Below `1024px`, the visual result and prompt columns stack while preserving result-first task order.
 - Below `640px`, page tabs scroll horizontally, action groups wrap as a unit, and result media becomes one column.
+- The viewport allows browser and touch zoom. At `320px` equivalent width and at 200% zoom, critical actions remain reachable without page-level horizontal scrolling.
 
 ## Do Not
 

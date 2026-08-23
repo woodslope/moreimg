@@ -3,7 +3,7 @@
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="author" content="LINPO LAB">
   <meta name="copyright" content="© 2026 LINPO LAB. All rights reserved.">
   <link rel="icon" href="data:,">
@@ -30,6 +30,7 @@
     }
     html, body {
       overscroll-behavior: none;
+      color-scheme: light;
     }
     body {
       background: #f8fafc;
@@ -45,10 +46,14 @@
     }
     .custom-scrollbar::-webkit-scrollbar-thumb:hover { background-color: rgba(148, 163, 184, 0.7); }
     .processing-action-button { border: 1px solid transparent; color: #fff; box-shadow: 0 5px 14px rgba(79,70,229,.18); }
-    .processing-action-button.is-ready { background: #4f46e5; }
-    .processing-action-button.is-ready:hover { background: #4338ca; }
+    .processing-action-button.is-ready,
+    .processing-action-button.is-needs-config { background: var(--mi-accent); }
+    .processing-action-button.is-ready:hover,
+    .processing-action-button.is-needs-config:hover { background: #4338ca; }
     .processing-action-button.is-running { background: #dc2626; border-color: #ef4444; }
     .processing-action-button.is-running:hover { background: #b91c1c; }
+    .processing-action-hint { margin: 8px 2px 0; color: var(--mi-text-helper); font-size: 11px; line-height: 1.55; }
+    .compact-composer-toggle { width: 100%; gap: 7px; margin-top: 12px; border-color: rgba(99,102,241,.22); background: rgba(255,255,255,.82); color: #4338ca; font-size: 12px; font-weight: 750; }
     .hide-scrollbar::-webkit-scrollbar { display: none; }
     .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 
@@ -63,8 +68,18 @@
 
     @media (prefers-reduced-motion: reduce) {
       .sidebar-input-shell::before {
-        animation: none;
+        animation: none !important;
       }
+      .processing-progress-indicator,
+      .animate-spin,
+      .animate-pulse-slow,
+      .animate-fade-in,
+      .animate-fade-in-down,
+      .animate-fade-in-up,
+      .animate-ping {
+        animation: none !important;
+      }
+      .processing-progress-indicator { left: 30%; }
     }
 
     .brand-attribution {
@@ -130,6 +145,19 @@
     .mi-toast-message { min-width: 0; overflow-wrap: anywhere; font-size: 13px; font-weight: 700; line-height: 1.5; }
     .mi-toast-dismiss { border: 1px solid transparent; background: transparent; color: currentColor; opacity: .72; }
     .mi-toast-dismiss:hover { border-color: currentColor; background: rgba(255,255,255,.58); opacity: 1; }
+    .modal-overlay { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; padding: 16px; background: rgba(15,23,42,.4); }
+    .modal-overlay-settings { z-index: 50; }
+    .modal-overlay-confirm { z-index: 60; }
+    .confirm-dialog { width: min(420px, 100%); border: 1px solid rgba(255,255,255,.72); border-radius: 24px; padding: 24px; background: #fff; box-shadow: 0 25px 50px -12px rgba(15,23,42,.32); }
+    .confirm-dialog:focus { outline: none; }
+    .confirm-dialog-icon { display: grid; width: 44px; height: 44px; place-items: center; border-radius: 12px; background: var(--mi-feedback-error-bg); color: var(--mi-feedback-error-text); }
+    .confirm-dialog-copy { margin-top: 18px; }
+    .confirm-dialog-copy h2 { color: var(--mi-text); font-size: 18px; font-weight: 800; line-height: 1.4; }
+    .confirm-dialog-copy p { margin-top: 8px; color: var(--mi-text-helper); font-size: 13px; line-height: 1.7; overflow-wrap: anywhere; }
+    .confirm-dialog-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 24px; }
+    .confirm-cancel-button { border-color: var(--mi-border); background: #fff; color: var(--mi-muted); font-size: 13px; font-weight: 750; }
+    .confirm-delete-button { gap: 7px; border-color: #dc2626; background: #dc2626; color: #fff; font-size: 13px; font-weight: 750; }
+    .confirm-delete-button:hover { border-color: #b91c1c; background: #b91c1c; }
     .visual-page-toolbar { padding: 10px 14px 0; border-bottom: 1px solid var(--mi-border); background: rgba(248,250,252,.66); }
     .visual-page-tabs { display: flex; gap: 6px; overflow-x: auto; padding: 0 0 10px; }
     .visual-page-tab { min-width: 88px; flex: 1 0 auto; border-radius: var(--mi-radius-action); padding: 0 16px; background: transparent; color: #64748b; font-size: 13px; font-weight: 750; }
@@ -164,10 +192,10 @@
     .visual-panel-notice { align-items: center; margin: 12px 18px 0; border: 1px solid rgba(99,102,241,.24); border-radius: 8px; padding: 8px 12px; background: rgba(238,242,255,.58); color: #4338ca; }
     .visual-workspace-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(280px, 340px); align-items: stretch; }
     .visual-results-column { display: flex; min-width: 0; flex-direction: column; padding: 22px; }
-    .visual-prompt-column { display: grid; min-width: 0; align-content: start; grid-template-rows: repeat(2, 220px); gap: 24px; border-left: 1px solid var(--mi-border); padding: 22px 20px; }
+    .visual-prompt-column { display: flex; min-width: 0; flex-direction: column; align-content: start; gap: 0; border-left: 1px solid var(--mi-border); padding: 14px 20px 22px; }
     .visual-column-title { color: var(--mi-text); font-size: 13px; font-weight: 800; line-height: 1.4; }
     .visual-column-copy { margin-top: 5px; color: var(--mi-muted); font-size: 11px; line-height: 1.6; }
-    .visual-result-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; gap: 16px; margin-top: 16px; }
+    .visual-result-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); align-items: start; gap: 16px; margin-top: 16px; }
     .visual-result-item { display: flex; flex-direction: column; padding: 12px; }
     .visual-result-item-header { display: flex; min-height: 32px; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; color: #334155; font-size: 12px; font-weight: 800; }
     .visual-result-actions { display: flex; align-items: center; gap: 6px; }
@@ -179,10 +207,18 @@
     .visual-preview-meta { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 8px; margin-top: 8px; color: #64748b; font-size: 10px; line-height: 1.45; }
     .visual-preview-meta strong { color: #475569; font-weight: 750; }
     .visual-preview-meta-warning { color: #b45309; }
-    .visual-prompt-block { display: grid; min-height: 0; grid-template-rows: 32px minmax(0, 1fr); }
     .visual-prompt-block-header { display: flex; min-height: 32px; align-items: center; justify-content: space-between; gap: 12px; }
     .visual-prompt-label { color: #475569; font-size: 12px; font-weight: 750; }
-    .visual-prompt-copy { box-sizing: border-box; height: 100%; min-height: 0; overflow: auto; margin: 8px 0 0; border: 1px solid rgba(203,213,225,.72); border-radius: 10px; padding: 12px; background: rgba(255,255,255,.86); white-space: pre-wrap; overflow-wrap: anywhere; color: #475569; font-size: 11px; line-height: 1.65; }
+    .visual-prompt-copy { box-sizing: border-box; max-height: 260px; overflow: auto; margin: 8px 0 0; border: 1px solid rgba(203,213,225,.72); border-radius: 10px; padding: 12px; background: rgba(255,255,255,.86); white-space: pre-wrap; overflow-wrap: anywhere; color: #475569; font-size: 11px; line-height: 1.65; }
+    .visual-disclosure { border-bottom: 1px solid var(--mi-border); }
+    .visual-disclosure:first-child { border-top: 1px solid var(--mi-border); }
+    .visual-disclosure summary { display: flex; min-height: 48px; cursor: pointer; align-items: center; justify-content: space-between; gap: 12px; color: #475569; font-size: 12px; font-weight: 800; list-style: none; }
+    .visual-disclosure summary::-webkit-details-marker { display: none; }
+    .visual-disclosure summary:focus-visible { outline: 2px solid var(--mi-focus-ring); outline-offset: 2px; }
+    .visual-disclosure-icon { width: 16px; height: 16px; flex: 0 0 auto; transition: transform .18s ease; }
+    .visual-disclosure[open] .visual-disclosure-icon { transform: rotate(180deg); }
+    .visual-disclosure:not([open]) .visual-disclosure-body { display: none; }
+    .visual-disclosure-body { padding: 0 0 16px; }
     .visual-error { margin-top: 14px; font-size: 12px; }
     .visual-section { padding-top: 0; content-visibility: auto; contain-intrinsic-size: auto 900px; }
     .visual-stage-heading,
@@ -194,7 +230,7 @@
     .visual-stage-heading-title,
     .visual-section-title { margin: 0; color: #172033; font-size: 16px; font-weight: 800; line-height: 1.4; }
     .visual-section-description { margin-top: 4px; color: #64748b; font-size: 12px; line-height: 1.6; }
-    .visual-comparison-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
+    .visual-comparison-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px; }
     .visual-comparison-item { display: flex; flex-direction: column; padding: 12px; }
     .visual-comparison-label { margin-bottom: 10px; color: #475569; font-size: 12px; font-weight: 800; }
     .visual-comparison-preview-frame,
@@ -216,7 +252,7 @@
     .visual-focus-value { color: #475569; font-variant-numeric: tabular-nums; text-align: right; }
     .visual-output-status { display: inline-flex; min-height: var(--mi-control-action); align-items: center; border: 1px solid var(--mi-border); border-radius: var(--mi-radius-action); padding: 0 12px; background: rgba(248,250,252,.78); color: #64748b; font-size: 12px; font-weight: 700; }
     .visual-export-button { min-width: 190px; }
-    .visual-current-output-body { display: grid; grid-template-columns: repeat(2, minmax(0, 400px)); justify-content: center; gap: 20px; }
+    .visual-current-output-body { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 400px)); justify-content: center; gap: 20px; }
     .visual-card-count { display: inline; border: 0; border-radius: 0; padding: 0; background: transparent; color: #6366f1; font-size: 12px; font-weight: 800; line-height: 1.4; white-space: nowrap; }
     .results-stage-frame { width: 100%; max-width: 1120px; margin: 0 auto; }
     .results-stage-nav { display: flex; align-items: center; gap: 6px; overflow-x: auto; border: 1px solid rgba(255,255,255,.6); border-radius: 20px; padding: 6px; background: rgba(255,255,255,.4); box-shadow: 0 1px 2px rgba(15,23,42,.05); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); }
@@ -224,6 +260,10 @@
     .results-stage-tab:hover { background: rgba(255,255,255,.6); color: #4f46e5; }
     .results-stage-tab-active { background: rgba(79,70,229,.9); color: #fff; box-shadow: 0 4px 10px rgba(99,102,241,.2); }
     .results-stage-tab-active:hover { background: #4f46e5; color: #fff; }
+    .processing-status-copy { max-width: 520px; margin: 0 auto; color: var(--mi-muted); font-size: 13px; line-height: 1.65; }
+    .processing-progress-track { position: relative; width: 256px; height: 6px; overflow: hidden; margin: 22px auto 0; border-radius: 999px; background: rgba(226,232,240,.72); }
+    .processing-progress-indicator { position: absolute; top: 0; bottom: 0; left: -40%; width: 40%; border-radius: inherit; background: linear-gradient(90deg, transparent, #6366f1, #38bdf8, transparent); animation: processingProgress 1.6s ease-in-out infinite; }
+    @keyframes processingProgress { from { transform: translateX(0); } to { transform: translateX(350%); } }
     .sidebar-brand-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
     .sidebar-brand-copy { display: flex; min-width: 0; flex-direction: column; justify-content: center; gap: 4px; }
     .sidebar-brand-name { color: #1e293b; font-size: 20px; font-weight: 800; line-height: 1; letter-spacing: -.025em; }
@@ -245,12 +285,13 @@
     .history-item-main { display: block; width: 100%; text-align: left; }
     .history-item { position: relative; }
     .history-item-main { min-width: 0; padding-right: 0 !important; }
+    .history-item-date { padding-right: 88px; }
     .history-item-actions {
       position: absolute !important;
-      top: 50%;
       right: 8px;
+      bottom: 8px;
       z-index: 2;
-      transform: translateY(-50%) !important;
+      transform: none !important;
       border: 1px solid rgba(226,232,240,.86);
       border-radius: 10px;
       padding: 3px;
@@ -270,6 +311,9 @@
     .mobile-history-dialog-header { display: flex; flex-shrink: 0; align-items: center; justify-content: space-between; gap: 12px; border-bottom: 1px solid rgba(226,232,240,.72); padding: 18px 16px; background: #fff; }
     .mobile-history-dialog-body { min-height: 180px; max-height: calc(100dvh - 112px); overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; padding: 16px; background: #f8fafc; }
     .mobile-history-dialog .history-item-actions { opacity: 1; }
+    .mobile-history-dialog .history-item-main { padding-right: 88px !important; }
+    .mobile-history-dialog .history-item-date { padding-right: 0; }
+    .mobile-history-dialog .history-item-actions { top: 50%; bottom: auto; transform: translateY(-50%) !important; }
     .mobile-history-empty { display: flex; min-height: 148px; flex-direction: column; align-items: center; justify-content: center; gap: 10px; color: #94a3b8; text-align: center; }
     .config-dialog { width: 100%; max-width: 672px; height: min(760px, calc(100dvh - 32px)); overflow: hidden; border: 1px solid rgba(255,255,255,.6); border-radius: 24px; background: #fff; box-shadow: 0 25px 50px -12px rgba(15,23,42,.3); }
     .config-dialog-header { display: flex; flex-shrink: 0; align-items: center; justify-content: space-between; border-bottom: 1px solid rgba(226,232,240,.5); padding: 20px 24px; background: #fff; }
@@ -319,7 +363,7 @@
       .visual-workspace-grid { min-height: 0; grid-template-columns: 1fr; }
       .visual-prompt-column { border-top: 1px solid rgba(203,213,225,.72); border-left: 0; }
     }
-    @media (max-width: 760px) {
+    @media (max-width: 767px) {
       .visual-result-grid { grid-template-columns: 1fr; }
     }
     @media (max-width: 640px) {
@@ -350,6 +394,14 @@
       .config-action-button { flex: 1 1 auto; }
       .moreimg-main-scroll { padding-bottom: max(32px, calc(24px + env(safe-area-inset-bottom))); }
       .moreimg-empty-state { height: auto; min-height: 100%; margin-top: 0; padding-bottom: max(48px, calc(32px + env(safe-area-inset-bottom))); }
+    }
+
+    .moreimg-sidebar.is-result-view:not(.is-composer-expanded) .sidebar-composer { display: none; }
+    .moreimg-sidebar.is-result-view.is-composer-expanded .sidebar-composer { display: block; }
+    .moreimg-sidebar.is-result-view.is-composer-expanded .sidebar-input-shell { margin-top: 16px; }
+
+    @media (max-width: 1023px) {
+      .results-stage-nav { -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 14px, #000 calc(100% - 14px), transparent 100%); mask-image: linear-gradient(90deg, transparent 0, #000 14px, #000 calc(100% - 14px), transparent 100%); }
     }
 
     .html-card-preview-scale {
@@ -438,7 +490,7 @@
       overflow-wrap: anywhere;
     }
 
-    @media (min-width: 768px) {
+    @media (min-width: 1024px) {
       .moreimg-app-shell { flex-direction: row; }
       .moreimg-sidebar { width: 320px; height: 100%; padding: 24px; border-right-width: 1px; border-bottom-width: 0; }
       .moreimg-history { display: flex; }
@@ -1139,15 +1191,6 @@ image_prompt
       { id: 'step2', name: '文章与卡片', icon: 'Cpu', subStages: [3, 4] },
       { id: 'step3', name: '视觉生成与对比', icon: 'Image', subStages: [5] }
     ];
-
-    const STAGE_LOADING_TEXT = {
-      1: "正在注入原料，执行 AI 准入判型...",
-      2: "引擎运转：全网事实核查与结构拆解中...",
-      3: "逻辑精装中，正在重构文章框架...",
-      4: "正在切片：模块化封装知识卡片包...",
-      5: "视觉中枢唤醒：渲染生产级中文提示词...",
-      6: "最终质量验收，校验卡片与指令匹配度..."
-    };
 
     const parseStreamedText = (fullText) => {
       const stages = { 1: '', 2: '', 3: '', 4: '', 5: '', 6: '' };
@@ -2138,7 +2181,16 @@ image_prompt
       tabs[nextIndex].click();
     };
 
+    const TOAST_TYPE_CONFIG = Object.freeze({
+      success: { icon: 'CheckCircle2' },
+      error: { icon: 'AlertCircle' },
+      warning: { icon: 'CircleAlert' },
+      neutral: { icon: 'Info' }
+    });
+
     const Toast = ({ message, type = 'success', onClose, duration = 3000 }) => {
+      const feedbackType = TOAST_TYPE_CONFIG[type] ? type : 'success';
+      const iconName = TOAST_TYPE_CONFIG[feedbackType].icon;
       useEffect(() => {
         const timer = setTimeout(onClose, duration);
         return () => clearTimeout(timer);
@@ -2146,13 +2198,13 @@ image_prompt
 
       return (
         <div
-          className={`mi-toast mi-feedback mi-feedback-${type === 'error' ? 'error' : 'success'} animate-fade-in-down`}
-          role={type === 'error' ? 'alert' : 'status'}
-          aria-live={type === 'error' ? 'assertive' : 'polite'}
+          className={`mi-toast mi-feedback mi-feedback-${feedbackType} animate-fade-in-down`}
+          role={feedbackType === 'error' ? 'alert' : 'status'}
+          aria-live={feedbackType === 'error' ? 'assertive' : 'polite'}
           aria-atomic="true"
         >
           <div className="mi-toast-icon">
-            <Icon name={type === 'error' ? 'AlertCircle' : 'CheckCircle2'} className="h-4 w-4" />
+            <Icon name={iconName} className="h-4 w-4" />
           </div>
           <span className="mi-toast-message">{message}</span>
           <button type="button" onClick={onClose} className="mi-icon-button mi-icon-button-compact mi-toast-dismiss" aria-label="关闭通知" title="关闭通知">
@@ -2176,7 +2228,146 @@ image_prompt
 
     const ResultsPanel = React.memo(({ content }) => content);
 
-const HistoryItems = ({ history, isProcessing, activeHistoryId, showResults, setIsHistoryOpen, loadHistoryItem, retryHistoryItem, deleteHistoryItem, closeAfterOpen = false, mobile = false }) => (
+const DIALOG_FOCUSABLE_SELECTOR = [
+  'button:not([disabled])',
+  '[href]',
+  'input:not([disabled])',
+  'select:not([disabled])',
+  'textarea:not([disabled])',
+  '[tabindex]:not([tabindex="-1"])'
+].join(',');
+
+const ModalFrame = ({
+  isOpen,
+  onRequestClose,
+  titleId,
+  overlayClassName,
+  dialogClassName,
+  closeOnBackdrop = true,
+  initialFocusSelector = '[data-dialog-initial-focus="true"]',
+  children
+}) => {
+  const dialogRef = useRef(null);
+  const returnFocusRef = useRef(null);
+  const closeHandlerRef = useRef(onRequestClose);
+
+  useEffect(() => {
+    closeHandlerRef.current = onRequestClose;
+  }, [onRequestClose]);
+
+  useEffect(() => {
+    if (!isOpen) return undefined;
+    returnFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+
+    const getFocusable = () => [...(dialogRef.current?.querySelectorAll(DIALOG_FOCUSABLE_SELECTOR) || [])]
+      .filter(element => !element.hidden && element.getAttribute('aria-hidden') !== 'true' && element.getClientRects().length > 0);
+    const focusInitialControl = () => {
+      const preferredControl = dialogRef.current?.querySelector(initialFocusSelector);
+      const target = preferredControl || getFocusable()[0] || dialogRef.current;
+      target?.focus({ preventScroll: true });
+    };
+    const animationFrame = requestAnimationFrame(focusInitialControl);
+
+    const handleDocumentKeyDown = event => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        closeHandlerRef.current();
+        return;
+      }
+      if (event.key !== 'Tab') return;
+      const focusable = getFocusable();
+      if (!focusable.length) {
+        event.preventDefault();
+        dialogRef.current?.focus({ preventScroll: true });
+        return;
+      }
+      const first = focusable[0];
+      const last = focusable.at(-1);
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      } else if (!dialogRef.current?.contains(document.activeElement)) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+
+    document.addEventListener('keydown', handleDocumentKeyDown);
+    return () => {
+      cancelAnimationFrame(animationFrame);
+      document.removeEventListener('keydown', handleDocumentKeyDown);
+      const returnTarget = returnFocusRef.current;
+      requestAnimationFrame(() => {
+        if (returnTarget?.isConnected) returnTarget.focus({ preventScroll: true });
+      });
+    };
+  }, [isOpen, initialFocusSelector]);
+
+  if (!isOpen) return null;
+
+  return (
+    <div
+      className={overlayClassName}
+      onMouseDown={event => {
+        if (closeOnBackdrop && event.target === event.currentTarget) onRequestClose();
+      }}
+    >
+      <div
+        ref={dialogRef}
+        className={dialogClassName}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        tabIndex={-1}
+      >
+        {children}
+      </div>
+    </div>
+  );
+};
+
+const ConfirmDeleteDialog = ({ item, isDeleting, onCancel, onConfirm }) => (
+  <ModalFrame
+    isOpen={Boolean(item)}
+    onRequestClose={() => { if (!isDeleting) onCancel(); }}
+    titleId="delete-history-title"
+    overlayClassName="modal-overlay modal-overlay-confirm animate-fade-in"
+    dialogClassName="confirm-dialog animate-fade-in-down"
+    closeOnBackdrop={false}
+  >
+    <div className="confirm-dialog-icon" aria-hidden="true"><Icon name="Trash2" className="h-5 w-5" /></div>
+    <div className="confirm-dialog-copy">
+      <h2 id="delete-history-title">删除这条记录？</h2>
+      <p>「{item?.title || '未命名'}」的文章结果和已生成图片会从本机永久删除，删除后无法恢复。</p>
+    </div>
+    <div className="confirm-dialog-actions">
+      <button
+        type="button"
+        onClick={onCancel}
+        disabled={isDeleting}
+        data-dialog-initial-focus="true"
+        className="mi-button mi-button-standard confirm-cancel-button"
+      >
+        取消
+      </button>
+      <button
+        type="button"
+        onClick={onConfirm}
+        disabled={isDeleting}
+        aria-busy={isDeleting}
+        className="mi-button mi-button-standard confirm-delete-button"
+      >
+        <Icon name={isDeleting ? 'LoaderCircle' : 'Trash2'} className={`h-4 w-4 ${isDeleting ? 'animate-spin' : ''}`} />
+        {isDeleting ? '正在删除' : '确认删除'}
+      </button>
+    </div>
+  </ModalFrame>
+);
+
+const HistoryItems = ({ history, isProcessing, activeHistoryId, showResults, setIsHistoryOpen, loadHistoryItem, retryHistoryItem, requestDeleteHistoryItem, closeAfterOpen = false, mobile = false }) => (
   <>
     {history.length === 0 && (
       mobile ? (
@@ -2210,7 +2401,7 @@ const HistoryItems = ({ history, isProcessing, activeHistoryId, showResults, set
           <div className={`history-item-title min-w-0 text-[13px] font-bold ${activeHistoryId === item.id && showResults ? 'text-indigo-600' : 'text-slate-700'}`}>
             {item.title || '未命名'}
           </div>
-          <div className="mt-1.5 font-mono text-[11px] text-slate-400">{item.date}</div>
+          <div className="history-item-date mt-1.5 font-mono text-[11px] text-slate-400">{item.date}</div>
         </button>
         {!isProcessing && (
           <div className="history-item-actions flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-all">
@@ -2229,7 +2420,11 @@ const HistoryItems = ({ history, isProcessing, activeHistoryId, showResults, set
             </button>
             <button
               type="button"
-              onClick={(event) => deleteHistoryItem(item.id, event)}
+              onClick={(event) => {
+                event.stopPropagation();
+                if (closeAfterOpen) setIsHistoryOpen(false);
+                requestDeleteHistoryItem(item.id);
+              }}
               className="mi-icon-button mi-icon-button-compact history-item-action bg-red-50/80 text-red-500 hover:bg-red-100 hover:text-red-600 shadow-sm border border-red-100/50"
               aria-label={`删除记录：${item.title || '未命名'}`}
               title="删除记录"
@@ -2244,19 +2439,14 @@ const HistoryItems = ({ history, isProcessing, activeHistoryId, showResults, set
 );
 
 
-const MobileHistoryDialog = ({ isHistoryOpen, setIsHistoryOpen, history, isProcessing, activeHistoryId, showResults, loadHistoryItem, retryHistoryItem, deleteHistoryItem, loadDemoRecord }) => (
-  isHistoryOpen && (
-  <div
-    className="mobile-history-overlay animate-fade-in"
-    onClick={() => setIsHistoryOpen(false)}
+const MobileHistoryDialog = ({ isHistoryOpen, setIsHistoryOpen, history, isProcessing, activeHistoryId, showResults, loadHistoryItem, retryHistoryItem, requestDeleteHistoryItem, loadDemoRecord }) => (
+  <ModalFrame
+    isOpen={isHistoryOpen}
+    onRequestClose={() => setIsHistoryOpen(false)}
+    titleId="mobile-history-title"
+    overlayClassName="mobile-history-overlay animate-fade-in"
+    dialogClassName="mobile-history-dialog flex flex-col animate-fade-in-down"
   >
-    <section
-      className="mobile-history-dialog flex flex-col animate-fade-in-down"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="mobile-history-title"
-      onClick={(event) => event.stopPropagation()}
-    >
       <div className="mobile-history-dialog-header">
         <div>
           <h2 id="mobile-history-title" className="flex items-center text-[16px] font-extrabold text-slate-800">
@@ -2276,22 +2466,20 @@ const MobileHistoryDialog = ({ isHistoryOpen, setIsHistoryOpen, history, isProce
             </button>
           </div>
         </div>
-        <button type="button" onClick={() => setIsHistoryOpen(false)} className="mi-icon-button mi-icon-button-standard sidebar-icon-button" aria-label="关闭历史记录" title="关闭历史记录">
+        <button type="button" onClick={() => setIsHistoryOpen(false)} data-dialog-initial-focus="true" className="mi-icon-button mi-icon-button-standard sidebar-icon-button" aria-label="关闭历史记录" title="关闭历史记录">
           <Icon name="X" className="h-5 w-5" />
         </button>
       </div>
       <div className="mobile-history-dialog-body custom-scrollbar">
         <div className="space-y-3">
-          <HistoryItems {...{ history, isProcessing, activeHistoryId, showResults, setIsHistoryOpen, loadHistoryItem, retryHistoryItem, deleteHistoryItem }} closeAfterOpen mobile />
+          <HistoryItems {...{ history, isProcessing, activeHistoryId, showResults, setIsHistoryOpen, loadHistoryItem, retryHistoryItem, requestDeleteHistoryItem }} closeAfterOpen mobile />
         </div>
       </div>
-    </section>
-  </div>
-)
+  </ModalFrame>
 );
 
-const AppSidebar = ({ history, isProcessing, activeHistoryId, showResults, setIsHistoryOpen, setIsConfigOpen, inputText, setInputText, handleStopProcessing, handleStartProcessing, isButtonDisabled, loadHistoryItem, retryHistoryItem, deleteHistoryItem, loadDemoRecord }) => (
-<div className="moreimg-sidebar w-full md:w-[320px] h-auto md:h-full flex-shrink-0 flex flex-col bg-white/60 md:bg-white/40 backdrop-blur-3xl border-b md:border-b-0 md:border-r border-white/60 shadow-sm md:shadow-[8px_0_32px_rgba(31,38,135,0.05)] z-20 p-4 md:p-6 relative">
+const AppSidebar = ({ history, isProcessing, activeHistoryId, showResults, setIsHistoryOpen, setIsConfigOpen, inputText, setInputText, handleProcessingAction, processingActionMode, processingActionLabel, processingActionHint, isComposerExpanded, setIsComposerExpanded, loadHistoryItem, retryHistoryItem, requestDeleteHistoryItem, loadDemoRecord }) => (
+<div className={`moreimg-sidebar w-full lg:w-[320px] h-auto lg:h-full flex-shrink-0 flex flex-col bg-white/60 lg:bg-white/40 backdrop-blur-3xl border-b lg:border-b-0 lg:border-r border-white/60 shadow-sm lg:shadow-[8px_0_32px_rgba(31,38,135,0.05)] z-20 p-4 lg:p-6 relative ${showResults ? 'is-result-view' : ''} ${isComposerExpanded ? 'is-composer-expanded' : ''}`}>
 
   <div className="sidebar-brand-row z-10 shrink-0">
     <h1 className="flex min-w-0 items-center">
@@ -2322,33 +2510,49 @@ const AppSidebar = ({ history, isProcessing, activeHistoryId, showResults, setIs
     </div>
   </div>
 
-  <div className="sidebar-input-shell">
-    <div className="sidebar-input-clip">
-      <textarea
-        className="sidebar-input custom-scrollbar placeholder-slate-400 focus:placeholder-slate-300"
-        placeholder="在此注入原始长文，唤醒 AI 重塑引擎..."
-        value={inputText}
-        onChange={(e) => setInputText(e.target.value)}
-        disabled={isProcessing}
-        spellCheck="false"
-      />
+  {showResults && !isProcessing && (
+    <button
+      type="button"
+      onClick={() => setIsComposerExpanded(expanded => !expanded)}
+      className="mi-button mi-button-standard compact-composer-toggle"
+      aria-expanded={isComposerExpanded}
+      aria-controls="moreimg-composer"
+    >
+      <Icon name={isComposerExpanded ? 'ChevronUp' : 'Plus'} className="h-4 w-4" />
+      {isComposerExpanded ? '收起新建文章' : '新建文章'}
+    </button>
+  )}
+
+  <div id="moreimg-composer" className="sidebar-composer">
+    <div className="sidebar-input-shell">
+      <div className="sidebar-input-clip">
+        <textarea
+          className="sidebar-input custom-scrollbar placeholder-slate-400 focus:placeholder-slate-300"
+          placeholder="粘贴需要加工的文章或文案..."
+          value={inputText}
+          onChange={(e) => setInputText(e.target.value)}
+          disabled={isProcessing}
+          spellCheck="false"
+        />
+      </div>
     </div>
+
+    <button
+      onClick={handleProcessingAction}
+      disabled={processingActionMode === 'empty'}
+      aria-describedby={processingActionHint ? 'processing-action-hint' : undefined}
+      className={`mi-button mi-button-prominent processing-action-button w-full shrink-0 font-bold text-[14px] relative overflow-hidden z-10 backdrop-blur-sm is-${processingActionMode}`}
+    >
+      {isProcessing ? (
+         <><Icon name="Square" className="w-4 h-4 mr-2 text-white" fill="currentColor" /> {processingActionLabel}</>
+      ) : (
+         <><Icon name={processingActionMode === 'needs-config' ? 'Settings' : 'Zap'} className={`w-4 h-4 mr-2 ${processingActionMode === 'empty' ? 'text-slate-400' : 'text-white'}`} strokeWidth={2} />{processingActionLabel}</>
+      )}
+    </button>
+    {processingActionHint && <p id="processing-action-hint" className="processing-action-hint">{processingActionHint}</p>}
   </div>
 
-  <button
-    onClick={isProcessing ? handleStopProcessing : handleStartProcessing}
-    disabled={isButtonDisabled}
-    className={`mi-button mi-button-prominent processing-action-button w-full shrink-0 font-bold text-[14px] relative overflow-hidden z-10 backdrop-blur-sm
-      ${isButtonDisabled ? 'is-disabled' : isProcessing ? 'is-running' : 'is-ready'}`}
-  >
-    {isProcessing ? (
-       <><Icon name="Square" className="w-4 h-4 mr-2 text-white" fill="currentColor" /> 停止运算</>
-    ) : (
-       <><Icon name="Zap" className={`w-4 h-4 mr-2 ${isButtonDisabled ? 'text-slate-400' : 'text-white'}`} strokeWidth={2} />一键生成 AI 物料包</>
-    )}
-  </button>
-
-  <div className="moreimg-history hidden md:flex mt-10 flex-1 relative shrink-0 flex-col min-h-0">
+  <div className="moreimg-history hidden lg:flex mt-10 flex-1 relative shrink-0 flex-col min-h-0">
     <div className="flex items-center justify-between mb-4 shrink-0">
       <div className="text-[12px] font-bold text-amber-600 tracking-wide uppercase">历史记录</div>
       <button
@@ -2363,11 +2567,11 @@ const AppSidebar = ({ history, isProcessing, activeHistoryId, showResults, setIs
       </button>
     </div>
     <div className="history-list space-y-3 overflow-y-auto custom-scrollbar flex-1 pb-4">
-      <HistoryItems {...{ history, isProcessing, activeHistoryId, showResults, setIsHistoryOpen, loadHistoryItem, retryHistoryItem, deleteHistoryItem }} />
+      <HistoryItems {...{ history, isProcessing, activeHistoryId, showResults, setIsHistoryOpen, loadHistoryItem, retryHistoryItem, requestDeleteHistoryItem }} />
     </div>
   </div>
 
-  <div className="moreimg-brand brand-attribution hidden md:block" aria-label="项目归属与版权">
+  <div className="moreimg-brand brand-attribution hidden lg:block" aria-label="项目归属与版权">
     <div className="brand-attribution-name">MoreImg · LINPO LAB</div>
     <div>© 2026 LINPO LAB. All rights reserved.</div>
   </div>
@@ -2375,24 +2579,31 @@ const AppSidebar = ({ history, isProcessing, activeHistoryId, showResults, setIs
 </div>
 );
 
-const MainWorkspace = ({ isProcessing, showResults, internalStage, activeStageTab, currentSession, setActiveStageTab, resultsStageNavRef, resultScrollRef, resultContent, messagesEndRef }) => (
+const MainWorkspace = ({ isProcessing, showResults, processingUiPhase, processingElapsedSeconds, activeStageTab, currentSession, setActiveStageTab, resultsStageNavRef, resultScrollRef, resultContent, messagesEndRef }) => (
 <div className="flex-1 min-h-0 flex flex-col relative h-full z-10 overflow-hidden">
 
   {isProcessing && !showResults && (
     <div className="absolute inset-0 z-30 flex flex-col items-center justify-center bg-slate-50/60 backdrop-blur-xl animate-fade-in">
-      <div className="relative w-40 h-40 mb-12 flex items-center justify-center">
+      <div className="relative w-40 h-40 mb-10 flex items-center justify-center">
         <div className="absolute inset-0 rounded-full border border-slate-200/60 shadow-[inset_0_0_20px_rgba(99,102,241,0.1)]"></div>
         <div className="absolute inset-0 rounded-full border-t-[3px] border-indigo-600 animate-spin" style={{ animationDuration: '2s' }}></div>
         <div className="absolute inset-4 rounded-full border-b-[2px] border-sky-400 animate-spin" style={{ animationDirection: 'reverse', animationDuration: '3s' }}></div>
         <div className="relative z-10 bg-white/90 shadow-xl rounded-2xl w-16 h-16 flex items-center justify-center border border-white/80 backdrop-blur-md">
-           <Icon name={internalStage >= 5 ? "Image" : internalStage >= 3 ? "Cpu" : "Database"} className="w-8 h-8 text-indigo-600 animate-pulse-slow" strokeWidth={1.5} />
+           <Icon name={processingUiPhase === 'validating' ? 'ListChecks' : 'LoaderCircle'} className={`w-8 h-8 text-indigo-600 ${processingUiPhase === 'validating' ? 'animate-pulse-slow' : 'animate-spin'}`} strokeWidth={1.5} />
         </div>
       </div>
 
       <div className="text-center space-y-3">
-        <h3 className="text-[18px] font-extrabold text-slate-800 tracking-tight transition-all duration-300">{STAGE_LOADING_TEXT[internalStage] || "连接核心计算引擎..."}</h3>
-        <div className="w-64 h-1.5 bg-slate-200/50 rounded-full overflow-hidden mx-auto mt-6 backdrop-blur-sm">
-          <div className="h-full bg-gradient-to-r from-indigo-500 to-sky-400 transition-all duration-500 ease-out" style={{ width: `${(internalStage / 6) * 100}%` }}></div>
+        <h3 className="text-[18px] font-extrabold text-slate-800 tracking-tight transition-all duration-300">
+          {processingUiPhase === 'validating' ? '已收到结果，正在校验内容完整性' : '已发送请求，正在等待模型返回'}
+        </h3>
+        <p className="processing-status-copy" role="status" aria-live="polite">
+          {processingUiPhase === 'validating'
+            ? '正在检查 JSON、文章和卡片字段，完成后会进入结果页。'
+            : `已等待 ${processingElapsedSeconds} 秒，最长约 5 分钟；你可以随时停止本次加工。`}
+        </p>
+        <div className="processing-progress-track" aria-hidden="true">
+          <div className="processing-progress-indicator"></div>
         </div>
       </div>
     </div>
@@ -2445,9 +2656,9 @@ const MainWorkspace = ({ isProcessing, showResults, internalStage, activeStageTa
             <Icon name="Bot" className="w-10 h-10 text-indigo-500 relative z-10" strokeWidth={1.5} />
           </div>
           <h2 className="text-[28px] font-extrabold text-slate-900 mb-4 tracking-tight">内容精炼与结构化 <span className="text-indigo-600">Agent</span></h2>
-          <p className="text-[15px] text-slate-500 mb-12 max-w-lg text-center leading-relaxed">深度重构长文逻辑，后台运算完毕后，一键交付结构化卡片与生产级 Midjourney 视觉指令。</p>
+          <p className="text-[15px] text-slate-500 mb-12 max-w-lg text-center leading-relaxed">精修文章结构，拆分知识卡片，并生成可直接使用的视觉提示词与图片成品。</p>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 w-full">
-            {[{ icon: 'ListChecks', title: '深度事实核查', desc: '全网交叉验证，剔除过时与错误信息。' }, { icon: 'Cpu', title: '逻辑精炼重构', desc: '提炼分论点与核心比喻，生成卡片物料包。' }, { icon: 'Image', title: '视觉指令映射', desc: '色彩、构图全量生成 3:4 画面生图提示词。' }].map((feature, idx) => (
+            {[{ icon: 'ListChecks', title: '内容理解与核查', desc: '识别主题、核心论点和明显矛盾，便于继续人工核对。' }, { icon: 'Cpu', title: '文章与卡片重构', desc: '整理文章层次，生成封面、正文和封底内容。' }, { icon: 'Image', title: '视觉生成与导出', desc: '生成 3:4 视觉提示词、主视觉与图片成品。' }].map((feature, idx) => (
               <div key={idx} className="mi-surface mi-surface-panel moreimg-feature-card p-6">
                 <div className="w-10 h-10 rounded-xl bg-white/80 flex items-center justify-center mb-4 border border-white/80 shadow-sm"><Icon name={feature.icon} className="w-5 h-5 text-indigo-600" /></div>
                 <h4 className="text-[15px] font-bold text-slate-800 mb-2">{feature.title}</h4>
@@ -2465,17 +2676,21 @@ const MainWorkspace = ({ isProcessing, showResults, internalStage, activeStageTa
 </div>
 );
 
-const SettingsDialog = ({ isConfigOpen, setIsConfigOpen, apiConfig, setApiConfig, configTools, handleLoadModels, handleTestTextConnection, handleModelSelection, textModels, imageModels, lastImageDiagnostic, handleSaveConfig }) => (
-  isConfigOpen && (
-  <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 animate-fade-in">
-    <div className="config-dialog flex flex-col animate-fade-in-down">
+const SettingsDialog = ({ isConfigOpen, onRequestClose, apiConfig, setApiConfig, configTools, handleLoadModels, handleTestTextConnection, handleModelSelection, textModels, imageModels, lastImageDiagnostic, handleSaveConfig }) => (
+  <ModalFrame
+    isOpen={isConfigOpen}
+    onRequestClose={onRequestClose}
+    titleId="settings-dialog-title"
+    overlayClassName="modal-overlay modal-overlay-settings animate-fade-in"
+    dialogClassName="config-dialog flex flex-col animate-fade-in-down"
+  >
 
       {/* 弹窗 Header */}
       <div className="config-dialog-header">
-        <h3 className="text-[16px] font-extrabold text-slate-800 flex items-center">
+        <h3 id="settings-dialog-title" className="text-[16px] font-extrabold text-slate-800 flex items-center">
           <Icon name="Settings" className="w-5 h-5 mr-2 text-indigo-600" /> 私有引擎及技能配置
         </h3>
-        <button type="button" onClick={() => setIsConfigOpen(false)} className="mi-icon-button mi-icon-button-standard sidebar-icon-button" aria-label="关闭设置" title="关闭设置">
+        <button type="button" onClick={onRequestClose} className="mi-icon-button mi-icon-button-standard sidebar-icon-button" aria-label="关闭设置" title="关闭设置">
           <Icon name="X" className="w-5 h-5" />
         </button>
       </div>
@@ -2507,6 +2722,7 @@ const SettingsDialog = ({ isConfigOpen, setIsConfigOpen, apiConfig, setApiConfig
                 type="text"
                 value={apiConfig.apiUrl}
                 onChange={(e) => setApiConfig({...apiConfig, apiUrl: e.target.value})}
+                data-dialog-initial-focus="true"
                 className="mi-field config-input placeholder-slate-400"
               />
               <div className="config-hint">实际请求：{resolveApiEndpoint(apiConfig.apiUrl, 'text') || '请填写地址'}；当前协议：{isResponsesApiEndpoint(resolveApiEndpoint(apiConfig.apiUrl, 'text')) ? 'Responses API' : 'Chat Completions'}</div>
@@ -2683,36 +2899,42 @@ const SettingsDialog = ({ isConfigOpen, setIsConfigOpen, apiConfig, setApiConfig
         </button>
       </div>
 
-    </div>
-  </div>
-)
+  </ModalFrame>
 );
 
 const AppView = ({
   activeHistoryId,
   activeStageTab,
   apiConfig,
+  cancelDeleteHistoryItem,
   configTools,
+  confirmDeleteHistoryItem,
   currentSession,
-  deleteHistoryItem,
   handleLoadModels,
   handleModelSelection,
+  handleProcessingAction,
   handleSaveConfig,
-  handleStartProcessing,
-  handleStopProcessing,
   handleTestTextConnection,
   history,
   imageModels,
   inputText,
-  internalStage,
-  isButtonDisabled,
+  isComposerExpanded,
   isConfigOpen,
+  isDeletingHistory,
   isHistoryOpen,
   isProcessing,
   lastImageDiagnostic,
   loadDemoRecord,
   loadHistoryItem,
   messagesEndRef,
+  onRequestCloseConfig,
+  pendingDeleteHistoryItem,
+  processingActionHint,
+  processingActionLabel,
+  processingActionMode,
+  processingElapsedSeconds,
+  processingUiPhase,
+  requestDeleteHistoryItem,
   resultContent,
   resultScrollRef,
   resultsStageNavRef,
@@ -2720,6 +2942,7 @@ const AppView = ({
   setActiveStageTab,
   setApiConfig,
   setInputText,
+  setIsComposerExpanded,
   setIsConfigOpen,
   setIsHistoryOpen,
   setToast,
@@ -2727,12 +2950,72 @@ const AppView = ({
   textModels,
   toast
 }) => (
-  <div className="moreimg-app-shell flex flex-col md:flex-row h-screen overflow-hidden font-sans text-slate-800 relative bg-transparent">
-    {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
-    <AppSidebar {...{ history, isProcessing, activeHistoryId, showResults, setIsHistoryOpen, setIsConfigOpen, inputText, setInputText, handleStopProcessing, handleStartProcessing, isButtonDisabled, loadHistoryItem, retryHistoryItem, deleteHistoryItem, loadDemoRecord }} />
-    <MainWorkspace {...{ isProcessing, showResults, internalStage, activeStageTab, currentSession, setActiveStageTab, resultsStageNavRef, resultScrollRef, resultContent, messagesEndRef }} />
-    <MobileHistoryDialog {...{ isHistoryOpen, setIsHistoryOpen, history, isProcessing, activeHistoryId, showResults, loadHistoryItem, retryHistoryItem, deleteHistoryItem, loadDemoRecord }} />
-    <SettingsDialog {...{ isConfigOpen, setIsConfigOpen, apiConfig, setApiConfig, configTools, handleLoadModels, handleTestTextConnection, handleModelSelection, textModels, imageModels, lastImageDiagnostic, handleSaveConfig }} />
+  <div className="moreimg-app-shell flex flex-col lg:flex-row h-screen overflow-hidden font-sans text-slate-800 relative bg-transparent">
+    {toast && <Toast message={toast.message} type={toast.type} duration={toast.duration} onClose={() => setToast(null)} />}
+    <AppSidebar {...{
+      history,
+      isProcessing,
+      activeHistoryId,
+      showResults,
+      setIsHistoryOpen,
+      setIsConfigOpen,
+      inputText,
+      setInputText,
+      handleProcessingAction,
+      processingActionMode,
+      processingActionLabel,
+      processingActionHint,
+      isComposerExpanded,
+      setIsComposerExpanded,
+      loadHistoryItem,
+      retryHistoryItem,
+      requestDeleteHistoryItem,
+      loadDemoRecord
+    }} />
+    <MainWorkspace {...{
+      isProcessing,
+      showResults,
+      processingUiPhase,
+      processingElapsedSeconds,
+      activeStageTab,
+      currentSession,
+      setActiveStageTab,
+      resultsStageNavRef,
+      resultScrollRef,
+      resultContent,
+      messagesEndRef
+    }} />
+    <MobileHistoryDialog {...{
+      isHistoryOpen,
+      setIsHistoryOpen,
+      history,
+      isProcessing,
+      activeHistoryId,
+      showResults,
+      loadHistoryItem,
+      retryHistoryItem,
+      requestDeleteHistoryItem,
+      loadDemoRecord
+    }} />
+    <SettingsDialog {...{
+      isConfigOpen,
+      apiConfig,
+      setApiConfig,
+      configTools,
+      handleLoadModels,
+      handleTestTextConnection,
+      handleModelSelection,
+      textModels,
+      imageModels,
+      lastImageDiagnostic,
+      handleSaveConfig
+    }} onRequestClose={onRequestCloseConfig} />
+    <ConfirmDeleteDialog
+      item={pendingDeleteHistoryItem}
+      isDeleting={isDeletingHistory}
+      onCancel={cancelDeleteHistoryItem}
+      onConfirm={confirmDeleteHistoryItem}
+    />
   </div>
 );
 
@@ -2882,7 +3165,7 @@ const renderStageContent = () => {
           <div key={sId}>
             <div className="visual-stage-heading">
               <h4 className="visual-stage-heading-title">
-                {sId === 1 ? 'AI 准入判型' : sId === 2 ? '深度事实核查与骨架提取' : sId === 3 ? '精修版文章重构' : sId === 4 ? '知识卡片内容包' : sId === 5 ? '视觉生成与成品对比' : ''}
+                {sId === 1 ? '内容准入与判型' : sId === 2 ? '内容核查与骨架提取' : sId === 3 ? '精修版文章重构' : sId === 4 ? '知识卡片内容包' : sId === 5 ? '视觉生成与成品对比' : ''}
               </h4>
             </div>
             <div>
@@ -3073,21 +3356,27 @@ const renderStageContent = () => {
                               </div>
                             </div>
 
-                            <aside className="visual-prompt-column">
-                              <div className="visual-prompt-block">
-                                <div className="visual-prompt-block-header">
-                                  <span className="visual-prompt-label">原始视觉提示词</span>
-                                  <button type="button" onClick={() => copyToClipboard(cleanPromptText, `[${selectedPromptSection.title}] 原始视觉提示词`)} className="mi-icon-button mi-icon-button-compact visual-result-action" aria-label="复制原始视觉提示词" title="复制原始视觉提示词"><Icon name="Copy" className="h-3.5 w-3.5" /></button>
+                            <aside key={selectedPromptSection.title} className="visual-prompt-column" aria-label="当前页面提示词详情">
+                              <details className="visual-disclosure">
+                                <summary><span>原始视觉提示词</span><Icon name="ChevronDown" className="visual-disclosure-icon" /></summary>
+                                <div className="visual-disclosure-body">
+                                  <div className="visual-prompt-block-header">
+                                    <span className="visual-prompt-label">实际请求内容</span>
+                                    <button type="button" onClick={() => copyToClipboard(cleanPromptText, `[${selectedPromptSection.title}] 原始视觉提示词`)} className="mi-icon-button mi-icon-button-compact visual-result-action" aria-label="复制原始视觉提示词" title="复制原始视觉提示词"><Icon name="Copy" className="h-3.5 w-3.5" /></button>
+                                  </div>
+                                  <pre className="visual-prompt-copy font-mono"><code>{cleanPromptText}</code></pre>
                                 </div>
-                                <pre className="visual-prompt-copy font-mono"><code>{cleanPromptText}</code></pre>
-                              </div>
-                              <div className="visual-prompt-block">
-                                <div className="visual-prompt-block-header">
-                                  <span className="visual-prompt-label">AI 整图实际请求</span>
-                                  <button type="button" disabled={!matchingCard} onClick={() => copyToClipboard(fullImagePrompt, `[${selectedPromptSection.title}] AI 整图请求`)} className="mi-icon-button mi-icon-button-compact visual-result-action" aria-label="复制 AI 整图请求" title="复制 AI 整图请求"><Icon name="Copy" className="h-3.5 w-3.5" /></button>
+                              </details>
+                              <details className="visual-disclosure">
+                                <summary><span>AI 整图实际请求</span><Icon name="ChevronDown" className="visual-disclosure-icon" /></summary>
+                                <div className="visual-disclosure-body">
+                                  <div className="visual-prompt-block-header">
+                                    <span className="visual-prompt-label">带卡片文字的完整请求</span>
+                                    <button type="button" disabled={!matchingCard} onClick={() => copyToClipboard(fullImagePrompt, `[${selectedPromptSection.title}] AI 整图请求`)} className="mi-icon-button mi-icon-button-compact visual-result-action" aria-label="复制 AI 整图请求" title="复制 AI 整图请求"><Icon name="Copy" className="h-3.5 w-3.5" /></button>
+                                  </div>
+                                  <pre className="visual-prompt-copy font-mono"><code>{fullImagePrompt}</code></pre>
                                 </div>
-                                <pre className="visual-prompt-copy font-mono"><code>{fullImagePrompt}</code></pre>
-                              </div>
+                              </details>
                             </aside>
                           </div>
                         </section>
@@ -3266,6 +3555,9 @@ const resultContent = useMemo(() => {
       const [inputText, setInputText] = useState('');
       const [isProcessing, setIsProcessing] = useState(false);
       const [showResults, setShowResults] = useState(false);
+      const [processingUiPhase, setProcessingUiPhase] = useState('idle');
+      const [processingElapsedSeconds, setProcessingElapsedSeconds] = useState(0);
+      const [isComposerExpanded, setIsComposerExpanded] = useState(false);
       const [internalStage, setInternalStage] = useState(0);
       const [activeStageTab, setActiveStageTab] = useState('step1');
       const [activeVisualPage, setActiveVisualPage] = useState('');
@@ -3276,6 +3568,8 @@ const resultContent = useMemo(() => {
       const [hiddenFullImages, setHiddenFullImages] = useState({});
       const [textModels, setTextModels] = useState([]);
       const [imageModels, setImageModels] = useState([]);
+      const [pendingDeleteHistoryId, setPendingDeleteHistoryId] = useState(null);
+      const [isDeletingHistory, setIsDeletingHistory] = useState(false);
       const [configTools, setConfigTools] = useState({
         textModels: { status: 'idle', message: '' },
         imageModels: { status: 'idle', message: '' },
@@ -3294,6 +3588,7 @@ const resultContent = useMemo(() => {
       const processingAbortRef = useRef(null);
       const historyLoadTokenRef = useRef(0);
       const imageAbortControllersRef = useRef(new Map());
+      const configRequestControllersRef = useRef(new Map());
       const demoLoadInFlightRef = useRef(false);
       const imageObjectUrlsRef = useRef([]);
       const htmlCardRefs = useRef({});
@@ -3348,8 +3643,8 @@ const resultContent = useMemo(() => {
 
       useEffect(() => {
         if (!isProcessing || showResults) return;
-        setInternalStage(1);
-        const timer = setInterval(() => setInternalStage(stage => Math.min(stage + 1, 5)), 7000);
+        setProcessingElapsedSeconds(0);
+        const timer = setInterval(() => setProcessingElapsedSeconds(seconds => seconds + 1), 1000);
         return () => clearInterval(timer);
       }, [isProcessing, showResults]);
 
@@ -3372,6 +3667,22 @@ const resultContent = useMemo(() => {
       const abortImageRequests = () => {
         imageAbortControllersRef.current.forEach(controller => controller.abort());
         imageAbortControllersRef.current.clear();
+      };
+
+      const abortConfigRequests = (resetState = true) => {
+        configRequestControllersRef.current.forEach(controller => controller.abort());
+        configRequestControllersRef.current.clear();
+        if (resetState) {
+          setConfigTools(previous => Object.fromEntries(Object.entries(previous).map(([key, state]) => [
+            key,
+            state.status === 'loading' ? { status: 'idle', message: '' } : state
+          ])));
+        }
+      };
+
+      const closeConfigDialog = () => {
+        abortConfigRequests();
+        setIsConfigOpen(false);
       };
 
       const restoreSessionImages = async (sessionId, requestToken) => {
@@ -3410,6 +3721,8 @@ const resultContent = useMemo(() => {
               const candidateHistory = parsedHistory.filter(item => item?.id && item?.title !== undefined).slice(0, HISTORY_LIMIT);
               const reconciledHistory = await filterExistingHistoryIndex(candidateHistory);
               if (isActive) {
+                // IndexedDB 对账可能比用户首次加工更慢；不要用启动时的旧快照覆盖新写入。
+                if (localStorage.getItem(HISTORY_INDEX_KEY) !== savedHistory) return;
                 setHistory(reconciledHistory);
                 if (reconciledHistory.length !== candidateHistory.length) {
                   localStorage.setItem(HISTORY_INDEX_KEY, JSON.stringify(reconciledHistory));
@@ -3428,11 +3741,12 @@ const resultContent = useMemo(() => {
               const existingDemo = await loadSessionRecord(DEMO_SESSION_ID).catch(() => null);
               if (existingDemo?.isDemo) {
                 const demoIndex = [toHistoryIndex(existingDemo)];
-                if (isActive) setHistory(demoIndex);
+                if (!isActive || localStorage.getItem(HISTORY_INDEX_KEY)) return;
+                setHistory(demoIndex);
                 localStorage.setItem(HISTORY_INDEX_KEY, JSON.stringify(demoIndex));
               } else if (shouldSeedDemo() && !(await hasAnySessionRecords())) {
                 const demoRecord = await seedDemoHistory();
-                if (isActive) {
+                if (isActive && !localStorage.getItem(HISTORY_INDEX_KEY)) {
                   const demoIndex = [toHistoryIndex(demoRecord)];
                   setHistory(demoIndex);
                   localStorage.setItem(HISTORY_INDEX_KEY, JSON.stringify(demoIndex));
@@ -3446,6 +3760,8 @@ const resultContent = useMemo(() => {
           try {
             const migratedHistory = await migrateLegacyHistory(JSON.parse(legacyValue));
             if (!isActive) return;
+            // 迁移期间若已有新索引，以新写入为准。
+            if (localStorage.getItem(HISTORY_INDEX_KEY)) return;
             localStorage.setItem(HISTORY_INDEX_KEY, JSON.stringify(migratedHistory));
             localStorage.removeItem(LEGACY_HISTORY_KEY);
             setHistory(migratedHistory);
@@ -3490,6 +3806,8 @@ const resultContent = useMemo(() => {
       }, []);
 
       useEffect(() => () => {
+        processingAbortRef.current?.abort();
+        abortConfigRequests(false);
         abortImageRequests();
         imageObjectUrlsRef.current.forEach(url => URL.revokeObjectURL(url));
       }, []);
@@ -3506,7 +3824,7 @@ const resultContent = useMemo(() => {
         localStorage.setItem('agent_api_config', JSON.stringify(nextConfig));
         setApiConfig(nextConfig);
         setToast({ message: 'AI 引擎及技能配置已保存', type: 'success' });
-        setIsConfigOpen(false);
+        closeConfigDialog();
       };
 
       const handleLoadModels = async (kind) => {
@@ -3520,21 +3838,35 @@ const resultContent = useMemo(() => {
           return;
         }
 
+        configRequestControllersRef.current.get(stateKey)?.abort();
+        const requestController = new AbortController();
+        configRequestControllersRef.current.set(stateKey, requestController);
         updateConfigTool(stateKey, { status: 'loading', message: '正在读取模型列表...' });
         try {
           const modelsEndpoint = deriveModelsEndpoint(endpoint);
-          const response = await fetch(modelsEndpoint, {
+          const response = await runWithRequestControl(signal => fetch(modelsEndpoint, {
             method: 'GET',
-            headers: { 'Authorization': `Bearer ${apiKey}` }
+            headers: { 'Authorization': `Bearer ${apiKey}` },
+            signal
+          }), {
+            timeoutMs: 30000,
+            signal: requestController.signal,
+            timeoutMessage: '读取模型列表超过 30 秒，请检查接口地址或稍后重试。'
           });
           const data = await response.json().catch(() => ({}));
           if (!response.ok) throw new Error(data?.error?.message || data?.message || `HTTP ${response.status}`);
+          if (requestController.signal.aborted || configRequestControllersRef.current.get(stateKey) !== requestController) return;
           const modelIds = extractModelIds(data);
           if (modelIds.length === 0) throw new Error('接口未返回可用模型');
           setModels(modelIds);
           updateConfigTool(stateKey, { status: 'success', message: `已读取 ${modelIds.length} 个模型，可继续手动输入或从建议中选择。` });
         } catch (error) {
+          if (requestController.signal.aborted) return;
           updateConfigTool(stateKey, { status: 'error', message: `读取失败：${error.message}。不影响手动填写。` });
+        } finally {
+          if (configRequestControllersRef.current.get(stateKey) === requestController) {
+            configRequestControllersRef.current.delete(stateKey);
+          }
         }
       };
 
@@ -3557,6 +3889,9 @@ const resultContent = useMemo(() => {
           return;
         }
 
+        configRequestControllersRef.current.get('textTest')?.abort();
+        const requestController = new AbortController();
+        configRequestControllersRef.current.set('textTest', requestController);
         updateConfigTool('textTest', { status: 'loading', message: '正在发送最小测试请求...' });
         const startedAt = Date.now();
         try {
@@ -3581,15 +3916,22 @@ const resultContent = useMemo(() => {
             return responseData;
           }, {
             timeoutMs: TEXT_TEST_TIMEOUT_MS,
+            signal: requestController.signal,
             timeoutMessage: '接口测试超过 30 秒，请检查接口地址、模型或服务状态。'
           });
+          if (requestController.signal.aborted || configRequestControllersRef.current.get('textTest') !== requestController) return;
           const responseText = extractProcessingResponseText(data).trim();
           if (!responseText) throw new Error('接口成功响应，但没有可解析文本');
           const elapsedMs = Date.now() - startedAt;
           const preview = responseText.replace(/\s+/g, ' ').slice(0, 48);
           updateConfigTool('textTest', { status: 'success', message: `连接成功，耗时 ${elapsedMs} ms，返回：${preview}` });
         } catch (error) {
+          if (requestController.signal.aborted) return;
           updateConfigTool('textTest', { status: 'error', message: `测试失败：${error.message}` });
+        } finally {
+          if (configRequestControllersRef.current.get('textTest') === requestController) {
+            configRequestControllersRef.current.delete('textTest');
+          }
         }
       };
 
@@ -3793,27 +4135,43 @@ const resultContent = useMemo(() => {
         }
       };
 
-      const deleteHistoryItem = async (id, e) => {
-        e.stopPropagation();
+      const requestDeleteHistoryItem = (id) => {
+        if (isProcessing || isDeletingHistory) return;
+        setPendingDeleteHistoryId(id);
+      };
+
+      const cancelDeleteHistoryItem = () => {
+        if (!isDeletingHistory) setPendingDeleteHistoryId(null);
+      };
+
+      const confirmDeleteHistoryItem = async () => {
+        const id = pendingDeleteHistoryId;
+        if (!id || isDeletingHistory) return;
+        setIsDeletingHistory(true);
         historyLoadTokenRef.current += 1;
         abortImageRequests();
         const previousHistory = history;
         const updatedHistory = history.filter(item => item.id !== id);
-        setHistory(updatedHistory);
         try {
           localStorage.setItem(HISTORY_INDEX_KEY, JSON.stringify(updatedHistory));
-          await Promise.all([deleteSessionRecord(id), deleteSessionImages(id)]);
+          // 先删图片、再删文章主记录；中途失败时仍能保留可恢复的文章。
+          await deleteSessionImages(id);
+          await deleteSessionRecord(id);
+          setHistory(updatedHistory);
           if (activeHistoryId === id) {
             setActiveHistoryId(null);
             setShowResults(false);
+            setIsComposerExpanded(false);
             setCurrentSession({ rawText: '', packageData: null, stages: { 1: '', 2: '', 3: '', 4: '', 5: '', 6: '' }, isHalted: false, stopReason: '', warning: '' });
             replaceImageResults({});
           }
           setToast({ message: '已删除该条记录', type: 'success' });
         } catch (error) {
-          setHistory(previousHistory);
           try { localStorage.setItem(HISTORY_INDEX_KEY, JSON.stringify(previousHistory)); } catch {}
           setToast({ message: `历史记录删除失败: ${error.message}`, type: 'error', duration: 5000 });
+        } finally {
+          setIsDeletingHistory(false);
+          setPendingDeleteHistoryId(null);
         }
       };
 
@@ -3887,13 +4245,17 @@ const resultContent = useMemo(() => {
       const handleStopProcessing = () => {
         if (!processingAbortRef.current || processingAbortRef.current.signal.aborted) return;
         processingAbortRef.current.abort();
-        setToast({ message: '正在停止本次运算...', type: 'error' });
+        setToast({ message: '正在停止本次加工...', type: 'neutral' });
       };
 
       const handleStartProcessing = async (overrideText = null) => {
         const textToProcess = (typeof overrideText === 'string' ? overrideText : inputText).trim();
 
-        if (!apiConfig.apiKey?.trim()) { setToast({ message: '请先配置密钥', type: 'error' }); setIsConfigOpen(true); return; }
+        if (!apiConfig.apiUrl?.trim() || !apiConfig.model?.trim() || !apiConfig.apiKey?.trim()) {
+          setToast({ message: '请先完成文本模型配置', type: 'error', duration: 5000 });
+          setIsConfigOpen(true);
+          return;
+        }
         if (!textToProcess) { setToast({ message: '请输入需加工的文章或文案', type: 'error' }); return; }
 
         setInputText(textToProcess);
@@ -3901,6 +4263,8 @@ const resultContent = useMemo(() => {
         abortImageRequests();
         setIsProcessing(true);
         setShowResults(false);
+        setProcessingUiPhase('waiting');
+        setProcessingElapsedSeconds(0);
         setInternalStage(1);
         setActiveStageTab('step1');
         setCurrentSession({ rawText: '', packageData: null, stages: { 1: '', 2: '', 3: '', 4: '', 5: '', 6: '' }, isHalted: false, stopReason: '', warning: '' });
@@ -3914,6 +4278,8 @@ const resultContent = useMemo(() => {
         try {
           const initialMessages = buildInitialProcessingMessages(textToProcess, DEFAULT_SYSTEM_PROMPT, apiConfig.processingPreferences);
           const processingResult = await requestProcessingText(initialMessages, processingController.signal);
+          setProcessingUiPhase('validating');
+          await new Promise(resolve => setTimeout(resolve, 0));
           const fullResponseText = processingResult.text;
           const normalizedFinishReason = String(processingResult.finishReason || '').trim().toLowerCase();
           if (['length', 'max_tokens', 'max_output_tokens'].includes(normalizedFinishReason)) {
@@ -3934,12 +4300,20 @@ const resultContent = useMemo(() => {
             sessionData,
             originalInput: textToProcess
           };
-          const updatedHistory = [toHistoryIndex(newHistoryItem), ...history].slice(0, HISTORY_LIMIT);
           try {
             await saveSessionRecord(newHistoryItem);
+            let historyBeforeSave = history;
+            try {
+              const persistedHistory = JSON.parse(localStorage.getItem(HISTORY_INDEX_KEY) || '[]');
+              if (Array.isArray(persistedHistory)) historyBeforeSave = persistedHistory;
+            } catch {}
+            const updatedHistory = [
+              toHistoryIndex(newHistoryItem),
+              ...historyBeforeSave.filter(item => item.id !== newSessionId)
+            ].slice(0, HISTORY_LIMIT);
             setHistory(updatedHistory);
             localStorage.setItem(HISTORY_INDEX_KEY, JSON.stringify(updatedHistory));
-            history.slice(HISTORY_LIMIT - 1).forEach(item => {
+            historyBeforeSave.slice(HISTORY_LIMIT - 1).forEach(item => {
               deleteSessionRecord(item.id).catch(() => {});
               deleteSessionImages(item.id).catch(() => {});
             });
@@ -3954,6 +4328,7 @@ const resultContent = useMemo(() => {
             duration: isHalted ? 6000 : 3000
           });
           shouldShowResults = true;
+          setIsComposerExpanded(false);
         } catch (error) {
           const isCancelled = error.message === '已停止运算';
           const errorMessage = isCancelled ? '已停止本次运算' : formatProcessingError(error);
@@ -3962,13 +4337,14 @@ const resultContent = useMemo(() => {
           }
           setToast({
             message: errorMessage,
-            type: 'error',
+            type: isCancelled ? 'neutral' : 'error',
             duration: isCancelled ? 3000 : 8000
           });
           shouldShowResults = !isCancelled;
         } finally {
           if (processingAbortRef.current === processingController) processingAbortRef.current = null;
           setIsProcessing(false);
+          setProcessingUiPhase('idle');
           setShowResults(shouldShowResults);
         }
       };
@@ -3986,6 +4362,7 @@ const resultContent = useMemo(() => {
         if (requestToken !== historyLoadTokenRef.current) return;
         if (item) {
           setActiveHistoryId(id);
+          setIsComposerExpanded(false);
           setCurrentSession({ ...item.sessionData, isDemo: Boolean(item.isDemo) });
           restoreSessionImages(id, requestToken);
           if (item.sessionData.packageData?.status === 'complete') {
@@ -4073,34 +4450,72 @@ const resultContent = useMemo(() => {
         showResults
       });
 
-      // 运算中按钮切换为停止操作；空配置只阻止发起新请求。
-      const isButtonDisabled = !isProcessing && (!apiConfig.apiKey?.trim() || !inputText.trim());
+      const hasTextConfig = Boolean(apiConfig.apiUrl?.trim() && apiConfig.model?.trim() && apiConfig.apiKey?.trim());
+      const processingActionMode = isProcessing
+        ? 'running'
+        : !inputText.trim()
+          ? 'empty'
+          : !hasTextConfig
+            ? 'needs-config'
+            : 'ready';
+      const processingActionLabel = processingActionMode === 'running'
+        ? '停止本次加工'
+        : processingActionMode === 'needs-config'
+          ? '配置文本模型后开始'
+          : '一键生成 AI 物料包';
+      const processingActionHint = processingActionMode === 'empty'
+        ? '请先粘贴需要加工的文章或文案。'
+        : processingActionMode === 'needs-config'
+          ? '还需填写文本接口地址、模型和 API Key。'
+          : '';
+      const handleProcessingAction = () => {
+        if (isProcessing) {
+          handleStopProcessing();
+          return;
+        }
+        if (!inputText.trim()) return;
+        if (!hasTextConfig) {
+          setIsConfigOpen(true);
+          setToast({ message: '完成文本模型配置后即可开始加工', type: 'error', duration: 5000 });
+          return;
+        }
+        handleStartProcessing();
+      };
+      const pendingDeleteHistoryItem = history.find(item => item.id === pendingDeleteHistoryId) || null;
 
       return <AppView {...{
         activeHistoryId,
         activeStageTab,
         apiConfig,
+        cancelDeleteHistoryItem,
         configTools,
+        confirmDeleteHistoryItem,
         currentSession,
-        deleteHistoryItem,
         handleLoadModels,
         handleModelSelection,
+        handleProcessingAction,
         handleSaveConfig,
-        handleStartProcessing,
-        handleStopProcessing,
         handleTestTextConnection,
         history,
         imageModels,
         inputText,
-        internalStage,
-        isButtonDisabled,
+        isComposerExpanded,
         isConfigOpen,
+        isDeletingHistory,
         isHistoryOpen,
         isProcessing,
         lastImageDiagnostic,
         loadDemoRecord,
         loadHistoryItem,
         messagesEndRef,
+        onRequestCloseConfig: closeConfigDialog,
+        pendingDeleteHistoryItem,
+        processingActionHint,
+        processingActionLabel,
+        processingActionMode,
+        processingElapsedSeconds,
+        processingUiPhase,
+        requestDeleteHistoryItem,
         resultContent,
         resultScrollRef,
         resultsStageNavRef,
@@ -4108,6 +4523,7 @@ const resultContent = useMemo(() => {
         setActiveStageTab,
         setApiConfig,
         setInputText,
+        setIsComposerExpanded,
         setIsConfigOpen,
         setIsHistoryOpen,
         setToast,

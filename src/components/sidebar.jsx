@@ -1,5 +1,5 @@
-const AppSidebar = ({ history, isProcessing, activeHistoryId, showResults, setIsHistoryOpen, setIsConfigOpen, inputText, setInputText, handleStopProcessing, handleStartProcessing, isButtonDisabled, loadHistoryItem, retryHistoryItem, deleteHistoryItem, loadDemoRecord }) => (
-<div className="moreimg-sidebar w-full md:w-[320px] h-auto md:h-full flex-shrink-0 flex flex-col bg-white/60 md:bg-white/40 backdrop-blur-3xl border-b md:border-b-0 md:border-r border-white/60 shadow-sm md:shadow-[8px_0_32px_rgba(31,38,135,0.05)] z-20 p-4 md:p-6 relative">
+const AppSidebar = ({ history, isProcessing, activeHistoryId, showResults, setIsHistoryOpen, setIsConfigOpen, inputText, setInputText, handleProcessingAction, processingActionMode, processingActionLabel, processingActionHint, isComposerExpanded, setIsComposerExpanded, loadHistoryItem, retryHistoryItem, requestDeleteHistoryItem, loadDemoRecord }) => (
+<div className={`moreimg-sidebar w-full lg:w-[320px] h-auto lg:h-full flex-shrink-0 flex flex-col bg-white/60 lg:bg-white/40 backdrop-blur-3xl border-b lg:border-b-0 lg:border-r border-white/60 shadow-sm lg:shadow-[8px_0_32px_rgba(31,38,135,0.05)] z-20 p-4 lg:p-6 relative ${showResults ? 'is-result-view' : ''} ${isComposerExpanded ? 'is-composer-expanded' : ''}`}>
 
   <div className="sidebar-brand-row z-10 shrink-0">
     <h1 className="flex min-w-0 items-center">
@@ -30,33 +30,49 @@ const AppSidebar = ({ history, isProcessing, activeHistoryId, showResults, setIs
     </div>
   </div>
 
-  <div className="sidebar-input-shell">
-    <div className="sidebar-input-clip">
-      <textarea
-        className="sidebar-input custom-scrollbar placeholder-slate-400 focus:placeholder-slate-300"
-        placeholder="在此注入原始长文，唤醒 AI 重塑引擎..."
-        value={inputText}
-        onChange={(e) => setInputText(e.target.value)}
-        disabled={isProcessing}
-        spellCheck="false"
-      />
+  {showResults && !isProcessing && (
+    <button
+      type="button"
+      onClick={() => setIsComposerExpanded(expanded => !expanded)}
+      className="mi-button mi-button-standard compact-composer-toggle"
+      aria-expanded={isComposerExpanded}
+      aria-controls="moreimg-composer"
+    >
+      <Icon name={isComposerExpanded ? 'ChevronUp' : 'Plus'} className="h-4 w-4" />
+      {isComposerExpanded ? '收起新建文章' : '新建文章'}
+    </button>
+  )}
+
+  <div id="moreimg-composer" className="sidebar-composer">
+    <div className="sidebar-input-shell">
+      <div className="sidebar-input-clip">
+        <textarea
+          className="sidebar-input custom-scrollbar placeholder-slate-400 focus:placeholder-slate-300"
+          placeholder="粘贴需要加工的文章或文案..."
+          value={inputText}
+          onChange={(e) => setInputText(e.target.value)}
+          disabled={isProcessing}
+          spellCheck="false"
+        />
+      </div>
     </div>
+
+    <button
+      onClick={handleProcessingAction}
+      disabled={processingActionMode === 'empty'}
+      aria-describedby={processingActionHint ? 'processing-action-hint' : undefined}
+      className={`mi-button mi-button-prominent processing-action-button w-full shrink-0 font-bold text-[14px] relative overflow-hidden z-10 backdrop-blur-sm is-${processingActionMode}`}
+    >
+      {isProcessing ? (
+         <><Icon name="Square" className="w-4 h-4 mr-2 text-white" fill="currentColor" /> {processingActionLabel}</>
+      ) : (
+         <><Icon name={processingActionMode === 'needs-config' ? 'Settings' : 'Zap'} className={`w-4 h-4 mr-2 ${processingActionMode === 'empty' ? 'text-slate-400' : 'text-white'}`} strokeWidth={2} />{processingActionLabel}</>
+      )}
+    </button>
+    {processingActionHint && <p id="processing-action-hint" className="processing-action-hint">{processingActionHint}</p>}
   </div>
 
-  <button
-    onClick={isProcessing ? handleStopProcessing : handleStartProcessing}
-    disabled={isButtonDisabled}
-    className={`mi-button mi-button-prominent processing-action-button w-full shrink-0 font-bold text-[14px] relative overflow-hidden z-10 backdrop-blur-sm
-      ${isButtonDisabled ? 'is-disabled' : isProcessing ? 'is-running' : 'is-ready'}`}
-  >
-    {isProcessing ? (
-       <><Icon name="Square" className="w-4 h-4 mr-2 text-white" fill="currentColor" /> 停止运算</>
-    ) : (
-       <><Icon name="Zap" className={`w-4 h-4 mr-2 ${isButtonDisabled ? 'text-slate-400' : 'text-white'}`} strokeWidth={2} />一键生成 AI 物料包</>
-    )}
-  </button>
-
-  <div className="moreimg-history hidden md:flex mt-10 flex-1 relative shrink-0 flex-col min-h-0">
+  <div className="moreimg-history hidden lg:flex mt-10 flex-1 relative shrink-0 flex-col min-h-0">
     <div className="flex items-center justify-between mb-4 shrink-0">
       <div className="text-[12px] font-bold text-amber-600 tracking-wide uppercase">历史记录</div>
       <button
@@ -71,11 +87,11 @@ const AppSidebar = ({ history, isProcessing, activeHistoryId, showResults, setIs
       </button>
     </div>
     <div className="history-list space-y-3 overflow-y-auto custom-scrollbar flex-1 pb-4">
-      <HistoryItems {...{ history, isProcessing, activeHistoryId, showResults, setIsHistoryOpen, loadHistoryItem, retryHistoryItem, deleteHistoryItem }} />
+      <HistoryItems {...{ history, isProcessing, activeHistoryId, showResults, setIsHistoryOpen, loadHistoryItem, retryHistoryItem, requestDeleteHistoryItem }} />
     </div>
   </div>
 
-  <div className="moreimg-brand brand-attribution hidden md:block" aria-label="项目归属与版权">
+  <div className="moreimg-brand brand-attribution hidden lg:block" aria-label="项目归属与版权">
     <div className="brand-attribution-name">MoreImg · LINPO LAB</div>
     <div>© 2026 LINPO LAB. All rights reserved.</div>
   </div>

@@ -106,11 +106,15 @@ assert.match(source, /className=\{`mi-surface mi-surface-list history-item/, '�
 assert.match(source, /aria-current=\{activeHistoryId === item\.id && showResults \? 'true' : undefined\}/, '当前历史项应暴露当前语义');
 assert.match(source, /const \[isHistoryOpen, setIsHistoryOpen\] = useState\(false\)/, '窄屏历史入口应有独立可控状态');
 assert.match(source, /aria-label=\{`打开历史记录，共 \$\{history\.length\} 条`\}/, '窄屏历史入口应提供明确名称和记录数');
-assert.match(source, /@media \(min-width: 768px\) \{[\s\S]*?\.mobile-history-trigger \{ display: none; \}/, '移动历史入口在桌面断点应明确隐藏');
-assert.match(source, /className="mobile-history-dialog flex flex-col animate-fade-in-down"[\s\S]*?role="dialog"[\s\S]*?aria-modal="true"/, '窄屏历史记录应通过模态对话框可达');
+assert.match(source, /@media \(min-width: 1024px\) \{[\s\S]*?\.mobile-history-trigger \{ display: none; \}/, '移动历史入口应在具有足够内容宽度的桌面断点隐藏');
+assert.match(source, /const ModalFrame = \(\{[\s\S]*?role="dialog"[\s\S]*?aria-modal="true"[\s\S]*?aria-labelledby=\{titleId\}/, '共享模态 owner 应统一提供 dialog 语义');
+assert.match(source, /dialogClassName="mobile-history-dialog flex flex-col animate-fade-in-down"/, '窄屏历史记录应消费共享模态框架');
 assert.match(source, /const HistoryItems = \(\{[\s\S]*?closeAfterOpen = false,[\s\S]*?mobile = false[\s\S]*?\}\) =>/, '历史记录列表应集中管理桌面与窄屏交互');
 assert.match(source, /<HistoryItems[\s\S]*?closeAfterOpen[\s\S]*?mobile\s*\/>/, '窄屏历史记录应复用统一的历史列表 owner');
 assert.match(source, /\.mobile-history-dialog \.history-item-actions \{ opacity: 1; \}/, '触屏历史辅助操作应始终可见');
+assert.match(source, /\.history-item-main \{[^}]*padding-right:\s*0 !important/, '桌面历史标题不应为默认隐藏的辅助操作永久让位');
+assert.match(source, /\.history-item-date \{[^}]*padding-right:\s*88px/, '桌面历史辅助操作应使用日期元信息行，不覆盖标题');
+assert.match(source, /\.mobile-history-dialog \.history-item-main \{[^}]*padding-right:\s*88px !important/, '仅触屏历史弹窗应为常显辅助操作预留空间');
 assert.match(source, /\.mobile-history-overlay \{[^}]*position: fixed[^}]*z-index: 40[^}]*background: rgba\(15,23,42,\.4\)/, '窄屏历史遮罩应由稳定层级 owner 覆盖页面内容');
 assert.doesNotMatch(source, /history-item relative group p-3\.5 rounded-xl[\s\S]*?bg-white\/30 border-white\/40/, '历史项不得继续由叶子工具类复制表面合同');
 
@@ -134,8 +138,8 @@ assert.match(source, /\.mi-feedback-info \{[^}]*var\(--mi-feedback-info-bg\)/, '
 assert.match(source, /\.mi-feedback-warning \{[^}]*var\(--mi-feedback-warning-bg\)/, '警告反馈应消费语义 Token');
 assert.match(source, /\.mi-feedback-error \{[^}]*var\(--mi-feedback-error-bg\)/, '错误反馈应消费语义 Token');
 assert.match(source, /\.mi-feedback-success \{[^}]*var\(--mi-feedback-success-bg\)/, '成功反馈应消费语义 Token');
-assert.match(source, /className=\{`mi-toast mi-feedback mi-feedback-\$\{type === 'error' \? 'error' : 'success'\}/, 'Toast 应消费共享反馈语义');
-assert.match(source, /role=\{type === 'error' \? 'alert' : 'status'\}/, 'Toast 应按严重度暴露反馈角色');
+assert.match(source, /className=\{`mi-toast mi-feedback mi-feedback-\$\{feedbackType\}/, 'Toast 应消费共享反馈语义');
+assert.match(source, /role=\{feedbackType === 'error' \? 'alert' : 'status'\}/, 'Toast 应按严重度暴露反馈角色');
 assert.match(source, /aria-label="关闭通知"/, 'Toast 应提供明确关闭操作');
 assert.match(source, /\.mi-toast \{ top: auto; right: 12px; bottom: calc\(12px \+ env\(safe-area-inset-bottom\)\); left: 12px; width: auto; \}/, '窄屏 Toast 应移到底部并避让安全区');
 assert.match(source, /className=\{`mi-feedback mi-feedback-\$\{feedbackType\} config-status/, '配置状态应消费共享反馈语义');
@@ -158,5 +162,24 @@ assert.match(source, /tabIndex=\{isFocusable \? 0 : -1\}/, '阶段标签应使�
 assert.match(source, /const resultsStageNavRef = useRef\(null\)/, '阶段导航应持有可见性滚动容器引用');
 assert.match(source, /querySelector\('\[aria-selected="true"\]'\)\?\.scrollIntoView\(\{ block: 'nearest', inline: 'nearest' \}\)/, '当前阶段应自动滚入可见区');
 assert.match(source, /window\.addEventListener\('resize', revealActiveStage\)[\s\S]*?window\.removeEventListener\('resize', revealActiveStage\)/, '窄屏切换应重新显示当前阶段并清理监听');
+
+assert.doesNotMatch(source, /maximum-scale=1\.0|user-scalable=no/, '移动端不得禁用用户缩放');
+assert.match(source, /color-scheme:\s*light/, '单一浅色主题应向浏览器声明稳定主题边界');
+assert.match(source, /@media \(prefers-reduced-motion: reduce\) \{[\s\S]*?\.sidebar-input-shell::before \{[\s\S]*?animation:\s*none !important[\s\S]*?\.animate-fade-in-down,[\s\S]*?animation:\s*none !important/, '减少动效规则应稳定覆盖循环与入场动画');
+assert.match(source, /\.visual-result-grid \{[^}]*repeat\(auto-fit, minmax\(240px, 1fr\)\)/, '视觉结果应按实际可用宽度自动换列');
+assert.match(source, /\.moreimg-sidebar\.is-result-view:not\(\.is-composer-expanded\) \.sidebar-composer \{ display: none; \}/, '所有尺寸的结果态都应默认折叠输入区');
+assert.doesNotMatch(source, /@media \(min-width: 1024px\)[\s\S]*?\.sidebar-composer \{ display: block !important; \}/, '桌面断点不得强制展开结果态输入区');
+assert.match(source, /<details className="visual-disclosure">/, '提示词详情应使用原生 disclosure 并默认折叠');
+assert.match(source, /setProcessingUiPhase\('waiting'\)[\s\S]*?setProcessingUiPhase\('validating'\)/, '加工反馈应只呈现可证明的等待和校验状态');
+assert.doesNotMatch(source, /STAGE_LOADING_TEXT|setInternalStage\(stage =>/, '加工界面不得再用定时器伪装内部进度');
+assert.match(source, /<ConfirmDeleteDialog[\s\S]*?pendingDeleteHistoryItem/, '历史删除应经过共享确认弹窗');
+assert.match(source, /data-dialog-initial-focus="true"[\s\S]*?>\s*取消/, '危险确认的默认焦点应落在取消操作');
+assert.match(source, /localStorage\.setItem\(HISTORY_INDEX_KEY, JSON\.stringify\(updatedHistory\)\);[\s\S]*?await deleteSessionImages\(id\);[\s\S]*?await deleteSessionRecord\(id\);[\s\S]*?setHistory\(updatedHistory\);/, '删除应在文章主记录成功删除后再关闭确认态并更新列表');
+assert.match(source, /duration=\{toast\.duration\}/, 'Toast 调用点声明的停留时长应传给共享组件');
+assert.match(source, /configRequestControllersRef[\s\S]*?timeoutMessage: '读取模型列表超过 30 秒/, '模型列表请求应提供取消 owner 与明确超时');
+assert.match(source, /document\.addEventListener\('keydown', handleDocumentKeyDown\)[\s\S]*?returnTarget\.focus/, '共享模态应支持键盘约束、Escape 和焦点返回');
+assert.match(source, /localStorage\.getItem\(HISTORY_INDEX_KEY\) !== savedHistory/, '启动期历史对账不得用旧快照覆盖新写入');
+assert.match(source, /if \(!isActive \|\| localStorage\.getItem\(HISTORY_INDEX_KEY\)\) return;/, '示例初始化完成前应复查是否已有用户历史');
+assert.match(source, /const persistedHistory = JSON\.parse\(localStorage\.getItem\(HISTORY_INDEX_KEY\) \|\| '\[\]'\)/, '新历史保存应以最新持久化索引合并，避免闭包旧值丢记录');
 
 console.log('Experience interaction regressions are covered.');

@@ -42,9 +42,8 @@ assert.match(source, /buildProcessingRequestBody\(endpoint, apiConfig\.model\.tr
 assert.match(source, /const readProcessingResponse = async \(response\)/);
 assert.match(source, /response\.body\.getReader\(\)/);
 assert.match(source, /await readProcessingResponse\(response\)/);
-assert.match(source, /const STAGE_LOADING_TEXT =/);
-assert.match(source, /setInterval\(\(\) => setInternalStage/);
-assert.match(source, /internalStage \/ 6/);
-assert.match(source, /STAGE_LOADING_TEXT\[internalStage\]/);
+assert.match(source, /setProcessingUiPhase\('waiting'\)[\s\S]*?setProcessingUiPhase\('validating'\)/, '请求生命周期应显示可证明的等待与校验阶段');
+assert.match(source, /setInterval\(\(\) => setProcessingElapsedSeconds/, '等待反馈可显示真实经过时间');
+assert.doesNotMatch(source, /STAGE_LOADING_TEXT|setInterval\(\(\) => setInternalStage|internalStage \/ 6/, '请求期间不得用定时器伪装模型内部进度');
 
 console.log('Text requests can time out and be stopped by the user.');

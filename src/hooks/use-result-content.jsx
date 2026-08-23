@@ -49,7 +49,7 @@ const renderStageContent = () => {
           <div key={sId}>
             <div className="visual-stage-heading">
               <h4 className="visual-stage-heading-title">
-                {sId === 1 ? 'AI 准入判型' : sId === 2 ? '深度事实核查与骨架提取' : sId === 3 ? '精修版文章重构' : sId === 4 ? '知识卡片内容包' : sId === 5 ? '视觉生成与成品对比' : ''}
+                {sId === 1 ? '内容准入与判型' : sId === 2 ? '内容核查与骨架提取' : sId === 3 ? '精修版文章重构' : sId === 4 ? '知识卡片内容包' : sId === 5 ? '视觉生成与成品对比' : ''}
               </h4>
             </div>
             <div>
@@ -240,21 +240,27 @@ const renderStageContent = () => {
                               </div>
                             </div>
 
-                            <aside className="visual-prompt-column">
-                              <div className="visual-prompt-block">
-                                <div className="visual-prompt-block-header">
-                                  <span className="visual-prompt-label">原始视觉提示词</span>
-                                  <button type="button" onClick={() => copyToClipboard(cleanPromptText, `[${selectedPromptSection.title}] 原始视觉提示词`)} className="mi-icon-button mi-icon-button-compact visual-result-action" aria-label="复制原始视觉提示词" title="复制原始视觉提示词"><Icon name="Copy" className="h-3.5 w-3.5" /></button>
+                            <aside key={selectedPromptSection.title} className="visual-prompt-column" aria-label="当前页面提示词详情">
+                              <details className="visual-disclosure">
+                                <summary><span>原始视觉提示词</span><Icon name="ChevronDown" className="visual-disclosure-icon" /></summary>
+                                <div className="visual-disclosure-body">
+                                  <div className="visual-prompt-block-header">
+                                    <span className="visual-prompt-label">实际请求内容</span>
+                                    <button type="button" onClick={() => copyToClipboard(cleanPromptText, `[${selectedPromptSection.title}] 原始视觉提示词`)} className="mi-icon-button mi-icon-button-compact visual-result-action" aria-label="复制原始视觉提示词" title="复制原始视觉提示词"><Icon name="Copy" className="h-3.5 w-3.5" /></button>
+                                  </div>
+                                  <pre className="visual-prompt-copy font-mono"><code>{cleanPromptText}</code></pre>
                                 </div>
-                                <pre className="visual-prompt-copy font-mono"><code>{cleanPromptText}</code></pre>
-                              </div>
-                              <div className="visual-prompt-block">
-                                <div className="visual-prompt-block-header">
-                                  <span className="visual-prompt-label">AI 整图实际请求</span>
-                                  <button type="button" disabled={!matchingCard} onClick={() => copyToClipboard(fullImagePrompt, `[${selectedPromptSection.title}] AI 整图请求`)} className="mi-icon-button mi-icon-button-compact visual-result-action" aria-label="复制 AI 整图请求" title="复制 AI 整图请求"><Icon name="Copy" className="h-3.5 w-3.5" /></button>
+                              </details>
+                              <details className="visual-disclosure">
+                                <summary><span>AI 整图实际请求</span><Icon name="ChevronDown" className="visual-disclosure-icon" /></summary>
+                                <div className="visual-disclosure-body">
+                                  <div className="visual-prompt-block-header">
+                                    <span className="visual-prompt-label">带卡片文字的完整请求</span>
+                                    <button type="button" disabled={!matchingCard} onClick={() => copyToClipboard(fullImagePrompt, `[${selectedPromptSection.title}] AI 整图请求`)} className="mi-icon-button mi-icon-button-compact visual-result-action" aria-label="复制 AI 整图请求" title="复制 AI 整图请求"><Icon name="Copy" className="h-3.5 w-3.5" /></button>
+                                  </div>
+                                  <pre className="visual-prompt-copy font-mono"><code>{fullImagePrompt}</code></pre>
                                 </div>
-                                <pre className="visual-prompt-copy font-mono"><code>{fullImagePrompt}</code></pre>
-                              </div>
+                              </details>
                             </aside>
                           </div>
                         </section>
