@@ -19,7 +19,7 @@ const HistoryItems = ({ history, isProcessing, activeHistoryId, showResults, set
       >
         <button
           type="button"
-          className="history-item-main min-w-0"
+          className="history-item-main"
           onClick={() => {
             if (isProcessing) return;
             if (closeAfterOpen) setIsHistoryOpen(false);
@@ -29,7 +29,7 @@ const HistoryItems = ({ history, isProcessing, activeHistoryId, showResults, set
           aria-current={activeHistoryId === item.id && showResults ? 'true' : undefined}
           aria-label={`打开历史记录：${item.title || '未命名'}`}
         >
-          <div className={`history-item-title min-w-0 text-[13px] font-bold ${activeHistoryId === item.id && showResults ? 'text-indigo-600' : 'text-slate-700'}`}>
+          <div className={`history-item-title text-[13px] font-bold ${activeHistoryId === item.id && showResults ? 'text-indigo-600' : 'text-slate-700'}`}>
             {item.title || '未命名'}
           </div>
           <div className="history-item-date mt-1.5 font-mono text-[11px] text-slate-400">{item.date}</div>
@@ -83,13 +83,13 @@ const MobileHistoryDialog = ({ isHistoryOpen, setIsHistoryOpen, history, isProce
           <h2 id="mobile-history-title" className="flex items-center text-[16px] font-extrabold text-slate-800">
             <Icon name="History" className="mr-2 h-5 w-5 text-indigo-600" /> 历史记录
           </h2>
-          <div className="mt-1 flex items-center gap-2">
+          <div className="mobile-history-subrow">
             <p className="text-[11px] text-slate-500">恢复、再次生成或删除本机记录</p>
             <button
               type="button"
               onClick={loadDemoRecord}
               disabled={isProcessing}
-              className="text-[11px] font-bold text-slate-400 hover:text-slate-500 transition-colors disabled:opacity-40"
+              className="moreimg-history-demo-action"
               aria-label="载入示例记录，查看应用完整能力"
               title="载入示例记录（含视觉生成与对比），不消耗 API"
             >

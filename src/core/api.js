@@ -1,3 +1,66 @@
+    const IMAGE_SIZE_PATTERN = /^\d{3,5}x\d{3,5}$/;
+    // gpt-image 系列只接受这几个枚举值。填 768x1024 这类非法值时，宽松的中转站会按自己的
+    // 默认尺寸出图并照常计费，用户以为参数生效、实际拿到的是另一个规格。
+    const GPT_IMAGE_SIZES = ['1024x1024', '1024x1536', '1536x1024', 'auto'];
+    const DEFAULT_IMAGE_SIZE = '1024x1536';
+
+    const isGptImageModel = (model = '') => /^gpt-image/i.test(String(model || '').trim());
+
+    const normalizeImageSize = (size, model = '') => {
+      const value = String(size || '').trim().toLowerCase();
+      if (isGptImageModel(model)) {
+        return GPT_IMAGE_SIZES.includes(value) ? value : DEFAULT_IMAGE_SIZE;
+      }
+      return IMAGE_SIZE_PATTERN.test(value) ? value : DEFAULT_IMAGE_SIZE;
+    };
+
+    const getImageSizeWarning = (size, model = '') => {
+      const value = String(size || '').trim().toLowerCase();
+      if (!value) return '';
+      if (isGptImageModel(model) && !GPT_IMAGE_SIZES.includes(value)) {
+        return `${model} 只支持 ${GPT_IMAGE_SIZES.join(' / ')}，将按 ${DEFAULT_IMAGE_SIZE} 请求。填写非法尺寸时中转站可能按自己的默认规格出图并照常计费。`;
+      }
+      if (!isGptImageModel(model) && !IMAGE_SIZE_PATTERN.test(value)) {
+        return `尺寸格式应为“宽x高”，例如 ${DEFAULT_IMAGE_SIZE}，将按 ${DEFAULT_IMAGE_SIZE} 请求。`;
+      }
+      return '';
+    };
+
+    // 走 URL 时图片要再从第三方 CDN 下载一次，而那些 CDN 多半不带 CORS 头、
+    // 链接也常在几分钟内失效，于是“已生成且已计费”的图会因为下载失败被判成整次失败。
+    // 所以尽量要求 base64：gpt-image 系列本来就只返回 b64_json，且会把
+    // response_format 当成未知参数直接 400，只能对其他模型显式声明。
+    const buildImageRequestBody = (model, prompt, size) => ({
+      model,
+      prompt,
+      size: normalizeImageSize(size, model),
+      n: 1,
+      ...(isGptImageModel(model) ? {} : { response_format: 'b64_json' })
+    });
+
+    // 中转站在 5xx / 网关超时时返回的是 HTML 错误页，裸 response.json() 会抛
+    // "Unexpected token '<'"，把真实状态码和上游提示全部吞掉。
+    const readImageResponse = async (response) => {
+      const rawText = await response.text();
+      let data = null;
+      try {
+        data = JSON.parse(rawText);
+      } catch {}
+      if (!response.ok) {
+        const upstreamMessage = data?.error?.message || data?.message || '';
+        const preview = upstreamMessage || rawText.replace(/\s+/g, ' ').trim().slice(0, 200);
+        throw new Error(`HTTP ${response.status}${preview ? `：${preview}` : ''}`);
+      }
+      if (!data) {
+        throw new Error(`接口返回了非 JSON 内容：${rawText.replace(/\s+/g, ' ').trim().slice(0, 200) || '空响应'}`);
+      }
+      const firstImage = data?.data?.[0];
+      const remoteUrl = firstImage?.url || '';
+      const base64 = firstImage?.b64_json || '';
+      if (!remoteUrl && !base64) throw new Error('接口未返回 url 或 b64_json 图片数据');
+      return { remoteUrl, dataUrl: base64 ? `data:image/png;base64,${base64}` : '' };
+    };
+
     const isResponsesApiEndpoint = (apiUrl = '') => /\/responses(?:[/?#]|$)/i.test(String(apiUrl).trim());
 
     const resolveApiEndpoint = (apiUrl = '', kind = 'text') => {
@@ -36,6 +99,21 @@
         };
       } catch {
         return { url: endpoint, headers: {} };
+      }
+    };
+
+    // 图片 CDN 通常不带 CORS 头，浏览器直连会在“已计费”之后失败。
+    // 本地服务模式下改走同源代理下载；纯静态部署时只能直连，失败即回退到人工另存。
+    const getImageDownloadTransport = (imageUrl, pageLocation = window.location) => {
+      const isLocalService = pageLocation?.protocol === 'http:' && ['127.0.0.1', 'localhost'].includes(pageLocation?.hostname);
+      if (!isLocalService) return { url: imageUrl, headers: {} };
+      try {
+        const target = new URL(imageUrl, pageLocation.origin);
+        if (target.origin === pageLocation.origin) return { url: imageUrl, headers: {} };
+        if (!/^https?:$/.test(target.protocol)) return { url: imageUrl, headers: {} };
+        return { url: '/proxy/image-asset', headers: { 'X-MoreImg-Upstream': target.toString() } };
+      } catch {
+        return { url: imageUrl, headers: {} };
       }
     };
 

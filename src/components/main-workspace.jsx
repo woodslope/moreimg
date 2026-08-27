@@ -3,7 +3,7 @@ const MainWorkspace = ({ isProcessing, showResults, processingUiPhase, processin
 
   {isProcessing && !showResults && (
     <div className="absolute inset-0 z-30 flex flex-col items-center justify-center bg-slate-50/60 backdrop-blur-xl animate-fade-in">
-      <div className="relative w-40 h-40 mb-10 flex items-center justify-center">
+      <div className="processing-spinner relative w-40 h-40 flex items-center justify-center">
         <div className="absolute inset-0 rounded-full border border-slate-200/60 shadow-[inset_0_0_20px_rgba(99,102,241,0.1)]"></div>
         <div className="absolute inset-0 rounded-full border-t-[3px] border-indigo-600 animate-spin" style={{ animationDuration: '2s' }}></div>
         <div className="absolute inset-4 rounded-full border-b-[2px] border-sky-400 animate-spin" style={{ animationDirection: 'reverse', animationDuration: '3s' }}></div>

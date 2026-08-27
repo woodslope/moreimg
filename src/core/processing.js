@@ -33,7 +33,11 @@
     const PROCESSING_MAX_OUTPUT_TOKENS = 12000;
     const TEXT_REQUEST_TIMEOUT_MS = 300000;
     const TEXT_TEST_TIMEOUT_MS = 30000;
-    const IMAGE_REQUEST_TIMEOUT_MS = 300000;
+    // 生图和下载分别计时：旧实现用一个 300 秒预算覆盖“生成 + 下载 + 入库”，
+    // 生成用掉 280 秒后下载再被掐断，上游其实已经出图并计费。
+    // 这两个值必须小于 server.py 的 PROXY_TIMEOUT_SECONDS，否则代理先断、前端拿不到真实状态码。
+    const IMAGE_REQUEST_TIMEOUT_MS = 600000;
+    const IMAGE_DOWNLOAD_TIMEOUT_MS = 120000;
 
     const runWithRequestControl = (task, options = {}) => {
       const {

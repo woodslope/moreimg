@@ -153,6 +153,8 @@ await Promise.all([
 ]);
 let artifactPath = '';
 let imageRequestCount = 0;
+// 用于验证“在途生图不被历史切换取消”：上游一旦受理就会计费，本地放弃等于白花钱。
+let imageResponseDelayMs = 0;
 const processedInputLengths = [];
 const processingStreamFlags = [];
 const appPort = await getFreePort();
@@ -191,6 +193,7 @@ const server = createServer(async (request, response) => {
   }
   if (request.method === 'POST' && (url.pathname === '/proxy/image' || url.pathname.endsWith('/images/generations'))) {
     imageRequestCount += 1;
+    if (imageResponseDelayMs) await sleep(imageResponseDelayMs);
     response.writeHead(200, { 'Content-Type': 'application/json' });
     response.end(JSON.stringify({ data: [{ b64_json: imageBase64 }] }));
     return;
@@ -566,6 +569,10 @@ try {
   );
   assert.deepEqual(keyboardFocusEvidence.map(item => item.height), [40, 40], '结果态新建入口与阶段标签应遵循 40px 合同');
   assert.equal(keyboardFocusEvidence[1].ariaSelected, 'true', '当前阶段标签应暴露选中语义');
+  const raisedSurfaceReference = await evaluate(`(() => {
+    const style = getComputedStyle(document.querySelector('.stage-content-panel'));
+    return { background: style.backgroundColor, boxShadow: style.boxShadow, borderRadius: style.borderRadius };
+  })()`);
   await client.send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'ArrowRight', code: 'ArrowRight', windowsVirtualKeyCode: 39 });
   await client.send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'ArrowRight', code: 'ArrowRight', windowsVirtualKeyCode: 39 });
   await waitFor(() => evaluate(`document.querySelector('.results-stage-tab[aria-selected="true"]')?.textContent.includes('文章与卡片')`));
@@ -575,6 +582,15 @@ try {
   const inputText = lengthCases.at(-1).input;
   await evaluate(`[...document.querySelectorAll('button')].find(item=>item.textContent.includes('文章与卡片')).click()`);
   await waitFor(() => evaluate(`document.querySelectorAll('.content-card-panel').length >= 3`));
+  const contentPanelSurfaceContract = await evaluate(`(() => {
+    const panels = [...document.querySelectorAll('.stage-content-panel, .content-card-panel')];
+    return panels.map(panel => {
+      const style = getComputedStyle(panel);
+      return { background: style.backgroundColor, boxShadow: style.boxShadow, borderRadius: style.borderRadius };
+    });
+  })()`);
+  assert.equal(contentPanelSurfaceContract.length >= 4, true, '文章与卡片页应包含文章与知识卡片一级面板');
+  assert.equal(contentPanelSurfaceContract.every(surface => JSON.stringify(surface) === JSON.stringify(raisedSurfaceReference)), true, `理解与核查、文章与卡片的一级面板应共用抬升表面: ${JSON.stringify({ raisedSurfaceReference, contentPanelSurfaceContract })}`);
   const deferredCardStyles = await evaluate(`[...document.querySelectorAll('.content-card-panel')].map(card => {
     const style = getComputedStyle(card);
     return { contentVisibility: style.contentVisibility, containIntrinsicSize: style.containIntrinsicSize };
@@ -685,9 +701,15 @@ try {
   assert.deepEqual([successToastContract.borderWidths, successToastContract.borderRadius], [[1, 1, 1, 1], 16], `桌面 Toast 应使用完整细框且保持独立圆角: ${JSON.stringify(successToastContract)}`);
   await evaluate(`document.querySelector('button[aria-label="关闭通知"]').click()`);
   await waitFor(() => evaluate(`!document.querySelector('.mi-toast')`));
-  const deferredVisualSectionStyle = await evaluate(`(() => { const style = getComputedStyle(document.querySelector('.visual-section')); return { contentVisibility: style.contentVisibility, containIntrinsicSize: style.containIntrinsicSize }; })()`);
-  assert.equal(deferredVisualSectionStyle.contentVisibility, 'auto', '下方成品对比区必须启用 content-visibility');
-  assert.equal(deferredVisualSectionStyle.containIntrinsicSize.includes('900px'), true, '下方成品对比区必须预留稳定高度');
+  const visualPanelSurfaceContract = await evaluate(`(() => {
+    const panels = [...document.querySelectorAll('.visual-panel')];
+    return panels.map(panel => {
+      const style = getComputedStyle(panel);
+      return { background: style.backgroundColor, boxShadow: style.boxShadow, borderRadius: style.borderRadius };
+    });
+  })()`);
+  assert.equal(visualPanelSurfaceContract.length >= 2, true, '页面应同时存在视觉工作台与成品对比面板');
+  assert.deepEqual(visualPanelSurfaceContract[1], visualPanelSurfaceContract[0], `两个同级视觉面板应共用背景、投影与圆角规范: ${JSON.stringify(visualPanelSurfaceContract)}`);
   const htmlPreviewBounds = await evaluate(`(() => {
     const frame = document.querySelector('.html-card-preview-frame');
     const card = frame?.querySelector('.html-card-preview-scale');
@@ -801,6 +823,84 @@ try {
   assert.equal(await evaluate(`document.querySelector('.visual-error')?.textContent || ''`), '', 'AI 整图生成不应报错');
   const deferredComparisonImage = await evaluate(`(() => { const image = document.querySelector('.visual-comparison-image'); return image ? { loading: image.loading, decoding: image.decoding } : null; })()`);
   assert.deepEqual(deferredComparisonImage, { loading: 'lazy', decoding: 'async' }, '下方重复 AI 整图必须懒加载并异步解码');
+
+  // 生图计费安全：上游一旦受理就会计费，切换历史记录不得取消在途请求，
+  // 结果必须仍然落盘到发起时的那条会话，否则用户付了钱却什么都拿不到。
+  const [billingOriginSessionId, billingOtherSessionId] = await evaluate(
+    `JSON.parse(localStorage.getItem('moreimg_history_index') || '[]').slice(0, 2).map(item => item.id)`
+  );
+  assert.ok(billingOriginSessionId && billingOtherSessionId, '应有两条历史记录用于验证跨会话生图');
+  const readStoredImage = sessionId => evaluate(`(async () => {
+    const database = await new Promise((resolve, reject) => {
+      const request = indexedDB.open('moreimg_images', 2);
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+    const record = await new Promise((resolve, reject) => {
+      const request = database.transaction('generated_images', 'readonly').objectStore('generated_images').get(${JSON.stringify(sessionId)} + ':visual-only:封面');
+      request.onsuccess = () => resolve(request.result || null);
+      request.onerror = () => reject(request.error);
+    });
+    database.close();
+    return record ? { size: record.blob.size, updatedAt: record.updatedAt } : null;
+  })()`);
+  const storedBeforeSwitch = await readStoredImage(billingOriginSessionId);
+  assert.ok(storedBeforeSwitch, '切换前发起会话应已有主视觉记录');
+  const imageRequestsBeforeSwitch = imageRequestCount;
+  imageResponseDelayMs = 1500;
+  await evaluate(`[...document.querySelectorAll('.visual-button-primary')].find(item=>item.textContent.includes('主视觉')).click()`);
+  await waitFor(() => imageRequestCount === imageRequestsBeforeSwitch + 1);
+  await evaluate(`document.querySelectorAll('.history-item-main')[1].click()`);
+  await waitFor(() => evaluate(`document.querySelectorAll('.history-item-main')[1].getAttribute('aria-current') === 'true'`));
+  await waitFor(async () => {
+    const stored = await readStoredImage(billingOriginSessionId);
+    return stored && stored.updatedAt > storedBeforeSwitch.updatedAt;
+  }, 20000);
+  imageResponseDelayMs = 0;
+  assert.equal(imageRequestCount, imageRequestsBeforeSwitch + 1, '切换历史记录不得重发生图请求');
+  assert.equal(await readStoredImage(billingOtherSessionId), null, '在途生图不得写入切换后的会话');
+  await waitFor(() => evaluate(`document.body.innerText.includes('返回该记录即可查看')`));
+  assert.equal(
+    await evaluate(`Boolean(document.querySelector('.visual-error'))`),
+    false,
+    '跨会话完成的生图不应在当前记录上报错'
+  );
+  const billingUsageLog = await evaluate(`JSON.parse(localStorage.getItem('moreimg_image_usage_log') || '[]')`);
+  assert.ok(billingUsageLog.length >= 1, '生图应写入可对账的请求记录');
+  assert.equal(billingUsageLog[0].outcome, '成功');
+  assert.equal(billingUsageLog[0].mayBeBilled, true, '成功记录必须标记已计费，便于与账单核对');
+  assert.equal(billingUsageLog[0].size, '1024x1536', '请求应使用合法尺寸，避免中转站静默替换');
+  await evaluate(`document.querySelectorAll('.history-item-main')[0].click()`);
+  await waitFor(() => evaluate(`Boolean(document.querySelector('button[aria-label="下载主视觉"]'))`), 20000);
+
+  // 对账面板必须真实渲染，否则“可能已计费”只是代码里的字段，用户看不到。
+  await evaluate(`document.querySelector('button[aria-label="打开设置"]').click()`);
+  await waitFor(() => evaluate(`Boolean(document.querySelector('.config-dialog'))`));
+  const usageLogContract = await evaluate(`(() => {
+    const panel = [...document.querySelectorAll('.image-diagnostic')].find(item => item.textContent.includes('生图请求记录'));
+    if (!panel) return null;
+    panel.open = true;
+    const summary = panel.querySelector('summary span')?.textContent.trim() || '';
+    const items = [...panel.querySelectorAll('.image-usage-item')];
+    return {
+      summary,
+      itemCount: items.length,
+      firstOutcome: items[0]?.querySelector('.image-usage-outcome')?.textContent.trim() || '',
+      firstMeta: items[0]?.querySelector('.image-usage-meta')?.textContent.trim() || '',
+      hasCopy: [...panel.querySelectorAll('button')].some(button => button.textContent.includes('复制记录对账')),
+      hasClear: [...panel.querySelectorAll('button')].some(button => button.textContent.includes('清空记录'))
+    };
+  })()`);
+  assert.ok(usageLogContract, '设置面板应渲染生图请求记录');
+  assert.ok(usageLogContract.itemCount >= 1, '生图后对账面板应至少有一条记录');
+  assert.equal(usageLogContract.firstOutcome, '成功');
+  assert.match(usageLogContract.firstMeta, /gpt-image-2|fixture-image/, '记录应显示实际使用的图片模型');
+  assert.match(usageLogContract.firstMeta, /1024x1536/, '记录应显示实际请求的尺寸');
+  assert.deepEqual([usageLogContract.hasCopy, usageLogContract.hasClear], [true, true], '对账面板应提供复制与清空入口');
+  const imageSizeHint = await evaluate(`[...document.querySelectorAll('.config-hint')].map(item => item.textContent.trim()).find(text => text.startsWith('实际请求：1024x1536')) || ''`);
+  assert.ok(imageSizeHint, '图片尺寸字段应显示校正后的实际请求值');
+  await evaluate(`document.querySelector('button[aria-label="关闭设置"]').click()`);
+  await waitFor(() => evaluate(`!document.querySelector('.config-dialog')`));
   const legacyWarningTitle = await evaluate(`(async () => {
     const title = [...document.querySelectorAll('.visual-page-tab')].at(-1)?.textContent.trim() || '';
     const history = JSON.parse(localStorage.getItem('moreimg_history_index') || '[]');

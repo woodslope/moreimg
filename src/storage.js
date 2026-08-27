@@ -2,6 +2,8 @@
     const IMAGE_STORE_NAME = 'generated_images';
     const SESSION_STORE_NAME = 'sessions';
     const MOREIMG_IMAGE_DIAGNOSTIC_KEY = 'moreimg_last_image_diagnostic';
+    const MOREIMG_IMAGE_USAGE_LOG_KEY = 'moreimg_image_usage_log';
+    const IMAGE_USAGE_LOG_LIMIT = 100;
     const HISTORY_INDEX_KEY = 'moreimg_history_index';
     const LEGACY_HISTORY_KEY = 'agent_history';
     const HISTORY_LIMIT = 50;
@@ -38,6 +40,56 @@
       if (/fetch|network|cors|图片下载|failed to fetch/.test(message)) return '图片 URL 无法读取（CORS、网络或链接失效）';
       if (phase === 'storage') return 'IndexedDB 图片写入失败';
       return '生图请求失败';
+    };
+
+    // 上游一旦受理生图就会计费，本地放弃不会退款。
+    // 这份日志按“是否可能已计费”标注每一次请求，用来和中转站账单逐条对账。
+    const loadImageUsageLog = () => {
+      try {
+        const value = JSON.parse(localStorage.getItem(MOREIMG_IMAGE_USAGE_LOG_KEY) || '[]');
+        return Array.isArray(value) ? value.filter(item => item && typeof item === 'object') : [];
+      } catch {
+        return [];
+      }
+    };
+
+    const appendImageUsageLog = (entry) => {
+      const nextLog = [{ ...entry, at: new Date().toISOString() }, ...loadImageUsageLog()].slice(0, IMAGE_USAGE_LOG_LIMIT);
+      try {
+        localStorage.setItem(MOREIMG_IMAGE_USAGE_LOG_KEY, JSON.stringify(nextLog));
+      } catch {}
+      return nextLog;
+    };
+
+    const clearImageUsageLog = () => {
+      try {
+        localStorage.removeItem(MOREIMG_IMAGE_USAGE_LOG_KEY);
+      } catch {}
+      return [];
+    };
+
+    const formatImageUsageLogText = (log = []) => {
+      const header = '时间\t模型\t尺寸\t页面/模式\t耗时(秒)\t结果\t可能已计费\t说明';
+      const rows = log.map(item => [
+        item.at ? new Date(item.at).toLocaleString() : '',
+        item.model || '',
+        item.size || '',
+        `${item.cardTitle || ''}/${item.mode || ''}`,
+        typeof item.durationMs === 'number' ? (item.durationMs / 1000).toFixed(1) : '',
+        item.outcome || '',
+        item.mayBeBilled ? '是' : '否',
+        String(item.detail || '').replace(/\s+/g, ' ')
+      ].join('\t'));
+      return [header, ...rows].join('\n');
+    };
+
+    const summarizeImageUsageLog = (log = []) => {
+      const billedFailures = log.filter(item => item.outcome !== '成功' && item.mayBeBilled);
+      return {
+        total: log.length,
+        success: log.filter(item => item.outcome === '成功').length,
+        billedFailures: billedFailures.length
+      };
     };
 
     const openImageDatabase = () => new Promise((resolve, reject) => {

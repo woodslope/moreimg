@@ -1,4 +1,7 @@
-const SettingsDialog = ({ isConfigOpen, onRequestClose, apiConfig, setApiConfig, configTools, handleLoadModels, handleTestTextConnection, handleModelSelection, textModels, imageModels, lastImageDiagnostic, handleSaveConfig }) => (
+const SettingsDialog = ({ isConfigOpen, onRequestClose, apiConfig, setApiConfig, configTools, handleLoadModels, handleTestTextConnection, handleModelSelection, textModels, imageModels, lastImageDiagnostic, imageUsageLog = [], copyImageUsageLog, handleClearImageUsageLog, handleSaveConfig }) => {
+  const imageSizeWarning = getImageSizeWarning(apiConfig.imageSize, apiConfig.imageModel);
+  const usageSummary = summarizeImageUsageLog(imageUsageLog);
+  return (
   <ModalFrame
     isOpen={isConfigOpen}
     onRequestClose={onRequestClose}
@@ -92,7 +95,7 @@ const SettingsDialog = ({ isConfigOpen, onRequestClose, apiConfig, setApiConfig,
             </div>
           </div>
           <div className="mi-feedback mi-feedback-info config-preference-note">
-            <Icon name="ShieldCheck" className="mt-0.5 h-4 w-4 shrink-0 text-indigo-600" />
+            <Icon name="ShieldCheck" className="h-4 w-4 shrink-0 text-indigo-600" />
             <span>每次加工仍只请求一次文本 API；固定生成封面、正文和封底。核心规则不可编辑。</span>
           </div>
           <div className="config-grid">
@@ -178,13 +181,15 @@ const SettingsDialog = ({ isConfigOpen, onRequestClose, apiConfig, setApiConfig,
             </div>
             <div className="config-field">
               <label className="config-label">图片尺寸</label>
-              <input type="text" value={apiConfig.imageSize} onChange={(e) => setApiConfig({...apiConfig, imageSize: e.target.value})} placeholder="768x1024" className="mi-field config-input" />
+              <input type="text" value={apiConfig.imageSize} onChange={(e) => setApiConfig({...apiConfig, imageSize: e.target.value})} placeholder="1024x1536" className="mi-field config-input" />
+              <div className="config-hint">实际请求：{normalizeImageSize(apiConfig.imageSize, apiConfig.imageModel)}</div>
             </div>
             <div className="config-field config-span-2">
               <label className="config-label">图片 API Key</label>
               <input type="password" value={apiConfig.imageApiKey} onChange={(e) => setApiConfig({...apiConfig, imageApiKey: e.target.value})} placeholder="sk-..." className="mi-field config-input" />
             </div>
           </div>
+          {imageSizeWarning && <div className="mi-feedback mi-feedback-warning config-preference-note"><Icon name="TriangleAlert" className="h-4 w-4 shrink-0" /><span>{imageSizeWarning}</span></div>}
           <ConfigStatus state={configTools.imageModels} />
         </section>
 
@@ -209,6 +214,42 @@ const SettingsDialog = ({ isConfigOpen, onRequestClose, apiConfig, setApiConfig,
           </details>
         </section>
 
+        <section className="config-section">
+          <details className="mi-surface mi-surface-card image-diagnostic">
+            <summary>生图请求记录（可对账）<span>{usageSummary.total ? `${usageSummary.total} 条 / 疑似计费失败 ${usageSummary.billedFailures} 次` : '暂无记录'}</span></summary>
+            {usageSummary.total ? (
+              <div className="image-usage-log">
+                <div className="mi-feedback mi-feedback-info image-usage-note">
+                  <Icon name="ReceiptText" className="h-4 w-4 shrink-0 text-indigo-600" />
+                  <span>上游一旦受理生图就会计费，本地取消或超时都不会退款。这里按“可能已计费”标注每次请求，可复制后与中转站账单逐条核对。</span>
+                </div>
+                <ul className="image-usage-list">
+                  {imageUsageLog.slice(0, 12).map((item, index) => (
+                    <li className="image-usage-item" key={`${item.at}-${index}`}>
+                      <div className="image-usage-head">
+                        <span className={`image-usage-outcome image-usage-outcome-${item.outcome === '成功' ? 'ok' : 'bad'}`}>{item.outcome || '未知'}</span>
+                        <span>{item.at ? new Date(item.at).toLocaleString() : '未记录'}</span>
+                        <span>{typeof item.durationMs === 'number' ? `${(item.durationMs / 1000).toFixed(1)}s` : '—'}</span>
+                        {item.outcome !== '成功' && item.mayBeBilled && <span className="image-usage-billed">可能已计费</span>}
+                      </div>
+                      <div className="image-usage-meta">{[item.cardTitle, item.mode, item.model, item.size].filter(Boolean).join(' · ')}</div>
+                      {item.detail && <div className="image-usage-detail">{item.detail}</div>}
+                    </li>
+                  ))}
+                </ul>
+                <div className="image-usage-actions">
+                  <button type="button" onClick={copyImageUsageLog} className="mi-button mi-button-compact config-action-button">
+                    <Icon name="ClipboardCopy" className="h-3.5 w-3.5" />复制记录对账
+                  </button>
+                  <button type="button" onClick={handleClearImageUsageLog} className="mi-button mi-button-compact config-action-button">
+                    <Icon name="Trash2" className="h-3.5 w-3.5" />清空记录
+                  </button>
+                </div>
+              </div>
+            ) : <p className="image-diagnostic-empty">生图后这里会按时间记录模型、尺寸、耗时和是否可能已计费，便于和账单对账。</p>}
+          </details>
+        </section>
+
       </div>
 
       {/* 弹窗 Footer */}
@@ -222,4 +263,5 @@ const SettingsDialog = ({ isConfigOpen, onRequestClose, apiConfig, setApiConfig,
       </div>
 
   </ModalFrame>
-);
+  );
+};

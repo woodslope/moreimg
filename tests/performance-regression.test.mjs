@@ -2,6 +2,12 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
 const source = await readFile(new URL('../src.html', import.meta.url), 'utf8');
+// 生产脚本单独断言：preset-env 缺 targets 时会一路降级到 ES5，体积凭空多三成，
+// 而源码本来就直接用 AbortController / Object.fromEntries 且不带 polyfill，降级毫无收益。
+const bundle = await readFile(new URL('../app.js', import.meta.url), 'utf8');
+assert.ok(!/\bvar /.test(bundle), 'app.js 不应被降级为 ES5（出现 var 说明 build.mjs 丢了 targets）');
+assert.ok(/=>/.test(bundle), 'app.js 应保留箭头函数');
+assert.ok(bundle.length < 260_000, `app.js 体积异常（${bundle.length} 字节），检查 Babel targets 是否失效`);
 
 assert.match(source, /const SESSION_STORE_NAME = 'sessions'/);
 assert.match(source, /const HISTORY_INDEX_KEY = 'moreimg_history_index'/);
@@ -39,8 +45,8 @@ assert.doesNotMatch(source, /<div className="animate-fade-in-up pb-20">/, '结�
 assert.doesNotMatch(source, /<div key=\{sId\} className="animate-fade-in-up">/, '阶段长内容不得保留大面积 transform 动画');
 assert.match(source, /\.content-card-panel \{[^}]*content-visibility:\s*auto/, '离屏内容卡片应跳过绘制');
 assert.match(source, /\.content-card-panel \{[^}]*contain-intrinsic-size:\s*auto\s+240px/, '离屏卡片应预留稳定高度');
-assert.match(source, /\.visual-section \{[^}]*content-visibility:\s*auto/, '下方成品对比区应跳过离屏绘制');
-assert.match(source, /\.visual-section \{[^}]*contain-intrinsic-size:\s*auto\s+900px/, '成品对比区应预留稳定高度');
+assert.doesNotMatch(source, /\.visual-section \{[^}]*content-visibility/, '成品对比外层不得启用会裁切共享面板投影的绘制包含');
+assert.doesNotMatch(source, /\.visual-section \{[^}]*contain-intrinsic-size/, '成品对比外层不应保留绘制包含的占位高度');
 assert.match(source, /<img\s+src=\{imageUrl\}\s+alt=""\s+decoding="async"\s*\/>/, 'HTML 卡片主视觉应异步解码');
 assert.match(source, /className="visual-preview-image"[\s\S]*?decoding="async"/, '生成结果预览图应异步解码');
 assert.match(source, /<img src=\{fullImageResult\.imageUrl\}[^>]*loading="lazy"[^>]*decoding="async"[^>]*className="visual-comparison-image"/, '下方重复 AI 整图应懒加载并异步解码');

@@ -7,7 +7,8 @@ assert.match(source, /imageApiUrl:/);
 assert.match(source, /imageModel:/);
 assert.match(source, /imageApiKey:/);
 assert.match(source, /imageSize:/);
-assert.match(source, /imageSize:\s*'768x1024'/);
+assert.match(source, /imageSize: DEFAULT_IMAGE_SIZE/);
+assert.doesNotMatch(source, /imageSize:\s*'768x1024'/, '默认尺寸不得回退到 gpt-image 不接受的 768x1024');
 assert.match(source, /handleGenerateImage/);
 assert.match(source, /\/images\/generations/);
 assert.match(source, /b64_json/);
@@ -136,7 +137,11 @@ assert.match(source, /IMAGE_DB_NAME/);
 assert.match(source, /saveImageBlob/);
 assert.match(source, /loadSessionImages/);
 assert.match(source, /URL\.createObjectURL/);
-assert.match(source, /flex-col lg:flex-row/);
-assert.match(source, /w-full lg:w-\[320px\]/);
+// 响应式布局由 template.html 的 @media (min-width: 1024px) 拥有，
+// 不再依赖 styles.css 里并不存在的 lg: 工具类。
+assert.match(source, /@media \(min-width: 1024px\)/);
+assert.match(source, /\.moreimg-app-shell \{ flex-direction: row; \}/);
+assert.match(source, /\.moreimg-sidebar \{[\s\S]*?width: 320px;/);
+assert.ok(!/className="[^"]*\blg:/.test(source), '标记中不应再出现未编译的 lg: 工具类');
 
 console.log('Single-image generation controls are present.');

@@ -37,7 +37,7 @@
       const feedbackType = state.status === 'loading' ? 'neutral' : state.status;
       return (
         <div className={`mi-feedback mi-feedback-${feedbackType} config-status config-status-${state.status}`} role={state.status === 'error' ? 'alert' : 'status'} aria-live="polite">
-          <Icon name={iconName} className={`mt-0.5 h-3.5 w-3.5 shrink-0 ${state.status === 'loading' ? 'animate-spin' : ''}`} />
+          <Icon name={iconName} className={`h-3.5 w-3.5 shrink-0 ${state.status === 'loading' ? 'animate-spin' : ''}`} />
           <span>{state.message}</span>
         </div>
       );

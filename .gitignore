@@ -1,3 +1,6 @@
 __pycache__/
 *.py[cod]
 .DS_Store
+
+# 本地 agent 记忆目录，不属于项目源码
+.workbuddy/

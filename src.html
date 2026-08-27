@@ -86,7 +86,6 @@
       flex-shrink: 0;
       margin-top: 16px;
       padding-top: 14px;
-      border-top: 1px solid rgba(255, 255, 255, 0.6);
       color: #94a3b8;
       font-size: 10px;
       line-height: 1.6;
@@ -134,7 +133,13 @@
     .mi-empty-state-inline { width: 100%; height: 100%; border: 0; border-radius: 0; background: transparent; }
     .mi-empty-state-icon { display: flex; width: 40px; height: 40px; flex: 0 0 auto; align-items: center; justify-content: center; border-radius: 10px; background: #eef2ff; color: #4f46e5; }
     .mi-empty-state-icon-large { width: 48px; height: 48px; border-radius: 12px; }
+    /* 空状态图标统一由容器定尺寸，内部 svg 不再依赖已失效的尺寸工具类。 */
+    .mi-empty-state-icon > svg { width: 20px; height: 20px; }
+    .mi-empty-state-icon-large > svg { width: 24px; height: 24px; }
+    .mi-empty-state-hint { margin-top: 12px; font-size: 11px; font-weight: 700; }
     .mi-feedback { display: flex; align-items: flex-start; gap: 8px; border: 1px solid transparent; border-radius: 10px; padding: 10px 12px; font-size: 11px; line-height: 1.6; }
+    /* 反馈条内的前导图标：轻微下移对齐首行文字基线。 */
+    .mi-feedback > svg { margin-top: 2px; }
     .mi-feedback-info { border-color: var(--mi-feedback-info-border); background: var(--mi-feedback-info-bg); color: var(--mi-feedback-info-text); }
     .mi-feedback-warning { border-color: var(--mi-feedback-warning-border); background: var(--mi-feedback-warning-bg); color: var(--mi-feedback-warning-text); }
     .mi-feedback-error { border-color: var(--mi-feedback-error-border); background: var(--mi-feedback-error-bg); color: var(--mi-feedback-error-text); }
@@ -166,6 +171,15 @@
     .visual-panel { overflow: hidden; }
     .content-card-grid { grid-auto-rows: 1fr; align-items: stretch; }
     .content-card-panel { padding: 24px; content-visibility: auto; contain-intrinsic-size: auto 240px; }
+    /* 卡片内容包正文：块间距、要点间距与元信息分隔线。 */
+    .content-card-body { display: flex; flex-direction: column; gap: 16px; color: #475569; font-size: 13px; line-height: 1.625; }
+    .content-card-heading-sub { margin-top: 4px; color: #64748b; }
+    .content-card-points { display: flex; flex-direction: column; gap: 8px; }
+    .content-card-point { display: flex; gap: 8px; }
+    .content-card-point-mark { color: #6366f1; }
+    .content-card-summary { border-top: 1px solid rgba(226,232,240,1); padding-top: 12px; font-weight: 700; color: #334155; }
+    .content-card-meta { border-top: 1px solid rgba(241,245,249,1); padding-top: 12px; color: #94a3b8; font-size: 11px; }
+    .content-card-meta > * + * { margin-top: 4px; }
     .moreimg-empty-icon { background: rgba(255,255,255,.72); box-shadow: 0 10px 28px rgba(76,81,124,.1); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); }
     .moreimg-feature-card { border-color: rgba(255,255,255,.8); background: rgba(255,255,255,.58); backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px); }
     .visual-panel-header { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 14px; padding: 14px 18px; border-bottom: 1px solid var(--mi-border); background: rgba(255,255,255,.72); }
@@ -190,6 +204,8 @@
     .processing-notice-status { color: inherit; font-size: 11px; font-weight: 700; line-height: 1.5; white-space: nowrap; opacity: .84; }
     .processing-notice-message { margin: 3px 0 0; color: inherit; font-size: 12px; line-height: 1.65; }
     .visual-panel-notice { align-items: center; margin: 12px 18px 0; border: 1px solid rgba(99,102,241,.24); border-radius: 8px; padding: 8px 12px; background: rgba(238,242,255,.58); color: #4338ca; }
+    /* 该变体整体居中对齐，取消基线微调避免图标偏下。 */
+    .visual-panel-notice > svg { margin-top: 0; }
     .visual-workspace-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(280px, 340px); align-items: stretch; }
     .visual-results-column { display: flex; min-width: 0; flex-direction: column; padding: 22px; }
     .visual-prompt-column { display: flex; min-width: 0; flex-direction: column; align-content: start; gap: 0; border-left: 1px solid var(--mi-border); padding: 14px 20px 22px; }
@@ -220,7 +236,8 @@
     .visual-disclosure:not([open]) .visual-disclosure-body { display: none; }
     .visual-disclosure-body { padding: 0 0 16px; }
     .visual-error { margin-top: 14px; font-size: 12px; }
-    .visual-section { padding-top: 0; content-visibility: auto; contain-intrinsic-size: auto 900px; }
+    /* 成品对比与上方视觉工作台共用同一面板表面，不在外层启用会裁切投影的绘制包含。 */
+    .visual-section { padding-top: 0; }
     .visual-stage-heading,
     .visual-section-heading { display: flex; align-items: center; gap: 10px; padding: 0 2px; }
     .visual-stage-heading::before,
@@ -241,6 +258,9 @@
     .visual-comparison-image { display: block; width: 100%; height: 100%; object-fit: cover; }
     .visual-comparison-meta { display: flex; justify-content: space-between; gap: 8px; margin-top: 8px; color: #64748b; font-size: 10px; line-height: 1.45; }
     .visual-comparison-meta strong { color: #475569; font-weight: 750; }
+    /* 主视觉占位提示：默认灰字，旧版主视觉过期时转为琥珀色警示。 */
+    .visual-comparison-hint { margin-top: 12px; color: #94a3b8; font-size: 11px; text-align: center; }
+    .visual-comparison-hint.is-stale { color: #d97706; }
     .visual-card-grid { display: grid; grid-template-columns: repeat(1, minmax(0, 1fr)); gap: 28px 20px; }
     .visual-output-card { min-width: 0; }
     .visual-output-card-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; padding: 0 4px; }
@@ -261,10 +281,13 @@
     .results-stage-tab-active { background: rgba(79,70,229,.9); color: #fff; box-shadow: 0 4px 10px rgba(99,102,241,.2); }
     .results-stage-tab-active:hover { background: #4f46e5; color: #fff; }
     .processing-status-copy { max-width: 520px; margin: 0 auto; color: var(--mi-muted); font-size: 13px; line-height: 1.65; }
+    /* 等待动画与下方文案之间的间距，原先依赖未编译的 mb-10。 */
+    .processing-spinner { margin-bottom: 40px; }
     .processing-progress-track { position: relative; width: 256px; height: 6px; overflow: hidden; margin: 22px auto 0; border-radius: 999px; background: rgba(226,232,240,.72); }
     .processing-progress-indicator { position: absolute; top: 0; bottom: 0; left: -40%; width: 40%; border-radius: inherit; background: linear-gradient(90deg, transparent, #6366f1, #38bdf8, transparent); animation: processingProgress 1.6s ease-in-out infinite; }
     @keyframes processingProgress { from { transform: translateX(0); } to { transform: translateX(350%); } }
     .sidebar-brand-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+    .sidebar-brand-title { display: flex; min-width: 0; align-items: center; }
     .sidebar-brand-copy { display: flex; min-width: 0; flex-direction: column; justify-content: center; gap: 4px; }
     .sidebar-brand-name { color: #1e293b; font-size: 20px; font-weight: 800; line-height: 1; letter-spacing: -.025em; }
     .sidebar-brand-en { color: #94a3b8; font-size: 11px; font-weight: 700; line-height: 1; letter-spacing: .08em; }
@@ -309,6 +332,8 @@
     .mobile-history-overlay { position: fixed; inset: 0; z-index: 40; display: flex; align-items: center; justify-content: center; padding: 16px; background: rgba(15,23,42,.4); }
     .mobile-history-dialog { width: 100%; max-width: 420px; max-height: calc(100dvh - 32px); overflow: hidden; border: 1px solid rgba(255,255,255,.72); border-radius: 24px; background: #fff; box-shadow: 0 25px 50px -12px rgba(15,23,42,.3); }
     .mobile-history-dialog-header { display: flex; flex-shrink: 0; align-items: center; justify-content: space-between; gap: 12px; border-bottom: 1px solid rgba(226,232,240,.72); padding: 18px 16px; background: #fff; }
+    /* 触屏历史弹窗标题下的说明行与「载入示例」按钮 */
+    .mobile-history-subrow { display: flex; align-items: center; gap: 8px; margin-top: 4px; }
     .mobile-history-dialog-body { min-height: 180px; max-height: calc(100dvh - 112px); overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; padding: 16px; background: #f8fafc; }
     .mobile-history-dialog .history-item-actions { opacity: 1; }
     .mobile-history-dialog .history-item-main { padding-right: 88px !important; }
@@ -332,6 +357,18 @@
     .image-diagnostic-item dt { color: var(--mi-text-helper); font-size: 10px; line-height: 1.4; }
     .image-diagnostic-item dd { margin-top: 3px; color: #334155; font-size: 11px; font-weight: 700; line-height: 1.5; overflow-wrap: anywhere; }
     .image-diagnostic-empty { border-top: 1px solid rgba(203,213,225,.58); padding: 14px 15px; color: var(--mi-text-helper); font-size: 11px; }
+    .image-usage-log { display: flex; flex-direction: column; gap: 10px; border-top: 1px solid rgba(203,213,225,.58); padding: 14px 15px; }
+    .image-usage-note { font-size: 11px; }
+    .image-usage-list { display: flex; max-height: 260px; flex-direction: column; gap: 8px; overflow-y: auto; }
+    .image-usage-item { border: 1px solid rgba(203,213,225,.58); border-radius: 10px; padding: 9px 11px; background: rgba(248,250,252,.72); }
+    .image-usage-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; color: var(--mi-text-helper); font-size: 10px; }
+    .image-usage-outcome { border-radius: 999px; padding: 2px 8px; font-size: 10px; font-weight: 800; }
+    .image-usage-outcome-ok { background: var(--mi-feedback-success-bg); color: var(--mi-feedback-success-text); }
+    .image-usage-outcome-bad { background: var(--mi-feedback-error-bg); color: var(--mi-feedback-error-text); }
+    .image-usage-billed { border-radius: 999px; background: var(--mi-feedback-warning-bg); padding: 2px 8px; color: var(--mi-feedback-warning-text); font-size: 10px; font-weight: 800; }
+    .image-usage-meta { margin-top: 5px; color: #334155; font-size: 11px; font-weight: 700; overflow-wrap: anywhere; }
+    .image-usage-detail { margin-top: 3px; color: var(--mi-text-helper); font-size: 10px; line-height: 1.5; overflow-wrap: anywhere; }
+    .image-usage-actions { display: flex; flex-wrap: wrap; gap: 8px; }
     .config-action-button { gap: 7px; border-color: rgba(203,213,225,.8); background: rgba(255,255,255,.68); color: #475569; font-size: 11px; font-weight: 750; }
     .config-action-button:hover { border-color: rgba(99,102,241,.4); background: #fff; color: #4f46e5; transform: translateY(-1px); }
     .config-action-button:active { transform: translateY(1px); }
@@ -481,6 +518,13 @@
     .history-list { width: 100%; padding-right: 0; }
     .history-list { scrollbar-width: none; }
     .history-list::-webkit-scrollbar { display: none; }
+    /* 桌面侧栏的历史区块与标题：宽屏才出现，间距由此处统一拥有。 */
+    .moreimg-history { margin-top: 40px; min-height: 0; flex: 1 1 0%; flex-shrink: 0; flex-direction: column; position: relative; }
+    .moreimg-history-header { display: flex; flex-shrink: 0; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+    .moreimg-history-title { color: var(--mi-text); font-size: 12px; font-weight: 700; letter-spacing: .025em; text-transform: uppercase; }
+    .moreimg-history-demo-action { color: #64748b; font-size: 11px; font-weight: 700; transition: color .18s ease; }
+    .moreimg-history-demo-action:hover:not(:disabled) { color: #475569; }
+    .moreimg-history-demo-action:disabled { cursor: not-allowed; opacity: .4; }
     .history-item-title {
       display: -webkit-box;
       -webkit-box-orient: vertical;
@@ -492,7 +536,15 @@
 
     @media (min-width: 1024px) {
       .moreimg-app-shell { flex-direction: row; }
-      .moreimg-sidebar { width: 320px; height: 100%; padding: 24px; border-right-width: 1px; border-bottom-width: 0; }
+      .moreimg-sidebar {
+        width: 320px;
+        height: 100%;
+        padding: 24px;
+        border-right-width: 1px;
+        border-bottom-width: 0;
+        background-color: rgba(255,255,255,.4);
+        box-shadow: 8px 0 32px rgba(31,38,135,.05);
+      }
       .moreimg-history { display: flex; }
       .moreimg-brand { display: block; }
       .mobile-history-trigger { display: none; }
@@ -510,6 +562,8 @@
     const IMAGE_STORE_NAME = 'generated_images';
     const SESSION_STORE_NAME = 'sessions';
     const MOREIMG_IMAGE_DIAGNOSTIC_KEY = 'moreimg_last_image_diagnostic';
+    const MOREIMG_IMAGE_USAGE_LOG_KEY = 'moreimg_image_usage_log';
+    const IMAGE_USAGE_LOG_LIMIT = 100;
     const HISTORY_INDEX_KEY = 'moreimg_history_index';
     const LEGACY_HISTORY_KEY = 'agent_history';
     const HISTORY_LIMIT = 50;
@@ -546,6 +600,56 @@
       if (/fetch|network|cors|图片下载|failed to fetch/.test(message)) return '图片 URL 无法读取（CORS、网络或链接失效）';
       if (phase === 'storage') return 'IndexedDB 图片写入失败';
       return '生图请求失败';
+    };
+
+    // 上游一旦受理生图就会计费，本地放弃不会退款。
+    // 这份日志按“是否可能已计费”标注每一次请求，用来和中转站账单逐条对账。
+    const loadImageUsageLog = () => {
+      try {
+        const value = JSON.parse(localStorage.getItem(MOREIMG_IMAGE_USAGE_LOG_KEY) || '[]');
+        return Array.isArray(value) ? value.filter(item => item && typeof item === 'object') : [];
+      } catch {
+        return [];
+      }
+    };
+
+    const appendImageUsageLog = (entry) => {
+      const nextLog = [{ ...entry, at: new Date().toISOString() }, ...loadImageUsageLog()].slice(0, IMAGE_USAGE_LOG_LIMIT);
+      try {
+        localStorage.setItem(MOREIMG_IMAGE_USAGE_LOG_KEY, JSON.stringify(nextLog));
+      } catch {}
+      return nextLog;
+    };
+
+    const clearImageUsageLog = () => {
+      try {
+        localStorage.removeItem(MOREIMG_IMAGE_USAGE_LOG_KEY);
+      } catch {}
+      return [];
+    };
+
+    const formatImageUsageLogText = (log = []) => {
+      const header = '时间\t模型\t尺寸\t页面/模式\t耗时(秒)\t结果\t可能已计费\t说明';
+      const rows = log.map(item => [
+        item.at ? new Date(item.at).toLocaleString() : '',
+        item.model || '',
+        item.size || '',
+        `${item.cardTitle || ''}/${item.mode || ''}`,
+        typeof item.durationMs === 'number' ? (item.durationMs / 1000).toFixed(1) : '',
+        item.outcome || '',
+        item.mayBeBilled ? '是' : '否',
+        String(item.detail || '').replace(/\s+/g, ' ')
+      ].join('\t'));
+      return [header, ...rows].join('\n');
+    };
+
+    const summarizeImageUsageLog = (log = []) => {
+      const billedFailures = log.filter(item => item.outcome !== '成功' && item.mayBeBilled);
+      return {
+        total: log.length,
+        success: log.filter(item => item.outcome === '成功').length,
+        billedFailures: billedFailures.length
+      };
     };
 
     const openImageDatabase = () => new Promise((resolve, reject) => {
@@ -1065,7 +1169,7 @@ image_prompt
           strokeLinejoin="round"
           aria-hidden="true"
           data-icon-name={name}
-          className={`inline-block shrink-0 ${className}`}
+          className={`shrink-0 ${className}`}
           {...props}
         >
           {nodes.map(([tag, attrs], index) => React.createElement(tag, { ...attrs, key: attrs.key || index }))}
@@ -1080,6 +1184,13 @@ image_prompt
       if (!text) return null;
       const lines = text.split('\n');
       let isFirstNonEmpty = true;
+      const isHeadingLine = (line = '') => /^#{1,4}\s+/.test(line.trimStart());
+      const getAdjacentNonEmptyLine = (startIndex, direction) => {
+        for (let index = startIndex + direction; index >= 0 && index < lines.length; index += direction) {
+          if (lines[index].trim()) return lines[index];
+        }
+        return '';
+      };
 
       return (
         <div className="text-slate-700 leading-relaxed">
@@ -1094,7 +1205,14 @@ image_prompt
               return null; // 直接静默拦截，不渲染到前端
             }
 
-            if (line.trim() === '') return <div key={i} className="h-3"></div>;
+            const previousNonEmptyLine = getAdjacentNonEmptyLine(i, -1);
+            const nextNonEmptyLine = getAdjacentNonEmptyLine(i, 1);
+
+            // 标题自身已经拥有上下间距，相邻空行不再重复占位。
+            if (line.trim() === '') {
+              if (isHeadingLine(previousNonEmptyLine) || isHeadingLine(nextNonEmptyLine)) return null;
+              return <div key={i} className="h-3"></div>;
+            }
 
             // 修复：同时支持 **加粗** 和 *斜体* 解析
             const formatInline = (str) => {
@@ -1113,11 +1231,13 @@ image_prompt
             const isFirst = isFirstNonEmpty;
             isFirstNonEmpty = false;
             const trimmedLine = line.trimStart();
+            const followsPrimaryTitle = /^#\s+/.test(previousNonEmptyLine.trimStart());
+            const precedesSubtitle = /^##\s+/.test(nextNonEmptyLine.trimStart());
 
             // 新增：处理一级标题 #
             if (trimmedLine.startsWith('# ')) {
               return (
-                <h1 key={i} className={`text-[24px] font-black text-slate-900 mb-5 tracking-tight ${isFirst ? 'mt-0' : 'mt-10'}`}>
+                <h1 key={i} className={`text-[24px] font-black text-slate-900 tracking-tight ${precedesSubtitle ? 'mb-3' : 'mb-5'} ${isFirst ? 'mt-0' : 'mt-10'}`}>
                   {formatInline(trimmedLine.replace('# ', ''))}
                 </h1>
               );
@@ -1125,7 +1245,7 @@ image_prompt
 
             if (trimmedLine.startsWith('## ')) {
               return (
-                <h2 key={i} className={`text-[20px] font-extrabold text-slate-900 mb-4 ${isFirst ? 'mt-0' : 'mt-8'}`}>
+                <h2 key={i} className={`text-[20px] font-extrabold text-slate-900 ${followsPrimaryTitle ? 'mb-6' : 'mb-4'} ${isFirst || followsPrimaryTitle ? 'mt-0' : 'mt-8'}`}>
                   {formatInline(trimmedLine.replace('## ', ''))}
                 </h2>
               );
@@ -1221,7 +1341,11 @@ image_prompt
     const PROCESSING_MAX_OUTPUT_TOKENS = 12000;
     const TEXT_REQUEST_TIMEOUT_MS = 300000;
     const TEXT_TEST_TIMEOUT_MS = 30000;
-    const IMAGE_REQUEST_TIMEOUT_MS = 300000;
+    // 生图和下载分别计时：旧实现用一个 300 秒预算覆盖“生成 + 下载 + 入库”，
+    // 生成用掉 280 秒后下载再被掐断，上游其实已经出图并计费。
+    // 这两个值必须小于 server.py 的 PROXY_TIMEOUT_SECONDS，否则代理先断、前端拿不到真实状态码。
+    const IMAGE_REQUEST_TIMEOUT_MS = 600000;
+    const IMAGE_DOWNLOAD_TIMEOUT_MS = 120000;
 
     const runWithRequestControl = (task, options = {}) => {
       const {
@@ -1606,6 +1730,69 @@ image_prompt
       ];
     };
 
+    const IMAGE_SIZE_PATTERN = /^\d{3,5}x\d{3,5}$/;
+    // gpt-image 系列只接受这几个枚举值。填 768x1024 这类非法值时，宽松的中转站会按自己的
+    // 默认尺寸出图并照常计费，用户以为参数生效、实际拿到的是另一个规格。
+    const GPT_IMAGE_SIZES = ['1024x1024', '1024x1536', '1536x1024', 'auto'];
+    const DEFAULT_IMAGE_SIZE = '1024x1536';
+
+    const isGptImageModel = (model = '') => /^gpt-image/i.test(String(model || '').trim());
+
+    const normalizeImageSize = (size, model = '') => {
+      const value = String(size || '').trim().toLowerCase();
+      if (isGptImageModel(model)) {
+        return GPT_IMAGE_SIZES.includes(value) ? value : DEFAULT_IMAGE_SIZE;
+      }
+      return IMAGE_SIZE_PATTERN.test(value) ? value : DEFAULT_IMAGE_SIZE;
+    };
+
+    const getImageSizeWarning = (size, model = '') => {
+      const value = String(size || '').trim().toLowerCase();
+      if (!value) return '';
+      if (isGptImageModel(model) && !GPT_IMAGE_SIZES.includes(value)) {
+        return `${model} 只支持 ${GPT_IMAGE_SIZES.join(' / ')}，将按 ${DEFAULT_IMAGE_SIZE} 请求。填写非法尺寸时中转站可能按自己的默认规格出图并照常计费。`;
+      }
+      if (!isGptImageModel(model) && !IMAGE_SIZE_PATTERN.test(value)) {
+        return `尺寸格式应为“宽x高”，例如 ${DEFAULT_IMAGE_SIZE}，将按 ${DEFAULT_IMAGE_SIZE} 请求。`;
+      }
+      return '';
+    };
+
+    // 走 URL 时图片要再从第三方 CDN 下载一次，而那些 CDN 多半不带 CORS 头、
+    // 链接也常在几分钟内失效，于是“已生成且已计费”的图会因为下载失败被判成整次失败。
+    // 所以尽量要求 base64：gpt-image 系列本来就只返回 b64_json，且会把
+    // response_format 当成未知参数直接 400，只能对其他模型显式声明。
+    const buildImageRequestBody = (model, prompt, size) => ({
+      model,
+      prompt,
+      size: normalizeImageSize(size, model),
+      n: 1,
+      ...(isGptImageModel(model) ? {} : { response_format: 'b64_json' })
+    });
+
+    // 中转站在 5xx / 网关超时时返回的是 HTML 错误页，裸 response.json() 会抛
+    // "Unexpected token '<'"，把真实状态码和上游提示全部吞掉。
+    const readImageResponse = async (response) => {
+      const rawText = await response.text();
+      let data = null;
+      try {
+        data = JSON.parse(rawText);
+      } catch {}
+      if (!response.ok) {
+        const upstreamMessage = data?.error?.message || data?.message || '';
+        const preview = upstreamMessage || rawText.replace(/\s+/g, ' ').trim().slice(0, 200);
+        throw new Error(`HTTP ${response.status}${preview ? `：${preview}` : ''}`);
+      }
+      if (!data) {
+        throw new Error(`接口返回了非 JSON 内容：${rawText.replace(/\s+/g, ' ').trim().slice(0, 200) || '空响应'}`);
+      }
+      const firstImage = data?.data?.[0];
+      const remoteUrl = firstImage?.url || '';
+      const base64 = firstImage?.b64_json || '';
+      if (!remoteUrl && !base64) throw new Error('接口未返回 url 或 b64_json 图片数据');
+      return { remoteUrl, dataUrl: base64 ? `data:image/png;base64,${base64}` : '' };
+    };
+
     const isResponsesApiEndpoint = (apiUrl = '') => /\/responses(?:[/?#]|$)/i.test(String(apiUrl).trim());
 
     const resolveApiEndpoint = (apiUrl = '', kind = 'text') => {
@@ -1644,6 +1831,21 @@ image_prompt
         };
       } catch {
         return { url: endpoint, headers: {} };
+      }
+    };
+
+    // 图片 CDN 通常不带 CORS 头，浏览器直连会在“已计费”之后失败。
+    // 本地服务模式下改走同源代理下载；纯静态部署时只能直连，失败即回退到人工另存。
+    const getImageDownloadTransport = (imageUrl, pageLocation = window.location) => {
+      const isLocalService = pageLocation?.protocol === 'http:' && ['127.0.0.1', 'localhost'].includes(pageLocation?.hostname);
+      if (!isLocalService) return { url: imageUrl, headers: {} };
+      try {
+        const target = new URL(imageUrl, pageLocation.origin);
+        if (target.origin === pageLocation.origin) return { url: imageUrl, headers: {} };
+        if (!/^https?:$/.test(target.protocol)) return { url: imageUrl, headers: {} };
+        return { url: '/proxy/image-asset', headers: { 'X-MoreImg-Upstream': target.toString() } };
+      } catch {
+        return { url: imageUrl, headers: {} };
       }
     };
 
@@ -1867,7 +2069,7 @@ image_prompt
 
     const readCardField = (block, fieldNames) => {
       const names = (Array.isArray(fieldNames) ? fieldNames : [fieldNames])
-        .map(name => name.replace(/[.*+?^${}()|[\]\\]/g, '\\/* MOREIMG_SOURCE */'))
+        .map(name => name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
         .join('|');
       const match = block.match(new RegExp(`(?:^|\\n)\\s*(?:[-*•]\\s*)?(?:\\*\\*)?(?:${names})(?:\\*\\*)?\\s*[：:]\\s*(.+)`, 'm'));
       return cleanCardValue(match?.[1] || '');
@@ -2221,7 +2423,7 @@ image_prompt
       const feedbackType = state.status === 'loading' ? 'neutral' : state.status;
       return (
         <div className={`mi-feedback mi-feedback-${feedbackType} config-status config-status-${state.status}`} role={state.status === 'error' ? 'alert' : 'status'} aria-live="polite">
-          <Icon name={iconName} className={`mt-0.5 h-3.5 w-3.5 shrink-0 ${state.status === 'loading' ? 'animate-spin' : ''}`} />
+          <Icon name={iconName} className={`h-3.5 w-3.5 shrink-0 ${state.status === 'loading' ? 'animate-spin' : ''}`} />
           <span>{state.message}</span>
         </div>
       );
@@ -2389,7 +2591,7 @@ const HistoryItems = ({ history, isProcessing, activeHistoryId, showResults, set
       >
         <button
           type="button"
-          className="history-item-main min-w-0"
+          className="history-item-main"
           onClick={() => {
             if (isProcessing) return;
             if (closeAfterOpen) setIsHistoryOpen(false);
@@ -2399,7 +2601,7 @@ const HistoryItems = ({ history, isProcessing, activeHistoryId, showResults, set
           aria-current={activeHistoryId === item.id && showResults ? 'true' : undefined}
           aria-label={`打开历史记录：${item.title || '未命名'}`}
         >
-          <div className={`history-item-title min-w-0 text-[13px] font-bold ${activeHistoryId === item.id && showResults ? 'text-indigo-600' : 'text-slate-700'}`}>
+          <div className={`history-item-title text-[13px] font-bold ${activeHistoryId === item.id && showResults ? 'text-indigo-600' : 'text-slate-700'}`}>
             {item.title || '未命名'}
           </div>
           <div className="history-item-date mt-1.5 font-mono text-[11px] text-slate-400">{item.date}</div>
@@ -2453,13 +2655,13 @@ const MobileHistoryDialog = ({ isHistoryOpen, setIsHistoryOpen, history, isProce
           <h2 id="mobile-history-title" className="flex items-center text-[16px] font-extrabold text-slate-800">
             <Icon name="History" className="mr-2 h-5 w-5 text-indigo-600" /> 历史记录
           </h2>
-          <div className="mt-1 flex items-center gap-2">
+          <div className="mobile-history-subrow">
             <p className="text-[11px] text-slate-500">恢复、再次生成或删除本机记录</p>
             <button
               type="button"
               onClick={loadDemoRecord}
               disabled={isProcessing}
-              className="text-[11px] font-bold text-slate-400 hover:text-slate-500 transition-colors disabled:opacity-40"
+              className="moreimg-history-demo-action"
               aria-label="载入示例记录，查看应用完整能力"
               title="载入示例记录（含视觉生成与对比），不消耗 API"
             >
@@ -2480,10 +2682,10 @@ const MobileHistoryDialog = ({ isHistoryOpen, setIsHistoryOpen, history, isProce
 );
 
 const AppSidebar = ({ history, isProcessing, activeHistoryId, showResults, setIsHistoryOpen, setIsConfigOpen, inputText, setInputText, handleProcessingAction, processingActionMode, processingActionLabel, processingActionHint, isComposerExpanded, setIsComposerExpanded, loadHistoryItem, retryHistoryItem, requestDeleteHistoryItem, loadDemoRecord }) => (
-<div className={`moreimg-sidebar w-full lg:w-[320px] h-auto lg:h-full flex-shrink-0 flex flex-col bg-white/60 lg:bg-white/40 backdrop-blur-3xl border-b lg:border-b-0 lg:border-r border-white/60 shadow-sm lg:shadow-[8px_0_32px_rgba(31,38,135,0.05)] z-20 p-4 lg:p-6 relative ${showResults ? 'is-result-view' : ''} ${isComposerExpanded ? 'is-composer-expanded' : ''}`}>
+<div className={`moreimg-sidebar w-full flex-shrink-0 flex flex-col bg-white/60 backdrop-blur-3xl border-b border-white/60 shadow-sm z-20 p-4 relative ${showResults ? 'is-result-view' : ''} ${isComposerExpanded ? 'is-composer-expanded' : ''}`}>
 
   <div className="sidebar-brand-row z-10 shrink-0">
-    <h1 className="flex min-w-0 items-center">
+    <h1 className="sidebar-brand-title">
       <div className="sidebar-brand-mark mr-3">
         <Icon name="Sparkles" className="w-5 h-5 text-white" strokeWidth={2} />
       </div>
@@ -2553,14 +2755,14 @@ const AppSidebar = ({ history, isProcessing, activeHistoryId, showResults, setIs
     {processingActionHint && <p id="processing-action-hint" className="processing-action-hint">{processingActionHint}</p>}
   </div>
 
-  <div className="moreimg-history hidden lg:flex mt-10 flex-1 relative shrink-0 flex-col min-h-0">
-    <div className="flex items-center justify-between mb-4 shrink-0">
-      <div className="text-[12px] font-bold text-amber-600 tracking-wide uppercase">历史记录</div>
+  <div className="moreimg-history">
+    <div className="moreimg-history-header">
+      <div className="moreimg-history-title">历史记录</div>
       <button
         type="button"
         onClick={loadDemoRecord}
         disabled={isProcessing}
-        className="text-[11px] font-bold text-slate-400 hover:text-slate-500 transition-colors disabled:opacity-40"
+        className="moreimg-history-demo-action"
         aria-label="载入示例记录，查看应用完整能力"
         title="载入示例记录（含视觉生成与对比），不消耗 API"
       >
@@ -2572,7 +2774,7 @@ const AppSidebar = ({ history, isProcessing, activeHistoryId, showResults, setIs
     </div>
   </div>
 
-  <div className="moreimg-brand brand-attribution hidden lg:block" aria-label="项目归属与版权">
+  <div className="moreimg-brand brand-attribution" aria-label="项目归属与版权">
     <div className="brand-attribution-name">MoreImg · LINPO LAB</div>
     <div>© 2026 LINPO LAB. All rights reserved.</div>
   </div>
@@ -2585,7 +2787,7 @@ const MainWorkspace = ({ isProcessing, showResults, processingUiPhase, processin
 
   {isProcessing && !showResults && (
     <div className="absolute inset-0 z-30 flex flex-col items-center justify-center bg-slate-50/60 backdrop-blur-xl animate-fade-in">
-      <div className="relative w-40 h-40 mb-10 flex items-center justify-center">
+      <div className="processing-spinner relative w-40 h-40 flex items-center justify-center">
         <div className="absolute inset-0 rounded-full border border-slate-200/60 shadow-[inset_0_0_20px_rgba(99,102,241,0.1)]"></div>
         <div className="absolute inset-0 rounded-full border-t-[3px] border-indigo-600 animate-spin" style={{ animationDuration: '2s' }}></div>
         <div className="absolute inset-4 rounded-full border-b-[2px] border-sky-400 animate-spin" style={{ animationDirection: 'reverse', animationDuration: '3s' }}></div>
@@ -2677,7 +2879,10 @@ const MainWorkspace = ({ isProcessing, showResults, processingUiPhase, processin
 </div>
 );
 
-const SettingsDialog = ({ isConfigOpen, onRequestClose, apiConfig, setApiConfig, configTools, handleLoadModels, handleTestTextConnection, handleModelSelection, textModels, imageModels, lastImageDiagnostic, handleSaveConfig }) => (
+const SettingsDialog = ({ isConfigOpen, onRequestClose, apiConfig, setApiConfig, configTools, handleLoadModels, handleTestTextConnection, handleModelSelection, textModels, imageModels, lastImageDiagnostic, imageUsageLog = [], copyImageUsageLog, handleClearImageUsageLog, handleSaveConfig }) => {
+  const imageSizeWarning = getImageSizeWarning(apiConfig.imageSize, apiConfig.imageModel);
+  const usageSummary = summarizeImageUsageLog(imageUsageLog);
+  return (
   <ModalFrame
     isOpen={isConfigOpen}
     onRequestClose={onRequestClose}
@@ -2771,7 +2976,7 @@ const SettingsDialog = ({ isConfigOpen, onRequestClose, apiConfig, setApiConfig,
             </div>
           </div>
           <div className="mi-feedback mi-feedback-info config-preference-note">
-            <Icon name="ShieldCheck" className="mt-0.5 h-4 w-4 shrink-0 text-indigo-600" />
+            <Icon name="ShieldCheck" className="h-4 w-4 shrink-0 text-indigo-600" />
             <span>每次加工仍只请求一次文本 API；固定生成封面、正文和封底。核心规则不可编辑。</span>
           </div>
           <div className="config-grid">
@@ -2857,13 +3062,15 @@ const SettingsDialog = ({ isConfigOpen, onRequestClose, apiConfig, setApiConfig,
             </div>
             <div className="config-field">
               <label className="config-label">图片尺寸</label>
-              <input type="text" value={apiConfig.imageSize} onChange={(e) => setApiConfig({...apiConfig, imageSize: e.target.value})} placeholder="768x1024" className="mi-field config-input" />
+              <input type="text" value={apiConfig.imageSize} onChange={(e) => setApiConfig({...apiConfig, imageSize: e.target.value})} placeholder="1024x1536" className="mi-field config-input" />
+              <div className="config-hint">实际请求：{normalizeImageSize(apiConfig.imageSize, apiConfig.imageModel)}</div>
             </div>
             <div className="config-field config-span-2">
               <label className="config-label">图片 API Key</label>
               <input type="password" value={apiConfig.imageApiKey} onChange={(e) => setApiConfig({...apiConfig, imageApiKey: e.target.value})} placeholder="sk-..." className="mi-field config-input" />
             </div>
           </div>
+          {imageSizeWarning && <div className="mi-feedback mi-feedback-warning config-preference-note"><Icon name="TriangleAlert" className="h-4 w-4 shrink-0" /><span>{imageSizeWarning}</span></div>}
           <ConfigStatus state={configTools.imageModels} />
         </section>
 
@@ -2888,6 +3095,42 @@ const SettingsDialog = ({ isConfigOpen, onRequestClose, apiConfig, setApiConfig,
           </details>
         </section>
 
+        <section className="config-section">
+          <details className="mi-surface mi-surface-card image-diagnostic">
+            <summary>生图请求记录（可对账）<span>{usageSummary.total ? `${usageSummary.total} 条 / 疑似计费失败 ${usageSummary.billedFailures} 次` : '暂无记录'}</span></summary>
+            {usageSummary.total ? (
+              <div className="image-usage-log">
+                <div className="mi-feedback mi-feedback-info image-usage-note">
+                  <Icon name="ReceiptText" className="h-4 w-4 shrink-0 text-indigo-600" />
+                  <span>上游一旦受理生图就会计费，本地取消或超时都不会退款。这里按“可能已计费”标注每次请求，可复制后与中转站账单逐条核对。</span>
+                </div>
+                <ul className="image-usage-list">
+                  {imageUsageLog.slice(0, 12).map((item, index) => (
+                    <li className="image-usage-item" key={`${item.at}-${index}`}>
+                      <div className="image-usage-head">
+                        <span className={`image-usage-outcome image-usage-outcome-${item.outcome === '成功' ? 'ok' : 'bad'}`}>{item.outcome || '未知'}</span>
+                        <span>{item.at ? new Date(item.at).toLocaleString() : '未记录'}</span>
+                        <span>{typeof item.durationMs === 'number' ? `${(item.durationMs / 1000).toFixed(1)}s` : '—'}</span>
+                        {item.outcome !== '成功' && item.mayBeBilled && <span className="image-usage-billed">可能已计费</span>}
+                      </div>
+                      <div className="image-usage-meta">{[item.cardTitle, item.mode, item.model, item.size].filter(Boolean).join(' · ')}</div>
+                      {item.detail && <div className="image-usage-detail">{item.detail}</div>}
+                    </li>
+                  ))}
+                </ul>
+                <div className="image-usage-actions">
+                  <button type="button" onClick={copyImageUsageLog} className="mi-button mi-button-compact config-action-button">
+                    <Icon name="ClipboardCopy" className="h-3.5 w-3.5" />复制记录对账
+                  </button>
+                  <button type="button" onClick={handleClearImageUsageLog} className="mi-button mi-button-compact config-action-button">
+                    <Icon name="Trash2" className="h-3.5 w-3.5" />清空记录
+                  </button>
+                </div>
+              </div>
+            ) : <p className="image-diagnostic-empty">生图后这里会按时间记录模型、尺寸、耗时和是否可能已计费，便于和账单对账。</p>}
+          </details>
+        </section>
+
       </div>
 
       {/* 弹窗 Footer */}
@@ -2901,7 +3144,8 @@ const SettingsDialog = ({ isConfigOpen, onRequestClose, apiConfig, setApiConfig,
       </div>
 
   </ModalFrame>
-);
+  );
+};
 
 const AppView = ({
   activeHistoryId,
@@ -2910,7 +3154,9 @@ const AppView = ({
   cancelDeleteHistoryItem,
   configTools,
   confirmDeleteHistoryItem,
+  copyImageUsageLog,
   currentSession,
+  handleClearImageUsageLog,
   handleLoadModels,
   handleModelSelection,
   handleProcessingAction,
@@ -2918,6 +3164,7 @@ const AppView = ({
   handleTestTextConnection,
   history,
   imageModels,
+  imageUsageLog,
   inputText,
   isComposerExpanded,
   isConfigOpen,
@@ -2951,7 +3198,7 @@ const AppView = ({
   textModels,
   toast
 }) => (
-  <div className="moreimg-app-shell flex flex-col lg:flex-row h-screen overflow-hidden font-sans text-slate-800 relative bg-transparent">
+  <div className="moreimg-app-shell flex flex-col h-screen overflow-hidden font-sans text-slate-800 relative bg-transparent">
     {toast && <Toast message={toast.message} type={toast.type} duration={toast.duration} onClose={() => setToast(null)} />}
     <AppSidebar {...{
       history,
@@ -3009,6 +3256,9 @@ const AppView = ({
       textModels,
       imageModels,
       lastImageDiagnostic,
+      imageUsageLog,
+      copyImageUsageLog,
+      handleClearImageUsageLog,
       handleSaveConfig
     }} onRequestClose={onRequestCloseConfig} />
     <ConfirmDeleteDialog
@@ -3148,7 +3398,7 @@ const renderStageContent = () => {
     return (
       <div className="mi-empty-state mi-empty-state-panel animate-fade-in-up">
         <div className="mi-empty-state-icon mi-empty-state-icon-large mb-4">
-          <Icon name="Box" className="w-6 h-6" />
+          <Icon name="Box" />
         </div>
         <p className="text-[15px] font-bold text-slate-500 mb-1">当前阶段暂无内容</p>
         <p className="text-[13px] text-slate-400">大模型输出格式解析异常，或正在等待渲染指令。</p>
@@ -3171,7 +3421,7 @@ const renderStageContent = () => {
             </div>
             <div>
               {sId === 3 ? (
-                <div className="mi-surface mi-surface-panel stage-content-panel p-8 md:p-10">
+                <div className="mi-surface mi-surface-panel mi-surface-raised stage-content-panel p-8 md:p-10">
                   <FormattedContent text={content} />
                 </div>
               ) : sId === 4 ? (
@@ -3180,25 +3430,25 @@ const renderStageContent = () => {
                     return (
                       <div className="content-card-grid grid grid-cols-1 md:grid-cols-2 gap-8">
                         {currentSession.packageData.pages.map((page, index, pages) => (
-                          <div key={page.page_id} className="mi-surface mi-surface-panel content-card-panel">
+                          <div key={page.page_id} className="mi-surface mi-surface-panel mi-surface-raised content-card-panel">
                             <h3 className="text-[18px] font-bold text-slate-800 mb-6 flex items-center">
                               <span className="w-8 h-8 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center text-[14px] mr-3 font-mono shadow-sm border border-indigo-100">{index + 1}</span>
                               <span className="truncate">{getPageDisplayName(page, pages.length - 2)}</span>
                             </h3>
-                            <div className="space-y-4 text-[13px] leading-relaxed text-slate-600">
+                            <div className="content-card-body">
                               <div>
                                 <div className="font-extrabold text-slate-900 text-[16px]">{page.card.title}</div>
-                                {page.card.subtitle && <div className="mt-1 text-slate-500">{page.card.subtitle}</div>}
+                                {page.card.subtitle && <div className="content-card-heading-sub">{page.card.subtitle}</div>}
                               </div>
                               {page.card.points.length > 0 && (
-                                <div className="space-y-2">
-                                  {page.card.points.map((point, pointIndex) => <div key={pointIndex} className="flex gap-2"><span className="text-indigo-500">•</span><span>{point}</span></div>)}
+                                <div className="content-card-points">
+                                  {page.card.points.map((point, pointIndex) => <div key={pointIndex} className="content-card-point"><span className="content-card-point-mark">•</span><span>{point}</span></div>)}
                                 </div>
                               )}
-                              {page.card.summary && <div className="border-t border-slate-200 pt-3 font-bold text-slate-700">{page.card.summary}</div>}
-                              <div className="border-t border-slate-100 pt-3 text-[11px] text-slate-400">
+                              {page.card.summary && <div className="content-card-summary">{page.card.summary}</div>}
+                              <div className="content-card-meta">
                                 <div>页面目标：{page.semantic.page_goal}</div>
-                                <div className="mt-1">主关系：{page.semantic.primary_relation}</div>
+                                <div>主关系：{page.semantic.primary_relation}</div>
                               </div>
                             </div>
                           </div>
@@ -3211,7 +3461,7 @@ const renderStageContent = () => {
                     return (
                       <div className="content-card-grid grid grid-cols-1 md:grid-cols-2 gap-8">
                         {cardBlocks.map((block, i) => (
-                          <div key={i} className="mi-surface mi-surface-panel content-card-panel">
+                          <div key={i} className="mi-surface mi-surface-panel mi-surface-raised content-card-panel">
                             <h3 className="text-[18px] font-bold text-slate-800 mb-6 flex items-center">
                               <span className="w-8 h-8 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center text-[14px] mr-3 font-mono shadow-sm border border-indigo-100">{i+1}</span>
                               <span className="truncate">{cardHeaders[i].replace(/\*\*/g, '')}</span>
@@ -3225,7 +3475,7 @@ const renderStageContent = () => {
                     );
                   }
                   return (
-                    <div className="mi-surface mi-surface-panel stage-content-panel p-8">
+                    <div className="mi-surface mi-surface-panel mi-surface-raised stage-content-panel p-8">
                       <FormattedContent text={content} />
                     </div>
                   );
@@ -3300,7 +3550,7 @@ const renderStageContent = () => {
                               </button>
                             </div>
                           </div>
-                          <div className="mi-feedback mi-feedback-info visual-notice visual-panel-notice"><Icon name="Info" className="mt-0.5 h-3.5 w-3.5 shrink-0" /><span>{isBuiltInDemo ? '内置示例仅用于查看流程；图片为本地占位图，不调用图片 API。' : 'HTML 成品卡用于准确中文交付；AI 整图用于视觉候选，生成后仍需核对文字。'}</span></div>
+                          <div className="mi-feedback mi-feedback-info visual-notice visual-panel-notice"><Icon name="Info" className="h-3.5 w-3.5 shrink-0" /><span>{isBuiltInDemo ? '内置示例仅用于查看流程；图片为本地占位图，不调用图片 API。' : 'HTML 成品卡用于准确中文交付；AI 整图用于视觉候选，生成后仍需核对文字。'}</span></div>
 
                           <div className="visual-workspace-grid">
                             <div className="visual-results-column">
@@ -3325,7 +3575,7 @@ const renderStageContent = () => {
                                     <div className="visual-result-item-header"><span>{isBuiltInDemo ? '内置示例占位图' : 'HTML 主视觉'}</span></div>
                                     <div className="mi-empty-state mi-empty-state-media visual-result-slot-empty">
                                       <div className="mi-empty-state-icon"><Icon name={imageResult?.status === 'loading' ? 'LoaderCircle' : 'ImagePlus'} className={`h-5 w-5 ${imageResult?.status === 'loading' ? 'animate-spin' : ''}`} /></div>
-                                      <span className="mt-3 text-[11px] font-bold">{imageResult?.status === 'loading' ? '生成中' : '等待生成'}</span>
+                                      <span className="mi-empty-state-hint">{imageResult?.status === 'loading' ? '生成中' : '等待生成'}</span>
                                     </div>
                                     <div className="visual-preview-meta"><span><strong>预览框 3:4</strong> · 固定卡片槽位</span></div>
                                   </div>
@@ -3349,7 +3599,7 @@ const renderStageContent = () => {
                                     </div>
                                     <div className="mi-empty-state mi-empty-state-media visual-result-slot-empty">
                                       <div className="mi-empty-state-icon"><Icon name={fullImageResult?.status === 'loading' ? 'LoaderCircle' : 'LayoutTemplate'} className={`h-5 w-5 ${fullImageResult?.status === 'loading' ? 'animate-spin' : ''}`} /></div>
-                                      <span className="mt-3 text-[11px] font-bold">{fullImageResult?.status === 'loading' ? '生成中' : fullImageResult?.status === 'success' ? '已隐藏' : '等待生成'}</span>
+                                      <span className="mi-empty-state-hint">{fullImageResult?.status === 'loading' ? '生成中' : fullImageResult?.status === 'success' ? '已隐藏' : '等待生成'}</span>
                                     </div>
                                     <div className="visual-preview-meta"><span><strong>预览框 3:4</strong> · 固定卡片槽位</span></div>
                                   </div>
@@ -3424,7 +3674,7 @@ const renderStageContent = () => {
                                           title={isSelectedHtmlCardExporting ? '正在导出 HTML 成品' : '导出左侧 HTML 成品 PNG（1242×1656）'}
                                           className="mi-button mi-button-standard visual-button visual-export-button"
                                         >
-                                          <Icon name={isSelectedHtmlCardExporting ? 'Loader' : 'Download'} className={`mr-1.5 h-3.5 w-3.5 ${isSelectedHtmlCardExporting ? 'animate-spin' : ''}`} /> {isSelectedHtmlCardExporting ? '导出中' : '导出 HTML 成品 PNG'}
+                                          <Icon name={isSelectedHtmlCardExporting ? 'Loader' : 'Download'} className={`mr-2 h-3.5 w-3.5 ${isSelectedHtmlCardExporting ? 'animate-spin' : ''}`} /> {isSelectedHtmlCardExporting ? '导出中' : '导出 HTML 成品 PNG'}
                                         </button>
                                       ) : (
                                         <span className="visual-output-status">生成主视觉后可导出</span>
@@ -3446,7 +3696,7 @@ const renderStageContent = () => {
                                         {!selectedHtmlCardReady && <span className="html-card-placeholder-badge">等待主视觉</span>}
                                       </HtmlCardPreview>
                                       <div className="visual-comparison-meta"><span><strong>预览框 3:4</strong> · {isBuiltInDemo ? '内置示例占位图' : selectedHtmlCardReady ? 'HTML 成品' : '排版占位'}</span><span>{isBuiltInDemo ? '本地演示素材' : selectedHtmlCardReady ? '导出 1242×1656' : '待生成主视觉'}</span></div>
-                                      {selectedHtmlImageResult?.status !== 'success' && <p className={`mt-3 text-center text-[11px] ${selectedHtmlLegacyResult?.status === 'success' ? 'text-amber-600' : 'text-slate-400'}`}>{selectedHtmlLegacyResult?.status === 'success' ? '旧版主视觉不再用于 HTML 成品卡，请重新生成无字主视觉。' : '当前使用视觉占位，生成无字主视觉后会自动替换。'}</p>}
+                                      {selectedHtmlImageResult?.status !== 'success' && <p className={`visual-comparison-hint ${selectedHtmlLegacyResult?.status === 'success' ? 'is-stale' : ''}`}>{selectedHtmlLegacyResult?.status === 'success' ? '旧版主视觉不再用于 HTML 成品卡，请重新生成无字主视觉。' : '当前使用视觉占位，生成无字主视觉后会自动替换。'}</p>}
                                     </div>
                                     <div className="mi-surface mi-surface-card visual-comparison-item">
                                       <div className="visual-comparison-label">{isBuiltInDemo ? '内置示例占位图' : 'AI 整图'}</div>
@@ -3460,7 +3710,7 @@ const renderStageContent = () => {
                                           <div className="visual-comparison-preview-frame">
                                             <div className="mi-empty-state mi-empty-state-inline visual-comparison-empty">
                                               <Icon name={fullImageResult?.status === 'loading' ? 'LoaderCircle' : 'LayoutTemplate'} className={`h-5 w-5 ${fullImageResult?.status === 'loading' ? 'animate-spin' : ''}`} />
-                                              <span className="mt-3 text-[11px] font-bold">{fullImageResult?.status === 'loading' ? 'AI 整图生成中' : fullImageResult?.status === 'success' ? 'AI 整图已隐藏' : '尚未生成 AI 整图'}</span>
+                                              <span className="mi-empty-state-hint">{fullImageResult?.status === 'loading' ? 'AI 整图生成中' : fullImageResult?.status === 'success' ? 'AI 整图已隐藏' : '尚未生成 AI 整图'}</span>
                                             </div>
                                           </div>
                                           <div className="visual-comparison-meta"><span><strong>预览框 3:4</strong> · {isBuiltInDemo ? '内置示例占位图' : 'AI 整图'}</span><span>固定对比槽位</span></div>
@@ -3479,13 +3729,13 @@ const renderStageContent = () => {
 
                   const fullCleanText = content.replace(/```[^\n]*\n?/g, '').replace(/```/g, '').trim();
                   return (
-                    <div className="mi-surface mi-surface-panel stage-content-panel p-8">
+                    <div className="mi-surface mi-surface-panel mi-surface-raised stage-content-panel p-8">
                        <FormattedContent text={fullCleanText} />
                     </div>
                   );
                 })()
               ) : (
-                <div className="mi-surface mi-surface-panel stage-content-panel p-8 md:p-10">
+                <div className="mi-surface mi-surface-panel mi-surface-raised stage-content-panel p-8 md:p-10">
                   <FormattedContent text={content} />
                 </div>
               )}
@@ -3547,7 +3797,7 @@ const resultContent = useMemo(() => {
         imageApiUrl: 'https://api.openai.com/v1/images/generations',
         imageModel: 'gpt-image-1',
         imageApiKey: '',
-        imageSize: '768x1024'
+        imageSize: DEFAULT_IMAGE_SIZE
       });
       const [isConfigOpen, setIsConfigOpen] = useState(() => !hasSavedApiConfig());
       const [isHistoryOpen, setIsHistoryOpen] = useState(false);
@@ -3565,6 +3815,7 @@ const resultContent = useMemo(() => {
       const [toast, setToast] = useState(null);
       const [imageResults, setImageResults] = useState({});
       const [lastImageDiagnostic, setLastImageDiagnostic] = useState(loadLastImageDiagnostic);
+      const [imageUsageLog, setImageUsageLog] = useState(loadImageUsageLog);
       const [htmlExportState, setHtmlExportState] = useState({ cardId: '', status: 'idle', error: '' });
       const [hiddenFullImages, setHiddenFullImages] = useState({});
       const [textModels, setTextModels] = useState([]);
@@ -3589,6 +3840,9 @@ const resultContent = useMemo(() => {
       const processingAbortRef = useRef(null);
       const historyLoadTokenRef = useRef(0);
       const imageAbortControllersRef = useRef(new Map());
+      // 生图可能跨越会话切换才结束，回调里必须读“当前真正激活的会话”，
+      // 闭包捕获的 activeHistoryId 在那时已经过期。
+      const activeHistoryIdRef = useRef(null);
       const configRequestControllersRef = useRef(new Map());
       const demoLoadInFlightRef = useRef(false);
       const imageObjectUrlsRef = useRef([]);
@@ -3628,6 +3882,12 @@ const resultContent = useMemo(() => {
       };
 
       useEffect(() => {
+        activeHistoryIdRef.current = activeHistoryId;
+      }, [activeHistoryId]);
+
+      const recordImageUsage = (entry) => setImageUsageLog(appendImageUsageLog(entry));
+
+      useEffect(() => {
         if (!showResults || !resultScrollRef.current) return;
         resultScrollRef.current.scrollTop = 0;
       }, [activeStageTab, activeHistoryId, showResults]);
@@ -3665,8 +3925,21 @@ const resultContent = useMemo(() => {
           .catch(error => setToast({ message: `画面焦点保存失败: ${error.message}`, type: 'error' }));
       };
 
-      const abortImageRequests = () => {
-        imageAbortControllersRef.current.forEach(controller => controller.abort());
+      // 只有该会话被真正删除时才中止在途生图。切换历史记录或开始新加工都不再取消：
+      // 上游一旦受理就会计费，本地放弃等于白花钱，结果还拿不到。
+      const abortSessionImageRequests = (sessionId) => {
+        imageAbortControllersRef.current.forEach((entry, resultKey) => {
+          if (entry.sessionId !== sessionId) return;
+          entry.controller.abort();
+          imageAbortControllersRef.current.delete(resultKey);
+        });
+      };
+
+      const hasInFlightImageRequests = () => imageAbortControllersRef.current.size > 0;
+
+      // 页面卸载时才无条件收尾：这时已经没有任何界面能承接结果。
+      const abortAllImageRequests = () => {
+        imageAbortControllersRef.current.forEach(entry => entry.controller.abort());
         imageAbortControllersRef.current.clear();
       };
 
@@ -3792,7 +4065,11 @@ const resultContent = useMemo(() => {
             parsedConfig.imageApiUrl = parsedConfig.imageApiUrl || 'https://api.openai.com/v1/images/generations';
             parsedConfig.imageModel = parsedConfig.imageModel || 'gpt-image-1';
             parsedConfig.imageApiKey = parsedConfig.imageApiKey || '';
-            parsedConfig.imageSize = parsedConfig.imageSize || '768x1024';
+            // 旧默认值 768x1024 不在 gpt-image 的合法枚举里，宽松的中转站会按自己的
+            // 默认规格出图并照常计费。这里把遗留的旧默认值一次性迁移掉，用户手填的值保留。
+            parsedConfig.imageSize = !parsedConfig.imageSize || parsedConfig.imageSize === '768x1024'
+              ? DEFAULT_IMAGE_SIZE
+              : parsedConfig.imageSize;
             localStorage.setItem('agent_api_config', JSON.stringify(parsedConfig));
             setApiConfig(parsedConfig);
             if (parsedConfig.apiKey?.trim()) {
@@ -3809,7 +4086,7 @@ const resultContent = useMemo(() => {
       useEffect(() => () => {
         processingAbortRef.current?.abort();
         abortConfigRequests(false);
-        abortImageRequests();
+        abortAllImageRequests();
         imageObjectUrlsRef.current.forEach(url => URL.revokeObjectURL(url));
       }, []);
 
@@ -3948,26 +4225,38 @@ const resultContent = useMemo(() => {
         }
 
         const resultKey = `${mode}:${cardTitle}`;
-        imageAbortControllersRef.current.get(resultKey)?.abort();
+        imageAbortControllersRef.current.get(resultKey)?.controller.abort();
         const requestController = new AbortController();
-        imageAbortControllersRef.current.set(resultKey, requestController);
-        const operationToken = historyLoadTokenRef.current;
-        let imageTimedOut = false;
-        const imageTimeout = setTimeout(() => {
-          imageTimedOut = true;
+        // 生图请求绑定发起时的会话，切换历史记录不再取消它：
+        // 上游已经受理并会计费，本地放弃只会白花钱。
+        const sessionId = activeHistoryId || 'current';
+        imageAbortControllersRef.current.set(resultKey, { controller: requestController, sessionId });
+        const imageModel = apiConfig.imageModel.trim();
+        const requestedSize = normalizeImageSize(apiConfig.imageSize, imageModel);
+        const startedAt = Date.now();
+        let generationCompletedAt = 0;
+        let requestPhase = 'request';
+        let timedOutPhase = '';
+        let phaseTimeout = setTimeout(() => {
+          timedOutPhase = 'request';
           requestController.abort();
         }, IMAGE_REQUEST_TIMEOUT_MS);
+        const restartTimeoutForPhase = (phase, timeoutMs) => {
+          clearTimeout(phaseTimeout);
+          phaseTimeout = setTimeout(() => {
+            timedOutPhase = phase;
+            requestController.abort();
+          }, timeoutMs);
+        };
         const imageEndpoint = resolveApiEndpoint(apiConfig.imageApiUrl, 'image');
         const imageTransport = getRequestTransport(imageEndpoint, 'image');
         const previousFocusY = imageResults[resultKey]?.focusY;
         setImageResults(prev => ({ ...prev, [resultKey]: { status: 'loading', imageUrl: '', error: '', mode, focusY: prev[resultKey]?.focusY } }));
-        let diagnosticPhase = 'request';
-        const sessionId = activeHistoryId || 'current';
         saveLastImageDiagnostic({
           sessionId,
           requestMode: '同步',
           endpointPath: getDiagnosticEndpointPath(imageEndpoint),
-          requestedFormat: '由 API 决定',
+          requestedFormat: isGptImageModel(imageModel) ? 'b64_json（模型默认）' : 'b64_json',
           actualFormat: '等待响应',
           imageHost: '等待响应',
           storageBackend: 'IndexedDB',
@@ -3984,63 +4273,100 @@ const resultContent = useMemo(() => {
               'Authorization': `Bearer ${apiConfig.imageApiKey.trim()}`,
               ...imageTransport.headers
             },
-            body: JSON.stringify({
-              model: apiConfig.imageModel.trim(),
-              prompt,
-              size: apiConfig.imageSize.trim() || '768x1024',
-              n: 1
-            }),
+            body: JSON.stringify(buildImageRequestBody(imageModel, prompt, requestedSize)),
             signal: requestController.signal
           });
 
-          const data = await response.json();
-          if (!response.ok) {
-            throw new Error(data?.error?.message || `HTTP ${response.status}`);
-          }
-
-          const firstImage = data?.data?.[0];
-          const remoteUrl = firstImage?.url || '';
-          const dataUrl = firstImage?.b64_json ? `data:image/png;base64,${firstImage.b64_json}` : '';
-          if (!remoteUrl && !dataUrl) throw new Error('接口未返回 url 或 b64_json 图片数据');
-          diagnosticPhase = 'storage';
+          const { remoteUrl, dataUrl } = await readImageResponse(response);
+          // 到这里上游已经出图并计费，后续任何失败都必须让用户看见，不能静默 return。
+          generationCompletedAt = Date.now();
+          requestPhase = 'download';
+          restartTimeoutForPhase('download', IMAGE_DOWNLOAD_TIMEOUT_MS);
           saveLastImageDiagnostic({
             actualFormat: dataUrl ? 'Base64' : 'URL',
             imageHost: dataUrl ? 'API 响应' : getDiagnosticImageHost(remoteUrl),
             storageStatus: '保存中'
           });
 
-          if (requestController.signal.aborted || operationToken !== historyLoadTokenRef.current) return;
-          const imageBlob = dataUrl ? dataUrlToBlob(dataUrl) : await fetch(remoteUrl, { signal: requestController.signal }).then(imageResponse => {
+          let imageBlob;
+          if (dataUrl) {
+            imageBlob = dataUrlToBlob(dataUrl);
+          } else {
+            const downloadTransport = getImageDownloadTransport(remoteUrl);
+            const imageResponse = await fetch(downloadTransport.url, {
+              headers: downloadTransport.headers,
+              signal: requestController.signal
+            });
             if (!imageResponse.ok) throw new Error(`图片下载失败 HTTP ${imageResponse.status}`);
-            return imageResponse.blob();
-          });
-          if (requestController.signal.aborted || operationToken !== historyLoadTokenRef.current) return;
+            imageBlob = await imageResponse.blob();
+          }
+          requestPhase = 'storage';
+          // 无条件入库：即使用户已经切走，图片也要落盘，切回来能看到。
           await saveImageBlob(sessionId, cardTitle, imageBlob, mode, previousFocusY);
-          if (requestController.signal.aborted || operationToken !== historyLoadTokenRef.current) return;
           saveLastImageDiagnostic({ storageBackend: 'IndexedDB', storageStatus: '成功', restoreStatus: '尚未验证', failureReason: '' });
-          const imageUrl = URL.createObjectURL(imageBlob);
+          recordImageUsage({
+            sessionId,
+            cardTitle,
+            mode,
+            model: imageModel,
+            size: requestedSize,
+            durationMs: Date.now() - startedAt,
+            outcome: '成功',
+            mayBeBilled: true,
+            detail: dataUrl ? 'Base64 直接入库' : '经 URL 下载后入库'
+          });
 
+          const generationLabel = mode === 'full' ? 'AI 整图' : mode === 'visual-only' ? '无字主视觉' : '主视觉';
+          if (sessionId !== (activeHistoryIdRef.current || 'current')) {
+            setToast({ message: `[${cardTitle}] ${generationLabel}已生成并保存，返回该记录即可查看`, type: 'success', duration: 5000 });
+            return;
+          }
+          const imageUrl = URL.createObjectURL(imageBlob);
           setImageResults(prev => {
             const previousUrl = prev[resultKey]?.imageUrl;
             if (previousUrl?.startsWith('blob:')) URL.revokeObjectURL(previousUrl);
-            const nextResults = { ...prev, [resultKey]: { status: 'success', imageUrl, error: '', mode, size: apiConfig.imageSize.trim() || '768x1024', focusY: prev[resultKey]?.focusY } };
+            const nextResults = { ...prev, [resultKey]: { status: 'success', imageUrl, error: '', mode, size: requestedSize, focusY: prev[resultKey]?.focusY } };
             imageObjectUrlsRef.current = Object.values(nextResults).map(item => item.imageUrl).filter(url => url?.startsWith('blob:'));
             return nextResults;
           });
-          const generationLabel = mode === 'full' ? 'AI 整图' : mode === 'visual-only' ? '无字主视觉' : '主视觉';
           setToast({ message: `[${cardTitle}] ${generationLabel}生成完成`, type: 'success' });
         } catch (error) {
-          if (operationToken !== historyLoadTokenRef.current || (requestController.signal.aborted && !imageTimedOut)) return;
-          if (imageTimedOut) error = new Error('图片生成超过 300 秒，已自动停止。');
-          saveLastImageDiagnostic({
-            storageStatus: diagnosticPhase === 'storage' ? '失败' : '未开始',
-            failureReason: getDiagnosticFailureReason(error, diagnosticPhase)
+          const isUserCancelled = requestController.signal.aborted && !timedOutPhase;
+          let failureError = error;
+          if (timedOutPhase === 'request') {
+            failureError = new Error(`图片生成超过 ${Math.round(IMAGE_REQUEST_TIMEOUT_MS / 1000)} 秒，已停止等待。上游可能已出图并计费，请先核对账单再重试。`);
+          } else if (timedOutPhase === 'download') {
+            failureError = new Error(`图片下载超过 ${Math.round(IMAGE_DOWNLOAD_TIMEOUT_MS / 1000)} 秒，已停止等待。本次生成已计费，请重试下载或换用返回 b64_json 的接口。`);
+          } else if (isUserCancelled) {
+            failureError = new Error('已取消生图。若上游已受理，本次仍可能计费。');
+          }
+          const mayBeBilled = Boolean(generationCompletedAt) || requestPhase !== 'request' || timedOutPhase === 'request' || isUserCancelled;
+          recordImageUsage({
+            sessionId,
+            cardTitle,
+            mode,
+            model: imageModel,
+            size: requestedSize,
+            durationMs: Date.now() - startedAt,
+            outcome: isUserCancelled ? '已取消' : '失败',
+            mayBeBilled,
+            detail: failureError.message
           });
-          setImageResults(prev => ({ ...prev, [resultKey]: { status: 'error', imageUrl: '', error: error.message, mode } }));
-          setToast({ message: `图片生成失败: ${error.message}`, type: 'error', duration: 5000 });
+          saveLastImageDiagnostic({
+            storageStatus: requestPhase === 'storage' ? '失败' : '未开始',
+            failureReason: getDiagnosticFailureReason(failureError, requestPhase === 'request' ? 'request' : requestPhase)
+          });
+          if (sessionId === (activeHistoryIdRef.current || 'current')) {
+            setImageResults(prev => ({ ...prev, [resultKey]: { status: 'error', imageUrl: '', error: failureError.message, mode } }));
+          }
+          setToast({
+            message: `${cardTitle} 生图${isUserCancelled ? '已取消' : '失败'}：${failureError.message}`,
+            type: isUserCancelled ? 'neutral' : 'error',
+            duration: 8000
+          });
         } finally {
-          clearTimeout(imageTimeout);
-          if (imageAbortControllersRef.current.get(resultKey) === requestController) {
+          clearTimeout(phaseTimeout);
+          if (imageAbortControllersRef.current.get(resultKey)?.controller === requestController) {
             imageAbortControllersRef.current.delete(resultKey);
           }
         }
@@ -4150,7 +4476,7 @@ const resultContent = useMemo(() => {
         if (!id || isDeletingHistory) return;
         setIsDeletingHistory(true);
         historyLoadTokenRef.current += 1;
-        abortImageRequests();
+        abortSessionImageRequests(id);
         const previousHistory = history;
         const updatedHistory = history.filter(item => item.id !== id);
         try {
@@ -4181,7 +4507,6 @@ const resultContent = useMemo(() => {
         if (isProcessing || demoLoadInFlightRef.current) return;
         demoLoadInFlightRef.current = true;
         historyLoadTokenRef.current += 1;
-        abortImageRequests();
         try {
           const demoRecord = await loadDemoHistory();
           const demoIndex = toHistoryIndex(demoRecord);
@@ -4190,6 +4515,7 @@ const resultContent = useMemo(() => {
           setHistory(updatedHistory);
           localStorage.setItem(HISTORY_INDEX_KEY, JSON.stringify(updatedHistory));
           removedHistory.forEach(item => {
+            abortSessionImageRequests(item.id);
             deleteSessionRecord(item.id).catch(() => {});
             deleteSessionImages(item.id).catch(() => {});
           });
@@ -4261,7 +4587,10 @@ const resultContent = useMemo(() => {
 
         setInputText(textToProcess);
         historyLoadTokenRef.current += 1;
-        abortImageRequests();
+        // 在途生图不再随新加工取消：它会继续写入原会话，返回那条记录即可查看。
+        if (hasInFlightImageRequests()) {
+          setToast({ message: '仍有生图在后台进行，完成后会保存到原记录，不会因本次加工被取消。', type: 'neutral', duration: 5000 });
+        }
         setIsProcessing(true);
         setShowResults(false);
         setProcessingUiPhase('waiting');
@@ -4352,7 +4681,7 @@ const resultContent = useMemo(() => {
 
       const loadHistoryItem = async (id) => {
         const requestToken = ++historyLoadTokenRef.current;
-        abortImageRequests();
+        // 切换记录不中止在途生图：结果会写回它自己的会话。
         let item = null;
         try {
           item = await loadSessionRecord(id);
@@ -4431,6 +4760,13 @@ const resultContent = useMemo(() => {
         }
       };
 
+      const copyImageUsageLog = () => copyToClipboard(formatImageUsageLogText(imageUsageLog), '生图请求记录');
+
+      const handleClearImageUsageLog = () => {
+        setImageUsageLog(clearImageUsageLog());
+        setToast({ message: '生图请求记录已清空', type: 'neutral' });
+      };
+
       const resultContent = useResultContent({
         activeStageTab,
         currentSession,
@@ -4491,7 +4827,9 @@ const resultContent = useMemo(() => {
         cancelDeleteHistoryItem,
         configTools,
         confirmDeleteHistoryItem,
+        copyImageUsageLog,
         currentSession,
+        handleClearImageUsageLog,
         handleLoadModels,
         handleModelSelection,
         handleProcessingAction,
@@ -4499,6 +4837,7 @@ const resultContent = useMemo(() => {
         handleTestTextConnection,
         history,
         imageModels,
+        imageUsageLog,
         inputText,
         isComposerExpanded,
         isConfigOpen,

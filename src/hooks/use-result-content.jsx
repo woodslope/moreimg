@@ -31,7 +31,7 @@ const renderStageContent = () => {
     return (
       <div className="mi-empty-state mi-empty-state-panel animate-fade-in-up">
         <div className="mi-empty-state-icon mi-empty-state-icon-large mb-4">
-          <Icon name="Box" className="w-6 h-6" />
+          <Icon name="Box" />
         </div>
         <p className="text-[15px] font-bold text-slate-500 mb-1">当前阶段暂无内容</p>
         <p className="text-[13px] text-slate-400">大模型输出格式解析异常，或正在等待渲染指令。</p>
@@ -54,7 +54,7 @@ const renderStageContent = () => {
             </div>
             <div>
               {sId === 3 ? (
-                <div className="mi-surface mi-surface-panel stage-content-panel p-8 md:p-10">
+                <div className="mi-surface mi-surface-panel mi-surface-raised stage-content-panel p-8 md:p-10">
                   <FormattedContent text={content} />
                 </div>
               ) : sId === 4 ? (
@@ -63,25 +63,25 @@ const renderStageContent = () => {
                     return (
                       <div className="content-card-grid grid grid-cols-1 md:grid-cols-2 gap-8">
                         {currentSession.packageData.pages.map((page, index, pages) => (
-                          <div key={page.page_id} className="mi-surface mi-surface-panel content-card-panel">
+                          <div key={page.page_id} className="mi-surface mi-surface-panel mi-surface-raised content-card-panel">
                             <h3 className="text-[18px] font-bold text-slate-800 mb-6 flex items-center">
                               <span className="w-8 h-8 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center text-[14px] mr-3 font-mono shadow-sm border border-indigo-100">{index + 1}</span>
                               <span className="truncate">{getPageDisplayName(page, pages.length - 2)}</span>
                             </h3>
-                            <div className="space-y-4 text-[13px] leading-relaxed text-slate-600">
+                            <div className="content-card-body">
                               <div>
                                 <div className="font-extrabold text-slate-900 text-[16px]">{page.card.title}</div>
-                                {page.card.subtitle && <div className="mt-1 text-slate-500">{page.card.subtitle}</div>}
+                                {page.card.subtitle && <div className="content-card-heading-sub">{page.card.subtitle}</div>}
                               </div>
                               {page.card.points.length > 0 && (
-                                <div className="space-y-2">
-                                  {page.card.points.map((point, pointIndex) => <div key={pointIndex} className="flex gap-2"><span className="text-indigo-500">•</span><span>{point}</span></div>)}
+                                <div className="content-card-points">
+                                  {page.card.points.map((point, pointIndex) => <div key={pointIndex} className="content-card-point"><span className="content-card-point-mark">•</span><span>{point}</span></div>)}
                                 </div>
                               )}
-                              {page.card.summary && <div className="border-t border-slate-200 pt-3 font-bold text-slate-700">{page.card.summary}</div>}
-                              <div className="border-t border-slate-100 pt-3 text-[11px] text-slate-400">
+                              {page.card.summary && <div className="content-card-summary">{page.card.summary}</div>}
+                              <div className="content-card-meta">
                                 <div>页面目标：{page.semantic.page_goal}</div>
-                                <div className="mt-1">主关系：{page.semantic.primary_relation}</div>
+                                <div>主关系：{page.semantic.primary_relation}</div>
                               </div>
                             </div>
                           </div>
@@ -94,7 +94,7 @@ const renderStageContent = () => {
                     return (
                       <div className="content-card-grid grid grid-cols-1 md:grid-cols-2 gap-8">
                         {cardBlocks.map((block, i) => (
-                          <div key={i} className="mi-surface mi-surface-panel content-card-panel">
+                          <div key={i} className="mi-surface mi-surface-panel mi-surface-raised content-card-panel">
                             <h3 className="text-[18px] font-bold text-slate-800 mb-6 flex items-center">
                               <span className="w-8 h-8 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center text-[14px] mr-3 font-mono shadow-sm border border-indigo-100">{i+1}</span>
                               <span className="truncate">{cardHeaders[i].replace(/\*\*/g, '')}</span>
@@ -108,7 +108,7 @@ const renderStageContent = () => {
                     );
                   }
                   return (
-                    <div className="mi-surface mi-surface-panel stage-content-panel p-8">
+                    <div className="mi-surface mi-surface-panel mi-surface-raised stage-content-panel p-8">
                       <FormattedContent text={content} />
                     </div>
                   );
@@ -183,7 +183,7 @@ const renderStageContent = () => {
                               </button>
                             </div>
                           </div>
-                          <div className="mi-feedback mi-feedback-info visual-notice visual-panel-notice"><Icon name="Info" className="mt-0.5 h-3.5 w-3.5 shrink-0" /><span>{isBuiltInDemo ? '内置示例仅用于查看流程；图片为本地占位图，不调用图片 API。' : 'HTML 成品卡用于准确中文交付；AI 整图用于视觉候选，生成后仍需核对文字。'}</span></div>
+                          <div className="mi-feedback mi-feedback-info visual-notice visual-panel-notice"><Icon name="Info" className="h-3.5 w-3.5 shrink-0" /><span>{isBuiltInDemo ? '内置示例仅用于查看流程；图片为本地占位图，不调用图片 API。' : 'HTML 成品卡用于准确中文交付；AI 整图用于视觉候选，生成后仍需核对文字。'}</span></div>
 
                           <div className="visual-workspace-grid">
                             <div className="visual-results-column">
@@ -208,7 +208,7 @@ const renderStageContent = () => {
                                     <div className="visual-result-item-header"><span>{isBuiltInDemo ? '内置示例占位图' : 'HTML 主视觉'}</span></div>
                                     <div className="mi-empty-state mi-empty-state-media visual-result-slot-empty">
                                       <div className="mi-empty-state-icon"><Icon name={imageResult?.status === 'loading' ? 'LoaderCircle' : 'ImagePlus'} className={`h-5 w-5 ${imageResult?.status === 'loading' ? 'animate-spin' : ''}`} /></div>
-                                      <span className="mt-3 text-[11px] font-bold">{imageResult?.status === 'loading' ? '生成中' : '等待生成'}</span>
+                                      <span className="mi-empty-state-hint">{imageResult?.status === 'loading' ? '生成中' : '等待生成'}</span>
                                     </div>
                                     <div className="visual-preview-meta"><span><strong>预览框 3:4</strong> · 固定卡片槽位</span></div>
                                   </div>
@@ -232,7 +232,7 @@ const renderStageContent = () => {
                                     </div>
                                     <div className="mi-empty-state mi-empty-state-media visual-result-slot-empty">
                                       <div className="mi-empty-state-icon"><Icon name={fullImageResult?.status === 'loading' ? 'LoaderCircle' : 'LayoutTemplate'} className={`h-5 w-5 ${fullImageResult?.status === 'loading' ? 'animate-spin' : ''}`} /></div>
-                                      <span className="mt-3 text-[11px] font-bold">{fullImageResult?.status === 'loading' ? '生成中' : fullImageResult?.status === 'success' ? '已隐藏' : '等待生成'}</span>
+                                      <span className="mi-empty-state-hint">{fullImageResult?.status === 'loading' ? '生成中' : fullImageResult?.status === 'success' ? '已隐藏' : '等待生成'}</span>
                                     </div>
                                     <div className="visual-preview-meta"><span><strong>预览框 3:4</strong> · 固定卡片槽位</span></div>
                                   </div>
@@ -307,7 +307,7 @@ const renderStageContent = () => {
                                           title={isSelectedHtmlCardExporting ? '正在导出 HTML 成品' : '导出左侧 HTML 成品 PNG（1242×1656）'}
                                           className="mi-button mi-button-standard visual-button visual-export-button"
                                         >
-                                          <Icon name={isSelectedHtmlCardExporting ? 'Loader' : 'Download'} className={`mr-1.5 h-3.5 w-3.5 ${isSelectedHtmlCardExporting ? 'animate-spin' : ''}`} /> {isSelectedHtmlCardExporting ? '导出中' : '导出 HTML 成品 PNG'}
+                                          <Icon name={isSelectedHtmlCardExporting ? 'Loader' : 'Download'} className={`mr-2 h-3.5 w-3.5 ${isSelectedHtmlCardExporting ? 'animate-spin' : ''}`} /> {isSelectedHtmlCardExporting ? '导出中' : '导出 HTML 成品 PNG'}
                                         </button>
                                       ) : (
                                         <span className="visual-output-status">生成主视觉后可导出</span>
@@ -329,7 +329,7 @@ const renderStageContent = () => {
                                         {!selectedHtmlCardReady && <span className="html-card-placeholder-badge">等待主视觉</span>}
                                       </HtmlCardPreview>
                                       <div className="visual-comparison-meta"><span><strong>预览框 3:4</strong> · {isBuiltInDemo ? '内置示例占位图' : selectedHtmlCardReady ? 'HTML 成品' : '排版占位'}</span><span>{isBuiltInDemo ? '本地演示素材' : selectedHtmlCardReady ? '导出 1242×1656' : '待生成主视觉'}</span></div>
-                                      {selectedHtmlImageResult?.status !== 'success' && <p className={`mt-3 text-center text-[11px] ${selectedHtmlLegacyResult?.status === 'success' ? 'text-amber-600' : 'text-slate-400'}`}>{selectedHtmlLegacyResult?.status === 'success' ? '旧版主视觉不再用于 HTML 成品卡，请重新生成无字主视觉。' : '当前使用视觉占位，生成无字主视觉后会自动替换。'}</p>}
+                                      {selectedHtmlImageResult?.status !== 'success' && <p className={`visual-comparison-hint ${selectedHtmlLegacyResult?.status === 'success' ? 'is-stale' : ''}`}>{selectedHtmlLegacyResult?.status === 'success' ? '旧版主视觉不再用于 HTML 成品卡，请重新生成无字主视觉。' : '当前使用视觉占位，生成无字主视觉后会自动替换。'}</p>}
                                     </div>
                                     <div className="mi-surface mi-surface-card visual-comparison-item">
                                       <div className="visual-comparison-label">{isBuiltInDemo ? '内置示例占位图' : 'AI 整图'}</div>
@@ -343,7 +343,7 @@ const renderStageContent = () => {
                                           <div className="visual-comparison-preview-frame">
                                             <div className="mi-empty-state mi-empty-state-inline visual-comparison-empty">
                                               <Icon name={fullImageResult?.status === 'loading' ? 'LoaderCircle' : 'LayoutTemplate'} className={`h-5 w-5 ${fullImageResult?.status === 'loading' ? 'animate-spin' : ''}`} />
-                                              <span className="mt-3 text-[11px] font-bold">{fullImageResult?.status === 'loading' ? 'AI 整图生成中' : fullImageResult?.status === 'success' ? 'AI 整图已隐藏' : '尚未生成 AI 整图'}</span>
+                                              <span className="mi-empty-state-hint">{fullImageResult?.status === 'loading' ? 'AI 整图生成中' : fullImageResult?.status === 'success' ? 'AI 整图已隐藏' : '尚未生成 AI 整图'}</span>
                                             </div>
                                           </div>
                                           <div className="visual-comparison-meta"><span><strong>预览框 3:4</strong> · {isBuiltInDemo ? '内置示例占位图' : 'AI 整图'}</span><span>固定对比槽位</span></div>
@@ -362,13 +362,13 @@ const renderStageContent = () => {
 
                   const fullCleanText = content.replace(/```[^\n]*\n?/g, '').replace(/```/g, '').trim();
                   return (
-                    <div className="mi-surface mi-surface-panel stage-content-panel p-8">
+                    <div className="mi-surface mi-surface-panel mi-surface-raised stage-content-panel p-8">
                        <FormattedContent text={fullCleanText} />
                     </div>
                   );
                 })()
               ) : (
-                <div className="mi-surface mi-surface-panel stage-content-panel p-8 md:p-10">
+                <div className="mi-surface mi-surface-panel mi-surface-raised stage-content-panel p-8 md:p-10">
                   <FormattedContent text={content} />
                 </div>
               )}

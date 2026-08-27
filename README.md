@@ -8,6 +8,10 @@
 
 `src.html`、`index.html`、`app.js` 和 `vendor/lucide-moreimg.js` 均为构建产物，不应直接修改。
 
+`styles.css` 是一次性预编译好的 Tailwind 产物，**构建过程不会重新编译 CSS**。因此新写的 Tailwind 工具类（尤其是 `lg:` 断点和 `styles.css` 里没出现过的间距/颜色）不会有任何规则，页面只是静默不生效。新增样式请写进 `src/template.html` 的 `<style>`，沿用现有 `mi-*` / `moreimg-*` 语义类；响应式断点也由那里的 `@media` 拥有。
+
+`vendor/` 下的第三方运行时是手工下载的，版本与 SHA-256 登记在 [`vendor/DEPENDENCIES.md`](./vendor/DEPENDENCIES.md)。
+
 ## 源码结构
 
 ```text
@@ -45,33 +49,15 @@ tests/                     # Node、Python 和浏览器回归测试
 
 ## 构建
 
-在项目根目录运行统一命令：
-
-```bash
-pnpm run build:moreimg
-```
-
-也可以在当前目录直接运行：
+本目录是自包含的，没有 `package.json`，所有命令都直接用 `node` / `python3` 运行：
 
 ```bash
 node build.mjs
 ```
 
+`build.mjs` 会重新生成 `src.html`、`index.html`、`app.js` 和 `vendor/lucide-moreimg.js`。修改 `src/` 后必须重新构建，否则 `tests/build-source-contract.test.mjs` 会失败。
+
 ## 启动
-
-在项目根目录构建并启动：
-
-```bash
-pnpm run moreimg
-```
-
-只启动已有构建产物：
-
-```bash
-pnpm run serve:moreimg
-```
-
-也可以在当前目录直接运行：
 
 ```bash
 python3 server.py
@@ -79,16 +65,24 @@ python3 server.py
 
 然后打开：<http://127.0.0.1:4187/>
 
-在项目根目录运行构建与语法检查：
+## 测试
+
+全部 20 个 Node 测试（含真实 Chrome 端到端，需要引号让 Node 自己展开 glob）：
 
 ```bash
-pnpm run check:moreimg
+node --test "tests/*.test.mjs"
 ```
 
-可重复的 Chrome 端到端验证（使用临时浏览器数据和本地假接口，不读取真实 API Key）：
+本地服务的 gzip、缓存头与跨站代理拒绝：
 
 ```bash
-node moreimg/tests/browser-e2e.test.mjs
+python3 tests/server_performance_test.py
+```
+
+单独跑 Chrome 端到端验证（使用临时浏览器数据和本地假接口，不读取真实 API Key）：
+
+```bash
+node tests/browser-e2e.test.mjs
 ```
 
 该脚本会在真实 Chrome 中验证空输入拦截，依次加工 20、600、2000、5000 字输入，再执行“生成主视觉 → 刷新恢复 → 导出 HTML PNG”，并检查导出图片为 1242×1656 且内容覆盖整幅画布。JSON 校验测试另外覆盖 599 和 10000 字边界。测试使用本地假接口，不验证真实模型对长文的语义质量。默认寻找本机 Chrome，也可通过 `MOREIMG_CHROME_PATH` 指定其他 Chrome/Chromium 可执行文件。
@@ -105,12 +99,24 @@ API Key、加工偏好和历史记录由应用保存在当前浏览器中，不�
 
 ## 单张生图
 
-设置面板新增独立的图片接口地址、图片模型、图片尺寸和图片 API Key。当前支持兼容 OpenAI Images API 的 `POST /v1/images/generations` 接口，请求包含 `model`、`prompt`、用户配置的 `size` 和 `n: 1`，响应支持：
+设置面板新增独立的图片接口地址、图片模型、图片尺寸和图片 API Key。当前支持兼容 OpenAI Images API 的 `POST /v1/images/generations` 接口，请求包含 `model`、`prompt`、经合法性校正的 `size` 和 `n: 1`，响应支持：
 
-- `data[0].url`
-- `data[0].b64_json`
+- `data[0].b64_json`（优先；非 `gpt-image` 模型会显式请求 `response_format: b64_json`）
+- `data[0].url`（回退；本地服务模式下经 `/proxy/image-asset` 同源取回，绕开图片 CDN 缺失的 CORS 头）
 
 视觉提示词页可逐张生成、重新生成、预览和下载图片。图片 Blob 保存在浏览器 IndexedDB 的 `moreimg_images/generated_images` 中，不写入 `localStorage`；重新打开对应历史记录时会恢复图片预览，删除历史记录时同步删除对应图片。
+
+### 生图计费安全
+
+上游一旦受理生图就会计费，本地取消不会退款。为避免“扣了费却什么都没留下”：
+
+- 在途生图只在**该会话被删除**时才中止。切换历史记录、载入示例、开始新一轮加工都不再取消它，结果会继续写回发起时的那条会话，切回去即可看到。
+- 生成成功后**无条件入库**，再决定是否更新界面。跨会话完成时会提示“返回该记录即可查看”。
+- 生成与下载分别计时：生成 600 秒、下载 120 秒，本地代理 660 秒（必须大于前端，否则同一种故障会随机报成 504 或前端超时）。超时提示会明确说明上游可能已计费。
+- 尺寸会按模型校正后再发出。`gpt-image` 系列只接受 `1024x1024` / `1024x1536` / `1536x1024` / `auto`，填非法值时宽松的中转站会按自己的默认规格出图并照常计费，设置面板会就此给出警告。旧版默认值 `768x1024` 会在读取配置时自动迁移为 `1024x1536`。
+- 接口返回 HTML 错误页时保留状态码与上游原文，不再被 `Unexpected token '<'` 掩盖。
+- 设置面板的“生图请求记录（可对账）”按时间记录模型、尺寸、耗时、结果和是否可能已计费，可复制成表格与中转站账单逐条核对。
+
 
 ## HTML 成品卡
 
@@ -120,16 +126,16 @@ JSON 中每页的封面、正文和封底内容会自动合成为固定 1242×16
 
 当前版本只提供单张生图，不包含整套生成队列、暂停、批量重试或 ZIP 下载。
 
-默认生图尺寸为 Aixoras 支持的原生 3:4 值 `768x1024`；HTML 成品卡固定导出为 `1242x1656`。图片接口尺寸必须以具体供应商支持的尺寸列表为准，应用会把生成图作为背景嵌入最终成品卡。
+默认生图尺寸为 `1024x1536`（`gpt-image` 系列支持的原生 3:4 值）；HTML 成品卡固定导出为 `1242x1656`。图片接口尺寸必须以具体供应商支持的尺寸列表为准，应用会把生成图作为背景嵌入最终成品卡。
 
 已验证配置示例：
 
 ```text
 图片接口地址：https://api.aixoras.com/v1/images/generations
 图片模型：gpt-image-2
-图片尺寸：768x1024
+图片尺寸：1024x1536
 ```
 
 该接口返回 `data[0].b64_json`。模型列表中的名称是 `gpt-image-2`，不是 `image-2`。测试生成的 PNG 为1024×1536、约2.53MB，已通过预览、IndexedDB持久化和下载链路验证。
 
-本地服务同时提供 `/v1/chat/completions` 与 `/v1/images/generations` 同源转发，解决浏览器直接请求中转站时的 CORS 限制；转发过程不记录 API Key 或请求正文。
+本地服务同时提供 `/v1/chat/completions` 与 `/v1/images/generations` 同源转发，以及 `/proxy/image-asset` 图片本体转发，解决浏览器直接请求中转站和图片 CDN 时的 CORS 限制；转发过程不记录 API Key 或请求正文。带跨站 `Origin` 的转发请求会被 403 拒绝，避免其他网站的页面借这台机器消耗你的 API 额度；无 `Origin` 的请求（curl、测试脚本）照旧放行。

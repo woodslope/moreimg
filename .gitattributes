@@ -1,0 +1,9 @@
+# 构建产物：diff 噪声大且无需人工审阅，合并冲突一律重新构建而非手工调和。
+# 改完 src/ 后运行 node build.mjs 重新生成即可。
+src.html      -diff linguist-generated=true
+index.html    -diff linguist-generated=true
+app.js        -diff linguist-generated=true
+
+# 手工下载的第三方运行时：同样不参与 diff 审阅，版本与校验值见 vendor/DEPENDENCIES.md。
+vendor/*.js   -diff linguist-vendored=true
+styles.css    -diff linguist-vendored=true

@@ -1,8 +1,8 @@
 const AppSidebar = ({ history, isProcessing, activeHistoryId, showResults, setIsHistoryOpen, setIsConfigOpen, inputText, setInputText, handleProcessingAction, processingActionMode, processingActionLabel, processingActionHint, isComposerExpanded, setIsComposerExpanded, loadHistoryItem, retryHistoryItem, requestDeleteHistoryItem, loadDemoRecord }) => (
-<div className={`moreimg-sidebar w-full lg:w-[320px] h-auto lg:h-full flex-shrink-0 flex flex-col bg-white/60 lg:bg-white/40 backdrop-blur-3xl border-b lg:border-b-0 lg:border-r border-white/60 shadow-sm lg:shadow-[8px_0_32px_rgba(31,38,135,0.05)] z-20 p-4 lg:p-6 relative ${showResults ? 'is-result-view' : ''} ${isComposerExpanded ? 'is-composer-expanded' : ''}`}>
+<div className={`moreimg-sidebar w-full flex-shrink-0 flex flex-col bg-white/60 backdrop-blur-3xl border-b border-white/60 shadow-sm z-20 p-4 relative ${showResults ? 'is-result-view' : ''} ${isComposerExpanded ? 'is-composer-expanded' : ''}`}>
 
   <div className="sidebar-brand-row z-10 shrink-0">
-    <h1 className="flex min-w-0 items-center">
+    <h1 className="sidebar-brand-title">
       <div className="sidebar-brand-mark mr-3">
         <Icon name="Sparkles" className="w-5 h-5 text-white" strokeWidth={2} />
       </div>
@@ -72,14 +72,14 @@ const AppSidebar = ({ history, isProcessing, activeHistoryId, showResults, setIs
     {processingActionHint && <p id="processing-action-hint" className="processing-action-hint">{processingActionHint}</p>}
   </div>
 
-  <div className="moreimg-history hidden lg:flex mt-10 flex-1 relative shrink-0 flex-col min-h-0">
-    <div className="flex items-center justify-between mb-4 shrink-0">
-      <div className="text-[12px] font-bold text-amber-600 tracking-wide uppercase">历史记录</div>
+  <div className="moreimg-history">
+    <div className="moreimg-history-header">
+      <div className="moreimg-history-title">历史记录</div>
       <button
         type="button"
         onClick={loadDemoRecord}
         disabled={isProcessing}
-        className="text-[11px] font-bold text-slate-400 hover:text-slate-500 transition-colors disabled:opacity-40"
+        className="moreimg-history-demo-action"
         aria-label="载入示例记录，查看应用完整能力"
         title="载入示例记录（含视觉生成与对比），不消耗 API"
       >
@@ -91,7 +91,7 @@ const AppSidebar = ({ history, isProcessing, activeHistoryId, showResults, setIs
     </div>
   </div>
 
-  <div className="moreimg-brand brand-attribution hidden lg:block" aria-label="项目归属与版权">
+  <div className="moreimg-brand brand-attribution" aria-label="项目归属与版权">
     <div className="brand-attribution-name">MoreImg · LINPO LAB</div>
     <div>© 2026 LINPO LAB. All rights reserved.</div>
   </div>

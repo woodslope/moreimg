@@ -5,7 +5,9 @@ const AppView = ({
   cancelDeleteHistoryItem,
   configTools,
   confirmDeleteHistoryItem,
+  copyImageUsageLog,
   currentSession,
+  handleClearImageUsageLog,
   handleLoadModels,
   handleModelSelection,
   handleProcessingAction,
@@ -13,6 +15,7 @@ const AppView = ({
   handleTestTextConnection,
   history,
   imageModels,
+  imageUsageLog,
   inputText,
   isComposerExpanded,
   isConfigOpen,
@@ -46,7 +49,7 @@ const AppView = ({
   textModels,
   toast
 }) => (
-  <div className="moreimg-app-shell flex flex-col lg:flex-row h-screen overflow-hidden font-sans text-slate-800 relative bg-transparent">
+  <div className="moreimg-app-shell flex flex-col h-screen overflow-hidden font-sans text-slate-800 relative bg-transparent">
     {toast && <Toast message={toast.message} type={toast.type} duration={toast.duration} onClose={() => setToast(null)} />}
     <AppSidebar {...{
       history,
@@ -104,6 +107,9 @@ const AppView = ({
       textModels,
       imageModels,
       lastImageDiagnostic,
+      imageUsageLog,
+      copyImageUsageLog,
+      handleClearImageUsageLog,
       handleSaveConfig
     }} onRequestClose={onRequestCloseConfig} />
     <ConfirmDeleteDialog

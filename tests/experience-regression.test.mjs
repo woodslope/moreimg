@@ -29,7 +29,7 @@ assert.match(source, /<div className="sidebar-input-clip">\s*<textarea/);
 assert.match(source, /\.results-stage-frame \{[^}]*max-width: 1120px/);
 assert.doesNotMatch(source, /activeStageTab === 'step3' \? 'max-w-\[1120px\]' : 'max-w-3xl'/);
 assert.doesNotMatch(source, /htmlCards\.map\(card =>/);
-assert.match(source, /className="mi-surface mi-surface-panel content-card-panel"/);
+assert.match(source, /className="mi-surface mi-surface-panel mi-surface-raised content-card-panel"/);
 assert.doesNotMatch(source, /aspect-\[3\/4\]/);
 assert.doesNotMatch(source, /flex-1 overflow-y-auto custom-scrollbar pr-2/);
 
@@ -98,8 +98,8 @@ assert.match(source, /\.moreimg-app-shell \{[\s\S]*?--mi-surface-panel:[^;]+;[\s
 assert.match(source, /\.mi-surface \{[^}]*border:/, '重复表面应提供共享基础合同');
 assert.match(source, /\.mi-surface-panel \{[^}]*border-radius:\s*16px[^}]*var\(--mi-surface-panel\)/, '工作台面板应消费共享面板表面');
 assert.match(source, /\.mi-surface-card \{[^}]*border-radius:\s*12px[^}]*var\(--mi-surface-card\)/, '重复卡片应消费共享卡片表面');
-assert.match(source, /className="mi-surface mi-surface-panel stage-content-panel/, '长内容面板应消费共享面板表面');
-assert.match(source, /className="mi-surface mi-surface-panel content-card-panel"/, '内容卡应消费共享面板表面');
+assert.match(source, /className="mi-surface mi-surface-panel mi-surface-raised stage-content-panel/, '理解与核查、文章重构的一级内容面板应消费共享抬升表面');
+assert.match(source, /className="mi-surface mi-surface-panel mi-surface-raised content-card-panel"/, '知识卡片一级内容面板应消费共享抬升表面');
 assert.match(source, /className="mi-surface mi-surface-panel mi-surface-raised visual-panel"/, '视觉工作台应消费共享抬升面板表面');
 assert.match(source, /className="mi-surface mi-surface-card visual-result-item"/, '视觉结果项应消费共享卡片表面');
 assert.match(source, /className=\{`mi-surface mi-surface-list history-item/, '历史项应消费共享列表表面');

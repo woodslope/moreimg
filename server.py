@@ -22,6 +22,14 @@ PROXY_SUFFIXES = {
     "/proxy/image": ("/images/generations",),
 }
 
+# 图片 CDN 多数不带 CORS 头，浏览器直连会在“上游已出图并计费”之后失败。
+# 这条同源 GET 转发只用于把已生成的图片取回本地，不接受任何请求体。
+IMAGE_ASSET_PROXY_PATH = "/proxy/image-asset"
+
+# 必须大于前端的 IMAGE_REQUEST_TIMEOUT_MS（600 秒）：
+# 两侧数值相同时谁先超时不确定，同一种故障会随机报成 504 或前端超时。
+PROXY_TIMEOUT_SECONDS = 660
+
 COMPRESSIBLE_SUFFIXES = {".css", ".html", ".js", ".json", ".svg", ".txt"}
 
 
@@ -83,7 +91,21 @@ class MoreImgHandler(SimpleHTTPRequestHandler):
             return None
         return upstream
 
+    def is_allowed_origin(self):
+        # 无 Origin 头的请求（curl、测试脚本、同源表单）照旧放行；
+        # 浏览器发起的跨站请求会带上 Origin，此时只接受本机页面自身。
+        # 否则任意网站的 JS 都能借这台机器转发请求、消耗用户的 API 额度。
+        origin = self.headers.get("Origin", "").strip()
+        if not origin:
+            return True
+        host, port = self.server.server_address[:2]
+        return origin in (f"http://{host}:{port}", f"http://localhost:{port}")
+
     def do_POST(self):
+        if not self.is_allowed_origin():
+            self.send_json_error(403, "Cross-origin proxy request rejected")
+            return
+
         upstream = self.resolve_upstream()
         if not upstream:
             self.send_error(400, "Invalid or unsupported upstream")
@@ -97,7 +119,7 @@ class MoreImgHandler(SimpleHTTPRequestHandler):
 
         request = Request(upstream, data=body, headers=headers, method="POST")
         try:
-            response = urlopen(request, timeout=300)
+            response = urlopen(request, timeout=PROXY_TIMEOUT_SECONDS)
         except HTTPError as error:
             response = error
         except (TimeoutError, socket.timeout):
@@ -107,9 +129,40 @@ class MoreImgHandler(SimpleHTTPRequestHandler):
             self.send_json_error(502, "Upstream request failed", str(error.reason))
             return
 
+        self.stream_upstream(response, "application/json")
+
+    def do_GET(self):
+        if urlparse(self.path).path != IMAGE_ASSET_PROXY_PATH:
+            super().do_GET()
+            return
+        if not self.is_allowed_origin():
+            self.send_json_error(403, "Cross-origin proxy request rejected")
+            return
+
+        upstream = self.headers.get("X-MoreImg-Upstream", "").strip()
+        parsed = urlparse(upstream)
+        if parsed.scheme not in ("http", "https") or not parsed.netloc:
+            self.send_json_error(400, "Invalid or unsupported image URL")
+            return
+
+        # 只转发图片本体，不携带 Authorization：签名信息已经在 URL 里。
+        try:
+            response = urlopen(Request(upstream, method="GET"), timeout=PROXY_TIMEOUT_SECONDS)
+        except HTTPError as error:
+            response = error
+        except (TimeoutError, socket.timeout):
+            self.send_json_error(504, "Image download timed out")
+            return
+        except URLError as error:
+            self.send_json_error(502, "Image download failed", str(error.reason))
+            return
+
+        self.stream_upstream(response, "application/octet-stream")
+
+    def stream_upstream(self, response, default_content_type):
         with response:
             self.send_response(response.status)
-            self.send_header("Content-Type", response.headers.get("Content-Type", "application/json"))
+            self.send_header("Content-Type", response.headers.get("Content-Type", default_content_type))
             self.end_headers()
             try:
                 while True:

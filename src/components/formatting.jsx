@@ -11,7 +11,7 @@
           strokeLinejoin="round"
           aria-hidden="true"
           data-icon-name={name}
-          className={`inline-block shrink-0 ${className}`}
+          className={`shrink-0 ${className}`}
           {...props}
         >
           {nodes.map(([tag, attrs], index) => React.createElement(tag, { ...attrs, key: attrs.key || index }))}
@@ -26,6 +26,13 @@
       if (!text) return null;
       const lines = text.split('\n');
       let isFirstNonEmpty = true;
+      const isHeadingLine = (line = '') => /^#{1,4}\s+/.test(line.trimStart());
+      const getAdjacentNonEmptyLine = (startIndex, direction) => {
+        for (let index = startIndex + direction; index >= 0 && index < lines.length; index += direction) {
+          if (lines[index].trim()) return lines[index];
+        }
+        return '';
+      };
 
       return (
         <div className="text-slate-700 leading-relaxed">
@@ -40,7 +47,14 @@
               return null; // 直接静默拦截，不渲染到前端
             }
 
-            if (line.trim() === '') return <div key={i} className="h-3"></div>;
+            const previousNonEmptyLine = getAdjacentNonEmptyLine(i, -1);
+            const nextNonEmptyLine = getAdjacentNonEmptyLine(i, 1);
+
+            // 标题自身已经拥有上下间距，相邻空行不再重复占位。
+            if (line.trim() === '') {
+              if (isHeadingLine(previousNonEmptyLine) || isHeadingLine(nextNonEmptyLine)) return null;
+              return <div key={i} className="h-3"></div>;
+            }
 
             // 修复：同时支持 **加粗** 和 *斜体* 解析
             const formatInline = (str) => {
@@ -59,11 +73,13 @@
             const isFirst = isFirstNonEmpty;
             isFirstNonEmpty = false;
             const trimmedLine = line.trimStart();
+            const followsPrimaryTitle = /^#\s+/.test(previousNonEmptyLine.trimStart());
+            const precedesSubtitle = /^##\s+/.test(nextNonEmptyLine.trimStart());
 
             // 新增：处理一级标题 #
             if (trimmedLine.startsWith('# ')) {
               return (
-                <h1 key={i} className={`text-[24px] font-black text-slate-900 mb-5 tracking-tight ${isFirst ? 'mt-0' : 'mt-10'}`}>
+                <h1 key={i} className={`text-[24px] font-black text-slate-900 tracking-tight ${precedesSubtitle ? 'mb-3' : 'mb-5'} ${isFirst ? 'mt-0' : 'mt-10'}`}>
                   {formatInline(trimmedLine.replace('# ', ''))}
                 </h1>
               );
@@ -71,7 +87,7 @@
 
             if (trimmedLine.startsWith('## ')) {
               return (
-                <h2 key={i} className={`text-[20px] font-extrabold text-slate-900 mb-4 ${isFirst ? 'mt-0' : 'mt-8'}`}>
+                <h2 key={i} className={`text-[20px] font-extrabold text-slate-900 ${followsPrimaryTitle ? 'mb-6' : 'mb-4'} ${isFirst || followsPrimaryTitle ? 'mt-0' : 'mt-8'}`}>
                   {formatInline(trimmedLine.replace('## ', ''))}
                 </h2>
               );

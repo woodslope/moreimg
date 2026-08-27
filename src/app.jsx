@@ -9,7 +9,7 @@
         imageApiUrl: 'https://api.openai.com/v1/images/generations',
         imageModel: 'gpt-image-1',
         imageApiKey: '',
-        imageSize: '768x1024'
+        imageSize: DEFAULT_IMAGE_SIZE
       });
       const [isConfigOpen, setIsConfigOpen] = useState(() => !hasSavedApiConfig());
       const [isHistoryOpen, setIsHistoryOpen] = useState(false);
@@ -27,6 +27,7 @@
       const [toast, setToast] = useState(null);
       const [imageResults, setImageResults] = useState({});
       const [lastImageDiagnostic, setLastImageDiagnostic] = useState(loadLastImageDiagnostic);
+      const [imageUsageLog, setImageUsageLog] = useState(loadImageUsageLog);
       const [htmlExportState, setHtmlExportState] = useState({ cardId: '', status: 'idle', error: '' });
       const [hiddenFullImages, setHiddenFullImages] = useState({});
       const [textModels, setTextModels] = useState([]);
@@ -51,6 +52,9 @@
       const processingAbortRef = useRef(null);
       const historyLoadTokenRef = useRef(0);
       const imageAbortControllersRef = useRef(new Map());
+      // 生图可能跨越会话切换才结束，回调里必须读“当前真正激活的会话”，
+      // 闭包捕获的 activeHistoryId 在那时已经过期。
+      const activeHistoryIdRef = useRef(null);
       const configRequestControllersRef = useRef(new Map());
       const demoLoadInFlightRef = useRef(false);
       const imageObjectUrlsRef = useRef([]);
@@ -90,6 +94,12 @@
       };
 
       useEffect(() => {
+        activeHistoryIdRef.current = activeHistoryId;
+      }, [activeHistoryId]);
+
+      const recordImageUsage = (entry) => setImageUsageLog(appendImageUsageLog(entry));
+
+      useEffect(() => {
         if (!showResults || !resultScrollRef.current) return;
         resultScrollRef.current.scrollTop = 0;
       }, [activeStageTab, activeHistoryId, showResults]);
@@ -127,8 +137,21 @@
           .catch(error => setToast({ message: `画面焦点保存失败: ${error.message}`, type: 'error' }));
       };
 
-      const abortImageRequests = () => {
-        imageAbortControllersRef.current.forEach(controller => controller.abort());
+      // 只有该会话被真正删除时才中止在途生图。切换历史记录或开始新加工都不再取消：
+      // 上游一旦受理就会计费，本地放弃等于白花钱，结果还拿不到。
+      const abortSessionImageRequests = (sessionId) => {
+        imageAbortControllersRef.current.forEach((entry, resultKey) => {
+          if (entry.sessionId !== sessionId) return;
+          entry.controller.abort();
+          imageAbortControllersRef.current.delete(resultKey);
+        });
+      };
+
+      const hasInFlightImageRequests = () => imageAbortControllersRef.current.size > 0;
+
+      // 页面卸载时才无条件收尾：这时已经没有任何界面能承接结果。
+      const abortAllImageRequests = () => {
+        imageAbortControllersRef.current.forEach(entry => entry.controller.abort());
         imageAbortControllersRef.current.clear();
       };
 
@@ -254,7 +277,11 @@
             parsedConfig.imageApiUrl = parsedConfig.imageApiUrl || 'https://api.openai.com/v1/images/generations';
             parsedConfig.imageModel = parsedConfig.imageModel || 'gpt-image-1';
             parsedConfig.imageApiKey = parsedConfig.imageApiKey || '';
-            parsedConfig.imageSize = parsedConfig.imageSize || '768x1024';
+            // 旧默认值 768x1024 不在 gpt-image 的合法枚举里，宽松的中转站会按自己的
+            // 默认规格出图并照常计费。这里把遗留的旧默认值一次性迁移掉，用户手填的值保留。
+            parsedConfig.imageSize = !parsedConfig.imageSize || parsedConfig.imageSize === '768x1024'
+              ? DEFAULT_IMAGE_SIZE
+              : parsedConfig.imageSize;
             localStorage.setItem('agent_api_config', JSON.stringify(parsedConfig));
             setApiConfig(parsedConfig);
             if (parsedConfig.apiKey?.trim()) {
@@ -271,7 +298,7 @@
       useEffect(() => () => {
         processingAbortRef.current?.abort();
         abortConfigRequests(false);
-        abortImageRequests();
+        abortAllImageRequests();
         imageObjectUrlsRef.current.forEach(url => URL.revokeObjectURL(url));
       }, []);
 
@@ -410,26 +437,38 @@
         }
 
         const resultKey = `${mode}:${cardTitle}`;
-        imageAbortControllersRef.current.get(resultKey)?.abort();
+        imageAbortControllersRef.current.get(resultKey)?.controller.abort();
         const requestController = new AbortController();
-        imageAbortControllersRef.current.set(resultKey, requestController);
-        const operationToken = historyLoadTokenRef.current;
-        let imageTimedOut = false;
-        const imageTimeout = setTimeout(() => {
-          imageTimedOut = true;
+        // 生图请求绑定发起时的会话，切换历史记录不再取消它：
+        // 上游已经受理并会计费，本地放弃只会白花钱。
+        const sessionId = activeHistoryId || 'current';
+        imageAbortControllersRef.current.set(resultKey, { controller: requestController, sessionId });
+        const imageModel = apiConfig.imageModel.trim();
+        const requestedSize = normalizeImageSize(apiConfig.imageSize, imageModel);
+        const startedAt = Date.now();
+        let generationCompletedAt = 0;
+        let requestPhase = 'request';
+        let timedOutPhase = '';
+        let phaseTimeout = setTimeout(() => {
+          timedOutPhase = 'request';
           requestController.abort();
         }, IMAGE_REQUEST_TIMEOUT_MS);
+        const restartTimeoutForPhase = (phase, timeoutMs) => {
+          clearTimeout(phaseTimeout);
+          phaseTimeout = setTimeout(() => {
+            timedOutPhase = phase;
+            requestController.abort();
+          }, timeoutMs);
+        };
         const imageEndpoint = resolveApiEndpoint(apiConfig.imageApiUrl, 'image');
         const imageTransport = getRequestTransport(imageEndpoint, 'image');
         const previousFocusY = imageResults[resultKey]?.focusY;
         setImageResults(prev => ({ ...prev, [resultKey]: { status: 'loading', imageUrl: '', error: '', mode, focusY: prev[resultKey]?.focusY } }));
-        let diagnosticPhase = 'request';
-        const sessionId = activeHistoryId || 'current';
         saveLastImageDiagnostic({
           sessionId,
           requestMode: '同步',
           endpointPath: getDiagnosticEndpointPath(imageEndpoint),
-          requestedFormat: '由 API 决定',
+          requestedFormat: isGptImageModel(imageModel) ? 'b64_json（模型默认）' : 'b64_json',
           actualFormat: '等待响应',
           imageHost: '等待响应',
           storageBackend: 'IndexedDB',
@@ -446,63 +485,100 @@
               'Authorization': `Bearer ${apiConfig.imageApiKey.trim()}`,
               ...imageTransport.headers
             },
-            body: JSON.stringify({
-              model: apiConfig.imageModel.trim(),
-              prompt,
-              size: apiConfig.imageSize.trim() || '768x1024',
-              n: 1
-            }),
+            body: JSON.stringify(buildImageRequestBody(imageModel, prompt, requestedSize)),
             signal: requestController.signal
           });
 
-          const data = await response.json();
-          if (!response.ok) {
-            throw new Error(data?.error?.message || `HTTP ${response.status}`);
-          }
-
-          const firstImage = data?.data?.[0];
-          const remoteUrl = firstImage?.url || '';
-          const dataUrl = firstImage?.b64_json ? `data:image/png;base64,${firstImage.b64_json}` : '';
-          if (!remoteUrl && !dataUrl) throw new Error('接口未返回 url 或 b64_json 图片数据');
-          diagnosticPhase = 'storage';
+          const { remoteUrl, dataUrl } = await readImageResponse(response);
+          // 到这里上游已经出图并计费，后续任何失败都必须让用户看见，不能静默 return。
+          generationCompletedAt = Date.now();
+          requestPhase = 'download';
+          restartTimeoutForPhase('download', IMAGE_DOWNLOAD_TIMEOUT_MS);
           saveLastImageDiagnostic({
             actualFormat: dataUrl ? 'Base64' : 'URL',
             imageHost: dataUrl ? 'API 响应' : getDiagnosticImageHost(remoteUrl),
             storageStatus: '保存中'
           });
 
-          if (requestController.signal.aborted || operationToken !== historyLoadTokenRef.current) return;
-          const imageBlob = dataUrl ? dataUrlToBlob(dataUrl) : await fetch(remoteUrl, { signal: requestController.signal }).then(imageResponse => {
+          let imageBlob;
+          if (dataUrl) {
+            imageBlob = dataUrlToBlob(dataUrl);
+          } else {
+            const downloadTransport = getImageDownloadTransport(remoteUrl);
+            const imageResponse = await fetch(downloadTransport.url, {
+              headers: downloadTransport.headers,
+              signal: requestController.signal
+            });
             if (!imageResponse.ok) throw new Error(`图片下载失败 HTTP ${imageResponse.status}`);
-            return imageResponse.blob();
-          });
-          if (requestController.signal.aborted || operationToken !== historyLoadTokenRef.current) return;
+            imageBlob = await imageResponse.blob();
+          }
+          requestPhase = 'storage';
+          // 无条件入库：即使用户已经切走，图片也要落盘，切回来能看到。
           await saveImageBlob(sessionId, cardTitle, imageBlob, mode, previousFocusY);
-          if (requestController.signal.aborted || operationToken !== historyLoadTokenRef.current) return;
           saveLastImageDiagnostic({ storageBackend: 'IndexedDB', storageStatus: '成功', restoreStatus: '尚未验证', failureReason: '' });
-          const imageUrl = URL.createObjectURL(imageBlob);
+          recordImageUsage({
+            sessionId,
+            cardTitle,
+            mode,
+            model: imageModel,
+            size: requestedSize,
+            durationMs: Date.now() - startedAt,
+            outcome: '成功',
+            mayBeBilled: true,
+            detail: dataUrl ? 'Base64 直接入库' : '经 URL 下载后入库'
+          });
 
+          const generationLabel = mode === 'full' ? 'AI 整图' : mode === 'visual-only' ? '无字主视觉' : '主视觉';
+          if (sessionId !== (activeHistoryIdRef.current || 'current')) {
+            setToast({ message: `[${cardTitle}] ${generationLabel}已生成并保存，返回该记录即可查看`, type: 'success', duration: 5000 });
+            return;
+          }
+          const imageUrl = URL.createObjectURL(imageBlob);
           setImageResults(prev => {
             const previousUrl = prev[resultKey]?.imageUrl;
             if (previousUrl?.startsWith('blob:')) URL.revokeObjectURL(previousUrl);
-            const nextResults = { ...prev, [resultKey]: { status: 'success', imageUrl, error: '', mode, size: apiConfig.imageSize.trim() || '768x1024', focusY: prev[resultKey]?.focusY } };
+            const nextResults = { ...prev, [resultKey]: { status: 'success', imageUrl, error: '', mode, size: requestedSize, focusY: prev[resultKey]?.focusY } };
             imageObjectUrlsRef.current = Object.values(nextResults).map(item => item.imageUrl).filter(url => url?.startsWith('blob:'));
             return nextResults;
           });
-          const generationLabel = mode === 'full' ? 'AI 整图' : mode === 'visual-only' ? '无字主视觉' : '主视觉';
           setToast({ message: `[${cardTitle}] ${generationLabel}生成完成`, type: 'success' });
         } catch (error) {
-          if (operationToken !== historyLoadTokenRef.current || (requestController.signal.aborted && !imageTimedOut)) return;
-          if (imageTimedOut) error = new Error('图片生成超过 300 秒，已自动停止。');
-          saveLastImageDiagnostic({
-            storageStatus: diagnosticPhase === 'storage' ? '失败' : '未开始',
-            failureReason: getDiagnosticFailureReason(error, diagnosticPhase)
+          const isUserCancelled = requestController.signal.aborted && !timedOutPhase;
+          let failureError = error;
+          if (timedOutPhase === 'request') {
+            failureError = new Error(`图片生成超过 ${Math.round(IMAGE_REQUEST_TIMEOUT_MS / 1000)} 秒，已停止等待。上游可能已出图并计费，请先核对账单再重试。`);
+          } else if (timedOutPhase === 'download') {
+            failureError = new Error(`图片下载超过 ${Math.round(IMAGE_DOWNLOAD_TIMEOUT_MS / 1000)} 秒，已停止等待。本次生成已计费，请重试下载或换用返回 b64_json 的接口。`);
+          } else if (isUserCancelled) {
+            failureError = new Error('已取消生图。若上游已受理，本次仍可能计费。');
+          }
+          const mayBeBilled = Boolean(generationCompletedAt) || requestPhase !== 'request' || timedOutPhase === 'request' || isUserCancelled;
+          recordImageUsage({
+            sessionId,
+            cardTitle,
+            mode,
+            model: imageModel,
+            size: requestedSize,
+            durationMs: Date.now() - startedAt,
+            outcome: isUserCancelled ? '已取消' : '失败',
+            mayBeBilled,
+            detail: failureError.message
           });
-          setImageResults(prev => ({ ...prev, [resultKey]: { status: 'error', imageUrl: '', error: error.message, mode } }));
-          setToast({ message: `图片生成失败: ${error.message}`, type: 'error', duration: 5000 });
+          saveLastImageDiagnostic({
+            storageStatus: requestPhase === 'storage' ? '失败' : '未开始',
+            failureReason: getDiagnosticFailureReason(failureError, requestPhase === 'request' ? 'request' : requestPhase)
+          });
+          if (sessionId === (activeHistoryIdRef.current || 'current')) {
+            setImageResults(prev => ({ ...prev, [resultKey]: { status: 'error', imageUrl: '', error: failureError.message, mode } }));
+          }
+          setToast({
+            message: `${cardTitle} 生图${isUserCancelled ? '已取消' : '失败'}：${failureError.message}`,
+            type: isUserCancelled ? 'neutral' : 'error',
+            duration: 8000
+          });
         } finally {
-          clearTimeout(imageTimeout);
-          if (imageAbortControllersRef.current.get(resultKey) === requestController) {
+          clearTimeout(phaseTimeout);
+          if (imageAbortControllersRef.current.get(resultKey)?.controller === requestController) {
             imageAbortControllersRef.current.delete(resultKey);
           }
         }
@@ -612,7 +688,7 @@
         if (!id || isDeletingHistory) return;
         setIsDeletingHistory(true);
         historyLoadTokenRef.current += 1;
-        abortImageRequests();
+        abortSessionImageRequests(id);
         const previousHistory = history;
         const updatedHistory = history.filter(item => item.id !== id);
         try {
@@ -643,7 +719,6 @@
         if (isProcessing || demoLoadInFlightRef.current) return;
         demoLoadInFlightRef.current = true;
         historyLoadTokenRef.current += 1;
-        abortImageRequests();
         try {
           const demoRecord = await loadDemoHistory();
           const demoIndex = toHistoryIndex(demoRecord);
@@ -652,6 +727,7 @@
           setHistory(updatedHistory);
           localStorage.setItem(HISTORY_INDEX_KEY, JSON.stringify(updatedHistory));
           removedHistory.forEach(item => {
+            abortSessionImageRequests(item.id);
             deleteSessionRecord(item.id).catch(() => {});
             deleteSessionImages(item.id).catch(() => {});
           });
@@ -723,7 +799,10 @@
 
         setInputText(textToProcess);
         historyLoadTokenRef.current += 1;
-        abortImageRequests();
+        // 在途生图不再随新加工取消：它会继续写入原会话，返回那条记录即可查看。
+        if (hasInFlightImageRequests()) {
+          setToast({ message: '仍有生图在后台进行，完成后会保存到原记录，不会因本次加工被取消。', type: 'neutral', duration: 5000 });
+        }
         setIsProcessing(true);
         setShowResults(false);
         setProcessingUiPhase('waiting');
@@ -814,7 +893,7 @@
 
       const loadHistoryItem = async (id) => {
         const requestToken = ++historyLoadTokenRef.current;
-        abortImageRequests();
+        // 切换记录不中止在途生图：结果会写回它自己的会话。
         let item = null;
         try {
           item = await loadSessionRecord(id);
@@ -893,6 +972,13 @@
         }
       };
 
+      const copyImageUsageLog = () => copyToClipboard(formatImageUsageLogText(imageUsageLog), '生图请求记录');
+
+      const handleClearImageUsageLog = () => {
+        setImageUsageLog(clearImageUsageLog());
+        setToast({ message: '生图请求记录已清空', type: 'neutral' });
+      };
+
       const resultContent = useResultContent({
         activeStageTab,
         currentSession,
@@ -953,7 +1039,9 @@
         cancelDeleteHistoryItem,
         configTools,
         confirmDeleteHistoryItem,
+        copyImageUsageLog,
         currentSession,
+        handleClearImageUsageLog,
         handleLoadModels,
         handleModelSelection,
         handleProcessingAction,
@@ -961,6 +1049,7 @@
         handleTestTextConnection,
         history,
         imageModels,
+        imageUsageLog,
         inputText,
         isComposerExpanded,
         isConfigOpen,
