@@ -1225,10 +1225,13 @@ try {
 
   await client.send('Page.navigate', { url: `http://127.0.0.1:${appPort}/artifact.png` });
   await waitFor(() => evaluate('document.readyState === "complete" && document.querySelector("img")?.complete'));
-  const pixels = await evaluate(`(() => { const image=document.querySelector('img'); const canvas=document.createElement('canvas'); canvas.width=image.naturalWidth; canvas.height=image.naturalHeight; const context=canvas.getContext('2d'); context.drawImage(image,0,0); const data=context.getImageData(0,0,canvas.width,canvas.height).data; let minX=canvas.width,minY=canvas.height,maxX=-1,maxY=-1; for(let y=0;y<canvas.height;y+=4){ for(let x=0;x<canvas.width;x+=4){ if(data[(y*canvas.width+x)*4+3]>8){ minX=Math.min(minX,x);minY=Math.min(minY,y);maxX=Math.max(maxX,x);maxY=Math.max(maxY,y); } } } return {width:canvas.width,height:canvas.height,contentWidth:maxX-minX+1,contentHeight:maxY-minY+1}; })()`);
+  const pixels = await evaluate(`(() => { const image=document.querySelector('img'); const canvas=document.createElement('canvas'); canvas.width=image.naturalWidth; canvas.height=image.naturalHeight; const context=canvas.getContext('2d'); context.drawImage(image,0,0); const data=context.getImageData(0,0,canvas.width,canvas.height).data; let minX=canvas.width,minY=canvas.height,maxX=-1,maxY=-1; for(let y=0;y<canvas.height;y+=4){ for(let x=0;x<canvas.width;x+=4){ if(data[(y*canvas.width+x)*4+3]>8){ minX=Math.min(minX,x);minY=Math.min(minY,y);maxX=Math.max(maxX,x);maxY=Math.max(maxY,y); } } } const sample=(x,y)=>[...data.slice((y*canvas.width+x)*4,(y*canvas.width+x)*4+4)]; return {width:canvas.width,height:canvas.height,contentWidth:maxX-minX+1,contentHeight:maxY-minY+1,shadeTop:sample(1200,40),shadeMiddle:sample(1200,910)}; })()`);
   assert.deepEqual([pixels.width, pixels.height], [1242, 1656]);
   assert.ok(pixels.contentWidth > 1100, `导出内容宽度异常: ${pixels.contentWidth}`);
   assert.ok(pixels.contentHeight > 1500, `导出内容高度异常: ${pixels.contentHeight}`);
+  // 主视觉占位图为纯红，soft_light 遮罩生效时顶部应接近浅色、中部仍偏原色；相等则说明遮罩层被导出丢弃。
+  assert.ok(pixels.shadeTop[1] > 200, `导出成品缺少背景遮罩（顶部像素 ${pixels.shadeTop}）`);
+  assert.ok(pixels.shadeMiddle[1] < 150, `导出成品遮罩渐变失真（中部像素 ${pixels.shadeMiddle}）`);
   console.log('Chrome E2E covers processing, persistence, dialogs, 390/768/1024/1440 layouts, 200% zoom, media preferences, image restore, export, and full-canvas pixels.');
 } finally {
   client?.close();
