@@ -6,10 +6,10 @@
         apiKey: '',
         promptVersion: DEFAULT_PROMPT_VERSION,
         processingPreferences: createDefaultProcessingPreferences(),
-        imageApiUrl: 'https://api.openai.com/v1/images/generations',
-        imageModel: 'gpt-image-1',
+        imageApiUrl: 'https://api.aixoras.com/v1/images/generations',
+        imageModel: 'gpt-image-2',
         imageApiKey: '',
-        imageSize: DEFAULT_IMAGE_SIZE
+        imageSize: DEFAULT_IMAGE_RATIO
       });
       const [isConfigOpen, setIsConfigOpen] = useState(() => !hasSavedApiConfig());
       const [isHistoryOpen, setIsHistoryOpen] = useState(false);
@@ -274,14 +274,11 @@
               ...createDefaultProcessingPreferences(),
               ...(parsedConfig.processingPreferences || {})
             };
-            parsedConfig.imageApiUrl = parsedConfig.imageApiUrl || 'https://api.openai.com/v1/images/generations';
-            parsedConfig.imageModel = parsedConfig.imageModel || 'gpt-image-1';
+            parsedConfig.imageApiUrl = parsedConfig.imageApiUrl || 'https://api.aixoras.com/v1/images/generations';
+            parsedConfig.imageModel = parsedConfig.imageModel || 'gpt-image-2';
             parsedConfig.imageApiKey = parsedConfig.imageApiKey || '';
-            // 旧默认值 768x1024 不在 gpt-image 的合法枚举里，宽松的中转站会按自己的
-            // 默认规格出图并照常计费。这里把遗留的旧默认值一次性迁移掉，用户手填的值保留。
-            parsedConfig.imageSize = !parsedConfig.imageSize || parsedConfig.imageSize === '768x1024'
-              ? DEFAULT_IMAGE_SIZE
-              : parsedConfig.imageSize;
+            // 旧版曾把比例直接存成像素值；迁移为比例后，图片接口再按模型协议换算。
+            parsedConfig.imageSize = normalizeImageRatio(parsedConfig.imageSize);
             localStorage.setItem('agent_api_config', JSON.stringify(parsedConfig));
             setApiConfig(parsedConfig);
             if (parsedConfig.apiKey?.trim()) {
@@ -445,6 +442,7 @@
         imageAbortControllersRef.current.set(resultKey, { controller: requestController, sessionId });
         const imageModel = apiConfig.imageModel.trim();
         const requestedSize = normalizeImageSize(apiConfig.imageSize, imageModel);
+        const requestedRatio = normalizeImageRatio(apiConfig.imageSize);
         const startedAt = Date.now();
         let generationCompletedAt = 0;
         let requestPhase = 'request';
@@ -468,7 +466,7 @@
           sessionId,
           requestMode: '同步',
           endpointPath: getDiagnosticEndpointPath(imageEndpoint),
-          requestedFormat: isGptImageModel(imageModel) ? 'b64_json（模型默认）' : 'b64_json',
+          requestedFormat: isGptImage2Model(imageModel) ? 'url（请求指定）' : isGptImageModel(imageModel) ? 'b64_json（模型默认）' : 'b64_json',
           actualFormat: '等待响应',
           imageHost: '等待响应',
           storageBackend: 'IndexedDB',
@@ -521,7 +519,7 @@
             cardTitle,
             mode,
             model: imageModel,
-            size: requestedSize,
+            size: isGptImage2Model(imageModel) ? requestedRatio : requestedSize,
             durationMs: Date.now() - startedAt,
             outcome: '成功',
             mayBeBilled: true,
@@ -558,7 +556,7 @@
             cardTitle,
             mode,
             model: imageModel,
-            size: requestedSize,
+            size: isGptImage2Model(imageModel) ? requestedRatio : requestedSize,
             durationMs: Date.now() - startedAt,
             outcome: isUserCancelled ? '已取消' : '失败',
             mayBeBilled,
@@ -937,6 +935,7 @@
           setToast({ message: '该记录缺少原文备份，无法重试', type: 'error' });
           return;
         }
+        setToast({ message: '将基于原文新建记录，原记录会保留', type: 'neutral', duration: 3500 });
         handleStartProcessing(item.originalInput);
       };
 
@@ -1012,11 +1011,9 @@
         : processingActionMode === 'needs-config'
           ? '配置文本模型后开始'
           : '一键生成 AI 物料包';
-      const processingActionHint = processingActionMode === 'empty'
-        ? '请先粘贴需要加工的文章或文案。'
-        : processingActionMode === 'needs-config'
-          ? '还需填写文本接口地址、模型和 API Key。'
-          : '';
+      const processingActionHint = processingActionMode === 'needs-config'
+        ? '还需填写文本接口地址、模型和 API Key。'
+        : '';
       const handleProcessingAction = () => {
         if (isProcessing) {
           handleStopProcessing();

@@ -288,14 +288,15 @@
     @keyframes processingProgress { from { transform: translateX(0); } to { transform: translateX(350%); } }
     .sidebar-brand-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
     .sidebar-brand-title { display: flex; min-width: 0; align-items: center; }
-    .sidebar-brand-copy { display: flex; min-width: 0; flex-direction: column; justify-content: center; gap: 4px; }
-    .sidebar-brand-name { color: #1e293b; font-size: 20px; font-weight: 800; line-height: 1; letter-spacing: -.025em; }
-    .sidebar-brand-en { color: #94a3b8; font-size: 11px; font-weight: 700; line-height: 1; letter-spacing: .08em; }
+    .sidebar-brand-copy { display: flex; min-width: 0; flex-direction: column; justify-content: center; gap: 3px; }
+    .sidebar-brand-name { color: #1e293b; font-size: 20px; font-weight: 800; line-height: 1.05; letter-spacing: -.025em; }
+    .sidebar-brand-en { color: #94a3b8; font-size: 12px; font-weight: 700; line-height: 1; letter-spacing: .08em; }
     .sidebar-header-actions { display: flex; flex-shrink: 0; align-items: center; gap: 8px; }
     .mobile-history-trigger { gap: 6px; border-color: rgba(255,255,255,.8); background: #fff; color: #64748b; font-size: 12px; font-weight: 750; box-shadow: 0 1px 2px rgba(15,23,42,.05); }
     .mobile-history-trigger:hover { border-color: rgba(99,102,241,.32); background: #fff; color: #4f46e5; }
     .mobile-history-count { display: inline-flex; min-width: 18px; height: 18px; align-items: center; justify-content: center; border-radius: 999px; padding: 0 5px; background: #eef2ff; color: #4f46e5; font-size: 10px; font-weight: 800; }
-    .sidebar-brand-mark { display: flex; width: 32px; height: 32px; flex-shrink: 0; align-items: center; justify-content: center; border-radius: 10px; background: #4f46e5; color: #fff; box-shadow: 0 4px 6px -1px #c7d2fe, 0 2px 4px -2px #c7d2fe; }
+    .sidebar-brand-mark { display: flex; width: 40px; height: 40px; flex-shrink: 0; align-items: center; justify-content: center; border-radius: 12px; background: #4f46e5; color: #fff; box-shadow: 0 4px 6px -1px #c7d2fe, 0 2px 4px -2px #c7d2fe; }
+    .sidebar-brand-mark > svg { width: 24px; height: 24px; }
     .sidebar-icon-button { border: 1px solid rgba(255,255,255,.6); background: rgba(255,255,255,.8); color: #94a3b8; box-shadow: 0 1px 2px rgba(15,23,42,.05); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); }
     .sidebar-icon-button:hover { border-color: rgba(255,255,255,.9); background: #fff; color: #4f46e5; }
     .sidebar-input-shell { position: relative; margin-top: 32px; margin-bottom: 16px; border-radius: 16px; }
@@ -384,6 +385,10 @@
     .config-field { display: flex; min-width: 0; flex-direction: column; gap: 8px; }
     .config-label { color: #475569; font-size: 13px; font-weight: 700; line-height: 1.5; }
     .config-input { display: block; height: var(--mi-control-field); padding: 0 16px; font-family: monospace; font-size: 14px; }
+    .config-secret-field { position: relative; }
+    .config-secret-input { padding-right: 52px; }
+    .config-secret-toggle { position: absolute; top: 50%; right: 8px; color: #64748b; transform: translateY(-50%); }
+    .config-secret-toggle:hover { background: rgba(238,242,255,.72); color: #4f46e5; }
     .config-checkbox { display: flex; min-height: var(--mi-control-field); align-items: center; gap: 10px; padding: 0 14px; font-size: 13px; font-weight: 700; }
     .config-checkbox:focus-within { border-color: var(--mi-focus-ring); box-shadow: var(--mi-focus-shadow); }
     .config-checkbox input { width: 16px; height: 16px; accent-color: #4f46e5; }
@@ -439,6 +444,7 @@
 
     @media (max-width: 1023px) {
       .results-stage-nav { -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 14px, #000 calc(100% - 14px), transparent 100%); mask-image: linear-gradient(90deg, transparent 0, #000 14px, #000 calc(100% - 14px), transparent 100%); }
+      .moreimg-empty-state { height: auto; min-height: 100%; }
     }
 
     .html-card-preview-scale {
@@ -629,7 +635,7 @@
     };
 
     const formatImageUsageLogText = (log = []) => {
-      const header = '时间\t模型\t尺寸\t页面/模式\t耗时(秒)\t结果\t可能已计费\t说明';
+      const header = '时间\t模型\t比例/尺寸\t页面/模式\t耗时(秒)\t结果\t可能已计费\t说明';
       const rows = log.map(item => [
         item.at ? new Date(item.at).toLocaleString() : '',
         item.model || '',
@@ -1731,44 +1737,100 @@ image_prompt
     };
 
     const IMAGE_SIZE_PATTERN = /^\d{3,5}x\d{3,5}$/;
-    // gpt-image 系列只接受这几个枚举值。填 768x1024 这类非法值时，宽松的中转站会按自己的
-    // 默认尺寸出图并照常计费，用户以为参数生效、实际拿到的是另一个规格。
-    const GPT_IMAGE_SIZES = ['1024x1024', '1024x1536', '1536x1024', 'auto'];
-    const DEFAULT_IMAGE_SIZE = '1024x1536';
+    const IMAGE_RATIO_PATTERN = /^\d{1,3}\s*:\s*\d{1,3}$/;
+    const IMAGE_RATIO_SIZES = Object.freeze({
+      '1:1': '1024x1024',
+      '16:9': '1792x1024',
+      '9:16': '1024x1792',
+      '4:3': '1024x768',
+      '3:4': '768x1024',
+      '3:2': '1536x1024',
+      '2:3': '1024x1536',
+      '21:9': '1344x576'
+    });
+    const DEFAULT_IMAGE_RATIO = '3:4';
+    const DEFAULT_IMAGE_SIZE = IMAGE_RATIO_SIZES[DEFAULT_IMAGE_RATIO];
+    const GPT_IMAGE_2_RATIOS = Object.freeze(Object.keys(IMAGE_RATIO_SIZES));
 
     const isGptImageModel = (model = '') => /^gpt-image/i.test(String(model || '').trim());
+    const isGptImage2Model = (model = '') => /^gpt-image-2(?:-|$)/i.test(String(model || '').trim());
+
+    const normalizeRatioText = value => String(value || '').trim().replace(/：/g, ':').replace(/\s+/g, '').toLowerCase();
+
+    const imageSizeToRatio = size => {
+      const value = String(size || '').trim().toLowerCase();
+      const directRatio = Object.entries(IMAGE_RATIO_SIZES).find(([, imageSize]) => imageSize === value)?.[0];
+      if (directRatio) return directRatio;
+      const match = value.match(/^(\d{3,5})x(\d{3,5})$/);
+      if (!match) return '';
+      const width = Number(match[1]);
+      const height = Number(match[2]);
+      const gcd = (a, b) => b ? gcd(b, a % b) : a;
+      const ratio = `${width / gcd(width, height)}:${height / gcd(width, height)}`;
+      return IMAGE_RATIO_SIZES[ratio] ? ratio : '';
+    };
+
+    const normalizeImageRatio = (ratio, fallback = DEFAULT_IMAGE_RATIO) => {
+      const value = normalizeRatioText(ratio);
+      if (IMAGE_RATIO_SIZES[value]) return value;
+      return imageSizeToRatio(value) || fallback;
+    };
+
+    const ratioToImageSize = (ratio, model = '') => {
+      const normalizedRatio = normalizeImageRatio(ratio, '');
+      const candidate = IMAGE_RATIO_SIZES[normalizedRatio] || '';
+      return candidate;
+    };
 
     const normalizeImageSize = (size, model = '') => {
-      const value = String(size || '').trim().toLowerCase();
-      if (isGptImageModel(model)) {
-        return GPT_IMAGE_SIZES.includes(value) ? value : DEFAULT_IMAGE_SIZE;
-      }
+      const rawValue = String(size || '').trim().toLowerCase();
+      if (isGptImage2Model(model)) return normalizeImageRatio(rawValue);
+      const ratioSize = ratioToImageSize(rawValue, model);
+      const value = ratioSize || rawValue;
       return IMAGE_SIZE_PATTERN.test(value) ? value : DEFAULT_IMAGE_SIZE;
     };
 
     const getImageSizeWarning = (size, model = '') => {
-      const value = String(size || '').trim().toLowerCase();
+      const value = normalizeRatioText(size);
       if (!value) return '';
-      if (isGptImageModel(model) && !GPT_IMAGE_SIZES.includes(value)) {
-        return `${model} 只支持 ${GPT_IMAGE_SIZES.join(' / ')}，将按 ${DEFAULT_IMAGE_SIZE} 请求。填写非法尺寸时中转站可能按自己的默认规格出图并照常计费。`;
+      if (isGptImage2Model(model)) {
+        const normalizedRatio = IMAGE_RATIO_SIZES[value] ? value : imageSizeToRatio(value);
+        return GPT_IMAGE_2_RATIOS.includes(normalizedRatio)
+          ? ''
+          : `比例格式应为“宽:高”，例如 ${DEFAULT_IMAGE_RATIO}；当前只支持 ${GPT_IMAGE_2_RATIOS.join(' / ')}。`;
       }
-      if (!isGptImageModel(model) && !IMAGE_SIZE_PATTERN.test(value)) {
-        return `尺寸格式应为“宽x高”，例如 ${DEFAULT_IMAGE_SIZE}，将按 ${DEFAULT_IMAGE_SIZE} 请求。`;
+      const ratioSize = IMAGE_RATIO_SIZES[value];
+      if (ratioSize) {
+        return '';
+      }
+      if (IMAGE_RATIO_PATTERN.test(value)) {
+        return `比例暂不支持“${value}”，当前只支持 ${Object.keys(IMAGE_RATIO_SIZES).join(' / ')}。`;
+      }
+      if (!IMAGE_SIZE_PATTERN.test(value) && !IMAGE_RATIO_PATTERN.test(value)) {
+        return `比例格式应为“宽:高”，例如 ${DEFAULT_IMAGE_RATIO}；当前只支持 ${Object.keys(IMAGE_RATIO_SIZES).join(' / ')}。`;
       }
       return '';
     };
 
-    // 走 URL 时图片要再从第三方 CDN 下载一次，而那些 CDN 多半不带 CORS 头、
-    // 链接也常在几分钟内失效，于是“已生成且已计费”的图会因为下载失败被判成整次失败。
-    // 所以尽量要求 base64：gpt-image 系列本来就只返回 b64_json，且会把
-    // response_format 当成未知参数直接 400，只能对其他模型显式声明。
-    const buildImageRequestBody = (model, prompt, size) => ({
-      model,
-      prompt,
-      size: normalizeImageSize(size, model),
-      n: 1,
-      ...(isGptImageModel(model) ? {} : { response_format: 'b64_json' })
-    });
+    // AIXoras 的 gpt-image-2 系列通过 CLIProxyAPI 转发，使用 aspect_ratio 控制比例，
+    // 输出像素由上游决定；其他 OpenAI Images 兼容模型仍使用 size 像素参数。
+    const buildImageRequestBody = (model, prompt, size) => isGptImage2Model(model)
+      ? {
+          model,
+          prompt,
+          n: 1,
+          aspect_ratio: normalizeImageRatio(size),
+          quality: 'standard',
+          response_format: 'url',
+          watermark: false
+        }
+      : {
+          model,
+          prompt,
+          size: normalizeImageSize(size, model),
+          n: 1,
+          ...(isGptImageModel(model) ? {} : { response_format: 'b64_json' })
+        };
 
     // 中转站在 5xx / 网关超时时返回的是 HTML 错误页，裸 response.json() 会抛
     // "Unexpected token '<'"，把真实状态码和上游提示全部吞掉。
@@ -2054,11 +2116,12 @@ image_prompt
         .replace(/[。；]{2,}/g, '。')
         .trim();
       const layoutInstruction = card?.type === 'back'
-        ? '这是封底：页标、核心总结和行动号召依次排列在上半部；下半部只展示主视觉，不放任何文字。画面必须同时出现核心总结和行动号召。'
+        ? '这是封底。请按严格的三段层级排版：页标置于最上方，核心总结作为醒目的主标题，行动号召紧随其下并与主标题形成清晰层级；三者在上半部沿同一左对齐轴排列，保持明确的上下间距。下半部只展示主视觉，不放任何文字。'
         : card?.type === 'cover'
-          ? '这是封面：主标题最醒目，副标题紧随其后，文字位于顶部低细节区域。'
-          : '这是正文页：标题、要点和总结依次排列在上半部；下半部只展示主视觉，不放任何文字。';
-      return `生成一张完整的小红书知识卡片成品图，直接完成3:4排版。本页必须包含且只能包含以下文字：${visibleText.map(text => `「${text}」`).join('、')}。${layoutInstruction}所有文字必须清晰可读、逐字保持不变，不能省略；禁止生成无文字版本，不要添加任何未提供的文字。\n\n视觉背景参考：${sanitizedVisualPrompt}。AI 整图为实验性输出，优先保证文字与卡片结构对应。`;
+          ? '这是封面。请按严格的标题组排版：主标题作为最大字号的唯一视觉焦点，允许自然换行但必须保持完整；副标题紧跟主标题下方，字号明显小一级、颜色弱一级；标题组固定在上半部同一左对齐轴内，主视觉从中部向下承接。'
+          : '这是正文页。请按严格的内容卡片结构排版：标题作为上半部第一层级的醒目主标题；所有要点作为同一组垂直列表，逐条换行并保持统一左对齐，使用连续的圆点或编号标记；总结单独放在要点列表下方，与列表之间留出明显间距，并用细分隔线或独立强调区与要点区分开。标题、要点列表、总结必须按此顺序排列，不能横向散落、重叠或穿插在主视觉中；下半部只展示主视觉，不放任何文字。';
+      const typographyInstruction = '版式执行要求：画布为竖版 3:4，文字区约占上方 50%-52%，主视觉区从画面中部向下连续展开。所有文字放在同一清晰的文字承载区域内，建立明确的字号层级、字重层级、行距和段间距；优先使用现代无衬线字体，文字颜色与背景保持高对比，左右留出安全边距。仅将下列文本作为可见文字，字段名“标题、要点、总结、页标、核心总结、行动号召”等只是排版说明，不得绘制出来。';
+      return `生成一张完整的小红书知识卡片成品图，直接完成3:4排版。本页必须包含且只能包含以下文字：${visibleText.map(text => `「${text}」`).join('、')}。${layoutInstruction}${typographyInstruction}所有文字必须清晰可读、逐字保持不变，不能省略、改写、拆散或替换；禁止生成无文字版本，不要添加任何未提供的文字。\n\n视觉背景参考：${sanitizedVisualPrompt}。AI 整图为实验性输出，优先保证文字与卡片结构对应。`;
     };
 
     const cleanCardValue = (value = '') => value
@@ -2592,8 +2655,10 @@ const HistoryItems = ({ history, isProcessing, activeHistoryId, showResults, set
         <button
           type="button"
           className="history-item-main"
-          onClick={() => {
+          onClick={(event) => {
             if (isProcessing) return;
+            // 鼠标点击查看后释放主体按钮焦点，避免父级 :focus-within 让右侧操作浮层继续显示；键盘操作仍保留焦点反馈。
+            if (event.detail > 0) event.currentTarget.blur();
             if (closeAfterOpen) setIsHistoryOpen(false);
             loadHistoryItem(item.id);
           }}
@@ -2612,6 +2677,8 @@ const HistoryItems = ({ history, isProcessing, activeHistoryId, showResults, set
               type="button"
               onClick={(event) => {
                 event.stopPropagation();
+                // 鼠标点击后主动失焦，避免 :focus-within 让浮层在移开鼠标后继续常显；键盘聚焦仍由 :focus-within 保留。
+                if (event.detail > 0) event.currentTarget.blur();
                 if (closeAfterOpen) setIsHistoryOpen(false);
                 retryHistoryItem(item.id);
               }}
@@ -2625,6 +2692,7 @@ const HistoryItems = ({ history, isProcessing, activeHistoryId, showResults, set
               type="button"
               onClick={(event) => {
                 event.stopPropagation();
+                if (event.detail > 0) event.currentTarget.blur();
                 if (closeAfterOpen) setIsHistoryOpen(false);
                 requestDeleteHistoryItem(item.id);
               }}
@@ -2687,7 +2755,7 @@ const AppSidebar = ({ history, isProcessing, activeHistoryId, showResults, setIs
   <div className="sidebar-brand-row z-10 shrink-0">
     <h1 className="sidebar-brand-title">
       <div className="sidebar-brand-mark mr-3">
-        <Icon name="Sparkles" className="w-5 h-5 text-white" strokeWidth={2} />
+        <Icon name="Sparkles" className="text-white" strokeWidth={2} />
       </div>
       <span className="sidebar-brand-copy">
         <span className="sidebar-brand-name">一文多图</span>
@@ -2880,8 +2948,11 @@ const MainWorkspace = ({ isProcessing, showResults, processingUiPhase, processin
 );
 
 const SettingsDialog = ({ isConfigOpen, onRequestClose, apiConfig, setApiConfig, configTools, handleLoadModels, handleTestTextConnection, handleModelSelection, textModels, imageModels, lastImageDiagnostic, imageUsageLog = [], copyImageUsageLog, handleClearImageUsageLog, handleSaveConfig }) => {
+  const [visibleKeys, setVisibleKeys] = useState({ text: false, image: false });
   const imageSizeWarning = getImageSizeWarning(apiConfig.imageSize, apiConfig.imageModel);
+  const imageRatioValue = imageSizeToRatio(apiConfig.imageSize) || apiConfig.imageSize;
   const usageSummary = summarizeImageUsageLog(imageUsageLog);
+  const toggleKeyVisibility = key => setVisibleKeys(previous => ({ ...previous, [key]: !previous[key] }));
   return (
   <ModalFrame
     isOpen={isConfigOpen}
@@ -2908,7 +2979,7 @@ const SettingsDialog = ({ isConfigOpen, onRequestClose, apiConfig, setApiConfig,
           <div className="config-section-header">
             <div>
               <h4 className="config-section-title"><Icon name="MessageSquareText" className="h-4 w-4 text-indigo-600" /> 文本模型</h4>
-              <p className="config-section-description">用于文章分析、内容重构和提示词生成。系统会根据 Endpoint 自动识别 Responses API 或 Chat Completions。</p>
+              <p className="config-section-description" hidden>用于文章分析、内容重构和提示词生成。系统会根据 Endpoint 自动识别 Responses API 或 Chat Completions。</p>
             </div>
             <div className="config-section-actions">
               <button type="button" onClick={() => handleLoadModels('text')} disabled={configTools.textModels.status === 'loading'} aria-busy={configTools.textModels.status === 'loading'} className="mi-button mi-button-compact config-action-button">
@@ -2955,13 +3026,18 @@ const SettingsDialog = ({ isConfigOpen, onRequestClose, apiConfig, setApiConfig,
             </div>
             <div className="config-field">
               <label className="config-label">密钥 (API Key)</label>
-              <input
-                type="password"
-                value={apiConfig.apiKey}
-                onChange={(e) => setApiConfig({...apiConfig, apiKey: e.target.value})}
-                placeholder="sk-..."
-                className="mi-field config-input placeholder-slate-400"
-              />
+              <div className="config-secret-field">
+                <input
+                  type={visibleKeys.text ? 'text' : 'password'}
+                  value={apiConfig.apiKey}
+                  onChange={(e) => setApiConfig({...apiConfig, apiKey: e.target.value})}
+                  placeholder="sk-..."
+                  className="mi-field config-input config-secret-input placeholder-slate-400"
+                />
+                <button type="button" onClick={() => toggleKeyVisibility('text')} className="mi-icon-button mi-icon-button-compact config-secret-toggle" aria-label={visibleKeys.text ? '隐藏文本模型 API Key' : '显示文本模型 API Key'} title={visibleKeys.text ? '隐藏 API Key' : '显示 API Key'}>
+                  <Icon name={visibleKeys.text ? 'EyeOff' : 'Eye'} className="h-4 w-4" />
+                </button>
+              </div>
             </div>
           </div>
           <ConfigStatus state={configTools.textModels} />
@@ -2972,10 +3048,10 @@ const SettingsDialog = ({ isConfigOpen, onRequestClose, apiConfig, setApiConfig,
           <div className="config-section-header">
             <div>
               <h4 className="config-section-title"><Icon name="SlidersHorizontal" className="h-4 w-4 text-indigo-600" /> 加工偏好</h4>
-              <p className="config-section-description">MoreImg v6 核心规则和 JSON 协议已内置。这里仅调整内容表达，不会破坏页面读取。</p>
+              <p className="config-section-description" hidden>MoreImg v6 核心规则和 JSON 协议已内置。这里仅调整内容表达，不会破坏页面读取。</p>
             </div>
           </div>
-          <div className="mi-feedback mi-feedback-info config-preference-note">
+          <div className="mi-feedback mi-feedback-info config-preference-note" hidden>
             <Icon name="ShieldCheck" className="h-4 w-4 shrink-0 text-indigo-600" />
             <span>每次加工仍只请求一次文本 API；固定生成封面、正文和封底。核心规则不可编辑。</span>
           </div>
@@ -3030,7 +3106,7 @@ const SettingsDialog = ({ isConfigOpen, onRequestClose, apiConfig, setApiConfig,
           <div className="config-section-header">
             <div>
               <h4 className="config-section-title"><Icon name="Image" className="h-4 w-4 text-indigo-600" /> 图片模型</h4>
-              <p className="config-section-description">用于无字主视觉和 AI 整图。读取模型失败时仍可手动填写，正式生图就是最终接口验证。</p>
+              <p className="config-section-description" hidden>用于无字主视觉和 AI 整图。读取模型失败时仍可手动填写，正式生图就是最终接口验证。</p>
             </div>
             <div className="config-section-actions">
               <button type="button" onClick={() => handleLoadModels('image')} disabled={configTools.imageModels.status === 'loading'} aria-busy={configTools.imageModels.status === 'loading'} className="mi-button mi-button-compact config-action-button">
@@ -3042,7 +3118,7 @@ const SettingsDialog = ({ isConfigOpen, onRequestClose, apiConfig, setApiConfig,
           <div className="config-grid">
             <div className="config-field config-span-2">
               <label className="config-label">图片接口地址（可填至 /v1）</label>
-              <input type="text" value={apiConfig.imageApiUrl} onChange={(e) => setApiConfig({...apiConfig, imageApiUrl: e.target.value})} placeholder="https://api.openai.com/v1 或完整图片地址" className="mi-field config-input" />
+              <input type="text" value={apiConfig.imageApiUrl} onChange={(e) => setApiConfig({...apiConfig, imageApiUrl: e.target.value})} placeholder="https://api.aixoras.com/v1 或完整图片地址" className="mi-field config-input" />
               <div className="config-hint">实际请求：{resolveApiEndpoint(apiConfig.imageApiUrl, 'image') || '请填写地址'}</div>
             </div>
             <div className="config-field">
@@ -3057,17 +3133,21 @@ const SettingsDialog = ({ isConfigOpen, onRequestClose, apiConfig, setApiConfig,
                   <Icon name="ChevronDown" className="config-select-icon" />
                 </div>
               ) : (
-                <input type="text" value={apiConfig.imageModel} onChange={(e) => setApiConfig({...apiConfig, imageModel: e.target.value})} placeholder="gpt-image-1" className="mi-field config-input" />
+                <input type="text" value={apiConfig.imageModel} onChange={(e) => setApiConfig({...apiConfig, imageModel: e.target.value})} placeholder="gpt-image-2" className="mi-field config-input" />
               )}
             </div>
             <div className="config-field">
-              <label className="config-label">图片尺寸</label>
-              <input type="text" value={apiConfig.imageSize} onChange={(e) => setApiConfig({...apiConfig, imageSize: e.target.value})} placeholder="1024x1536" className="mi-field config-input" />
-              <div className="config-hint">实际请求：{normalizeImageSize(apiConfig.imageSize, apiConfig.imageModel)}</div>
+              <label className="config-label">图片比例</label>
+              <input type="text" value={imageRatioValue} onChange={(e) => setApiConfig({...apiConfig, imageSize: e.target.value})} placeholder="3:4" className="mi-field config-input" />
             </div>
             <div className="config-field config-span-2">
               <label className="config-label">图片 API Key</label>
-              <input type="password" value={apiConfig.imageApiKey} onChange={(e) => setApiConfig({...apiConfig, imageApiKey: e.target.value})} placeholder="sk-..." className="mi-field config-input" />
+              <div className="config-secret-field">
+                <input type={visibleKeys.image ? 'text' : 'password'} value={apiConfig.imageApiKey} onChange={(e) => setApiConfig({...apiConfig, imageApiKey: e.target.value})} placeholder="sk-..." className="mi-field config-input config-secret-input" />
+                <button type="button" onClick={() => toggleKeyVisibility('image')} className="mi-icon-button mi-icon-button-compact config-secret-toggle" aria-label={visibleKeys.image ? '隐藏图片 API Key' : '显示图片 API Key'} title={visibleKeys.image ? '隐藏 API Key' : '显示 API Key'}>
+                  <Icon name={visibleKeys.image ? 'EyeOff' : 'Eye'} className="h-4 w-4" />
+                </button>
+              </div>
             </div>
           </div>
           {imageSizeWarning && <div className="mi-feedback mi-feedback-warning config-preference-note"><Icon name="TriangleAlert" className="h-4 w-4 shrink-0" /><span>{imageSizeWarning}</span></div>}
@@ -3794,10 +3874,10 @@ const resultContent = useMemo(() => {
         apiKey: '',
         promptVersion: DEFAULT_PROMPT_VERSION,
         processingPreferences: createDefaultProcessingPreferences(),
-        imageApiUrl: 'https://api.openai.com/v1/images/generations',
-        imageModel: 'gpt-image-1',
+        imageApiUrl: 'https://api.aixoras.com/v1/images/generations',
+        imageModel: 'gpt-image-2',
         imageApiKey: '',
-        imageSize: DEFAULT_IMAGE_SIZE
+        imageSize: DEFAULT_IMAGE_RATIO
       });
       const [isConfigOpen, setIsConfigOpen] = useState(() => !hasSavedApiConfig());
       const [isHistoryOpen, setIsHistoryOpen] = useState(false);
@@ -4062,14 +4142,11 @@ const resultContent = useMemo(() => {
               ...createDefaultProcessingPreferences(),
               ...(parsedConfig.processingPreferences || {})
             };
-            parsedConfig.imageApiUrl = parsedConfig.imageApiUrl || 'https://api.openai.com/v1/images/generations';
-            parsedConfig.imageModel = parsedConfig.imageModel || 'gpt-image-1';
+            parsedConfig.imageApiUrl = parsedConfig.imageApiUrl || 'https://api.aixoras.com/v1/images/generations';
+            parsedConfig.imageModel = parsedConfig.imageModel || 'gpt-image-2';
             parsedConfig.imageApiKey = parsedConfig.imageApiKey || '';
-            // 旧默认值 768x1024 不在 gpt-image 的合法枚举里，宽松的中转站会按自己的
-            // 默认规格出图并照常计费。这里把遗留的旧默认值一次性迁移掉，用户手填的值保留。
-            parsedConfig.imageSize = !parsedConfig.imageSize || parsedConfig.imageSize === '768x1024'
-              ? DEFAULT_IMAGE_SIZE
-              : parsedConfig.imageSize;
+            // 旧版曾把比例直接存成像素值；迁移为比例后，图片接口再按模型协议换算。
+            parsedConfig.imageSize = normalizeImageRatio(parsedConfig.imageSize);
             localStorage.setItem('agent_api_config', JSON.stringify(parsedConfig));
             setApiConfig(parsedConfig);
             if (parsedConfig.apiKey?.trim()) {
@@ -4233,6 +4310,7 @@ const resultContent = useMemo(() => {
         imageAbortControllersRef.current.set(resultKey, { controller: requestController, sessionId });
         const imageModel = apiConfig.imageModel.trim();
         const requestedSize = normalizeImageSize(apiConfig.imageSize, imageModel);
+        const requestedRatio = normalizeImageRatio(apiConfig.imageSize);
         const startedAt = Date.now();
         let generationCompletedAt = 0;
         let requestPhase = 'request';
@@ -4256,7 +4334,7 @@ const resultContent = useMemo(() => {
           sessionId,
           requestMode: '同步',
           endpointPath: getDiagnosticEndpointPath(imageEndpoint),
-          requestedFormat: isGptImageModel(imageModel) ? 'b64_json（模型默认）' : 'b64_json',
+          requestedFormat: isGptImage2Model(imageModel) ? 'url（请求指定）' : isGptImageModel(imageModel) ? 'b64_json（模型默认）' : 'b64_json',
           actualFormat: '等待响应',
           imageHost: '等待响应',
           storageBackend: 'IndexedDB',
@@ -4309,7 +4387,7 @@ const resultContent = useMemo(() => {
             cardTitle,
             mode,
             model: imageModel,
-            size: requestedSize,
+            size: isGptImage2Model(imageModel) ? requestedRatio : requestedSize,
             durationMs: Date.now() - startedAt,
             outcome: '成功',
             mayBeBilled: true,
@@ -4346,7 +4424,7 @@ const resultContent = useMemo(() => {
             cardTitle,
             mode,
             model: imageModel,
-            size: requestedSize,
+            size: isGptImage2Model(imageModel) ? requestedRatio : requestedSize,
             durationMs: Date.now() - startedAt,
             outcome: isUserCancelled ? '已取消' : '失败',
             mayBeBilled,
@@ -4725,6 +4803,7 @@ const resultContent = useMemo(() => {
           setToast({ message: '该记录缺少原文备份，无法重试', type: 'error' });
           return;
         }
+        setToast({ message: '将基于原文新建记录，原记录会保留', type: 'neutral', duration: 3500 });
         handleStartProcessing(item.originalInput);
       };
 
@@ -4800,11 +4879,9 @@ const resultContent = useMemo(() => {
         : processingActionMode === 'needs-config'
           ? '配置文本模型后开始'
           : '一键生成 AI 物料包';
-      const processingActionHint = processingActionMode === 'empty'
-        ? '请先粘贴需要加工的文章或文案。'
-        : processingActionMode === 'needs-config'
-          ? '还需填写文本接口地址、模型和 API Key。'
-          : '';
+      const processingActionHint = processingActionMode === 'needs-config'
+        ? '还需填写文本接口地址、模型和 API Key。'
+        : '';
       const handleProcessingAction = () => {
         if (isProcessing) {
           handleStopProcessing();

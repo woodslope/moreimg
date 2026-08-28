@@ -69,7 +69,7 @@ const clearImageUsageLog = () => {
   return [];
 };
 const formatImageUsageLogText = (log = []) => {
-  const header = '时间\t模型\t尺寸\t页面/模式\t耗时(秒)\t结果\t可能已计费\t说明';
+  const header = '时间\t模型\t比例/尺寸\t页面/模式\t耗时(秒)\t结果\t可能已计费\t说明';
   const rows = log.map(item => [item.at ? new Date(item.at).toLocaleString() : '', item.model || '', item.size || '', `${item.cardTitle || ''}/${item.mode || ''}`, typeof item.durationMs === 'number' ? (item.durationMs / 1000).toFixed(1) : '', item.outcome || '', item.mayBeBilled ? '是' : '否', String(item.detail || '').replace(/\s+/g, ' ')].join('\t'));
   return [header, ...rows].join('\n');
 };
@@ -1242,28 +1242,80 @@ const buildInitialProcessingMessages = (originalText, systemPrompt = '', prefere
   }];
 };
 const IMAGE_SIZE_PATTERN = /^\d{3,5}x\d{3,5}$/;
-const GPT_IMAGE_SIZES = ['1024x1024', '1024x1536', '1536x1024', 'auto'];
-const DEFAULT_IMAGE_SIZE = '1024x1536';
+const IMAGE_RATIO_PATTERN = /^\d{1,3}\s*:\s*\d{1,3}$/;
+const IMAGE_RATIO_SIZES = Object.freeze({
+  '1:1': '1024x1024',
+  '16:9': '1792x1024',
+  '9:16': '1024x1792',
+  '4:3': '1024x768',
+  '3:4': '768x1024',
+  '3:2': '1536x1024',
+  '2:3': '1024x1536',
+  '21:9': '1344x576'
+});
+const DEFAULT_IMAGE_RATIO = '3:4';
+const DEFAULT_IMAGE_SIZE = IMAGE_RATIO_SIZES[DEFAULT_IMAGE_RATIO];
+const GPT_IMAGE_2_RATIOS = Object.freeze(Object.keys(IMAGE_RATIO_SIZES));
 const isGptImageModel = (model = '') => /^gpt-image/i.test(String(model || '').trim());
-const normalizeImageSize = (size, model = '') => {
+const isGptImage2Model = (model = '') => /^gpt-image-2(?:-|$)/i.test(String(model || '').trim());
+const normalizeRatioText = value => String(value || '').trim().replace(/：/g, ':').replace(/\s+/g, '').toLowerCase();
+const imageSizeToRatio = size => {
   const value = String(size || '').trim().toLowerCase();
-  if (isGptImageModel(model)) {
-    return GPT_IMAGE_SIZES.includes(value) ? value : DEFAULT_IMAGE_SIZE;
-  }
+  const directRatio = Object.entries(IMAGE_RATIO_SIZES).find(([, imageSize]) => imageSize === value)?.[0];
+  if (directRatio) return directRatio;
+  const match = value.match(/^(\d{3,5})x(\d{3,5})$/);
+  if (!match) return '';
+  const width = Number(match[1]);
+  const height = Number(match[2]);
+  const gcd = (a, b) => b ? gcd(b, a % b) : a;
+  const ratio = `${width / gcd(width, height)}:${height / gcd(width, height)}`;
+  return IMAGE_RATIO_SIZES[ratio] ? ratio : '';
+};
+const normalizeImageRatio = (ratio, fallback = DEFAULT_IMAGE_RATIO) => {
+  const value = normalizeRatioText(ratio);
+  if (IMAGE_RATIO_SIZES[value]) return value;
+  return imageSizeToRatio(value) || fallback;
+};
+const ratioToImageSize = (ratio, model = '') => {
+  const normalizedRatio = normalizeImageRatio(ratio, '');
+  const candidate = IMAGE_RATIO_SIZES[normalizedRatio] || '';
+  return candidate;
+};
+const normalizeImageSize = (size, model = '') => {
+  const rawValue = String(size || '').trim().toLowerCase();
+  if (isGptImage2Model(model)) return normalizeImageRatio(rawValue);
+  const ratioSize = ratioToImageSize(rawValue, model);
+  const value = ratioSize || rawValue;
   return IMAGE_SIZE_PATTERN.test(value) ? value : DEFAULT_IMAGE_SIZE;
 };
 const getImageSizeWarning = (size, model = '') => {
-  const value = String(size || '').trim().toLowerCase();
+  const value = normalizeRatioText(size);
   if (!value) return '';
-  if (isGptImageModel(model) && !GPT_IMAGE_SIZES.includes(value)) {
-    return `${model} 只支持 ${GPT_IMAGE_SIZES.join(' / ')}，将按 ${DEFAULT_IMAGE_SIZE} 请求。填写非法尺寸时中转站可能按自己的默认规格出图并照常计费。`;
+  if (isGptImage2Model(model)) {
+    const normalizedRatio = IMAGE_RATIO_SIZES[value] ? value : imageSizeToRatio(value);
+    return GPT_IMAGE_2_RATIOS.includes(normalizedRatio) ? '' : `比例格式应为“宽:高”，例如 ${DEFAULT_IMAGE_RATIO}；当前只支持 ${GPT_IMAGE_2_RATIOS.join(' / ')}。`;
   }
-  if (!isGptImageModel(model) && !IMAGE_SIZE_PATTERN.test(value)) {
-    return `尺寸格式应为“宽x高”，例如 ${DEFAULT_IMAGE_SIZE}，将按 ${DEFAULT_IMAGE_SIZE} 请求。`;
+  const ratioSize = IMAGE_RATIO_SIZES[value];
+  if (ratioSize) {
+    return '';
+  }
+  if (IMAGE_RATIO_PATTERN.test(value)) {
+    return `比例暂不支持“${value}”，当前只支持 ${Object.keys(IMAGE_RATIO_SIZES).join(' / ')}。`;
+  }
+  if (!IMAGE_SIZE_PATTERN.test(value) && !IMAGE_RATIO_PATTERN.test(value)) {
+    return `比例格式应为“宽:高”，例如 ${DEFAULT_IMAGE_RATIO}；当前只支持 ${Object.keys(IMAGE_RATIO_SIZES).join(' / ')}。`;
   }
   return '';
 };
-const buildImageRequestBody = (model, prompt, size) => ({
+const buildImageRequestBody = (model, prompt, size) => isGptImage2Model(model) ? {
+  model,
+  prompt,
+  n: 1,
+  aspect_ratio: normalizeImageRatio(size),
+  quality: 'standard',
+  response_format: 'url',
+  watermark: false
+} : {
   model,
   prompt,
   size: normalizeImageSize(size, model),
@@ -1271,7 +1323,7 @@ const buildImageRequestBody = (model, prompt, size) => ({
   ...(isGptImageModel(model) ? {} : {
     response_format: 'b64_json'
   })
-});
+};
 const readImageResponse = async response => {
   const rawText = await response.text();
   let data = null;
@@ -1537,8 +1589,9 @@ const buildFullImagePrompt = (visualPrompt, card) => {
     const keptItems = items.split(/[、，,]/).map(item => item.trim()).filter(item => item && !/(文字|字母|数字|符号|Logo|水印|标签|代码字符|伪文字)/i.test(item));
     return keptItems.length > 0 ? `避免：${keptItems.join('、')}` : '';
   }).replace(/[。；]{2,}/g, '。').trim();
-  const layoutInstruction = card?.type === 'back' ? '这是封底：页标、核心总结和行动号召依次排列在上半部；下半部只展示主视觉，不放任何文字。画面必须同时出现核心总结和行动号召。' : card?.type === 'cover' ? '这是封面：主标题最醒目，副标题紧随其后，文字位于顶部低细节区域。' : '这是正文页：标题、要点和总结依次排列在上半部；下半部只展示主视觉，不放任何文字。';
-  return `生成一张完整的小红书知识卡片成品图，直接完成3:4排版。本页必须包含且只能包含以下文字：${visibleText.map(text => `「${text}」`).join('、')}。${layoutInstruction}所有文字必须清晰可读、逐字保持不变，不能省略；禁止生成无文字版本，不要添加任何未提供的文字。\n\n视觉背景参考：${sanitizedVisualPrompt}。AI 整图为实验性输出，优先保证文字与卡片结构对应。`;
+  const layoutInstruction = card?.type === 'back' ? '这是封底。请按严格的三段层级排版：页标置于最上方，核心总结作为醒目的主标题，行动号召紧随其下并与主标题形成清晰层级；三者在上半部沿同一左对齐轴排列，保持明确的上下间距。下半部只展示主视觉，不放任何文字。' : card?.type === 'cover' ? '这是封面。请按严格的标题组排版：主标题作为最大字号的唯一视觉焦点，允许自然换行但必须保持完整；副标题紧跟主标题下方，字号明显小一级、颜色弱一级；标题组固定在上半部同一左对齐轴内，主视觉从中部向下承接。' : '这是正文页。请按严格的内容卡片结构排版：标题作为上半部第一层级的醒目主标题；所有要点作为同一组垂直列表，逐条换行并保持统一左对齐，使用连续的圆点或编号标记；总结单独放在要点列表下方，与列表之间留出明显间距，并用细分隔线或独立强调区与要点区分开。标题、要点列表、总结必须按此顺序排列，不能横向散落、重叠或穿插在主视觉中；下半部只展示主视觉，不放任何文字。';
+  const typographyInstruction = '版式执行要求：画布为竖版 3:4，文字区约占上方 50%-52%，主视觉区从画面中部向下连续展开。所有文字放在同一清晰的文字承载区域内，建立明确的字号层级、字重层级、行距和段间距；优先使用现代无衬线字体，文字颜色与背景保持高对比，左右留出安全边距。仅将下列文本作为可见文字，字段名“标题、要点、总结、页标、核心总结、行动号召”等只是排版说明，不得绘制出来。';
+  return `生成一张完整的小红书知识卡片成品图，直接完成3:4排版。本页必须包含且只能包含以下文字：${visibleText.map(text => `「${text}」`).join('、')}。${layoutInstruction}${typographyInstruction}所有文字必须清晰可读、逐字保持不变，不能省略、改写、拆散或替换；禁止生成无文字版本，不要添加任何未提供的文字。\n\n视觉背景参考：${sanitizedVisualPrompt}。AI 整图为实验性输出，优先保证文字与卡片结构对应。`;
 };
 const cleanCardValue = (value = '') => value.replace(/^\s*[-*•]\s*/, '').replace(/^\*\*|\*\*$/g, '').replace(/^[「“\"]|[」”\"]$/g, '').trim();
 const readCardField = (block, fieldNames) => {
@@ -2072,8 +2125,9 @@ const HistoryItems = ({
 }, React.createElement("button", {
   type: "button",
   className: "history-item-main",
-  onClick: () => {
+  onClick: event => {
     if (isProcessing) return;
+    if (event.detail > 0) event.currentTarget.blur();
     if (closeAfterOpen) setIsHistoryOpen(false);
     loadHistoryItem(item.id);
   },
@@ -2090,6 +2144,7 @@ const HistoryItems = ({
   type: "button",
   onClick: event => {
     event.stopPropagation();
+    if (event.detail > 0) event.currentTarget.blur();
     if (closeAfterOpen) setIsHistoryOpen(false);
     retryHistoryItem(item.id);
   },
@@ -2103,6 +2158,7 @@ const HistoryItems = ({
   type: "button",
   onClick: event => {
     event.stopPropagation();
+    if (event.detail > 0) event.currentTarget.blur();
     if (closeAfterOpen) setIsHistoryOpen(false);
     requestDeleteHistoryItem(item.id);
   },
@@ -2204,7 +2260,7 @@ const AppSidebar = ({
   className: "sidebar-brand-mark mr-3"
 }, React.createElement(Icon, {
   name: "Sparkles",
-  className: "w-5 h-5 text-white",
+  className: "text-white",
   strokeWidth: 2
 })), React.createElement("span", {
   className: "sidebar-brand-copy"
@@ -2458,8 +2514,17 @@ const SettingsDialog = ({
   handleClearImageUsageLog,
   handleSaveConfig
 }) => {
+  const [visibleKeys, setVisibleKeys] = useState({
+    text: false,
+    image: false
+  });
   const imageSizeWarning = getImageSizeWarning(apiConfig.imageSize, apiConfig.imageModel);
+  const imageRatioValue = imageSizeToRatio(apiConfig.imageSize) || apiConfig.imageSize;
   const usageSummary = summarizeImageUsageLog(imageUsageLog);
+  const toggleKeyVisibility = key => setVisibleKeys(previous => ({
+    ...previous,
+    [key]: !previous[key]
+  }));
   return React.createElement(ModalFrame, {
     isOpen: isConfigOpen,
     onRequestClose: onRequestClose,
@@ -2495,7 +2560,8 @@ const SettingsDialog = ({
     name: "MessageSquareText",
     className: "h-4 w-4 text-indigo-600"
   }), " 文本模型"), React.createElement("p", {
-    className: "config-section-description"
+    className: "config-section-description",
+    hidden: true
   }, "用于文章分析、内容重构和提示词生成。系统会根据 Endpoint 自动识别 Responses API 或 Chat Completions。")), React.createElement("div", {
     className: "config-section-actions"
   }, React.createElement("button", {
@@ -2566,16 +2632,27 @@ const SettingsDialog = ({
     className: "config-field"
   }, React.createElement("label", {
     className: "config-label"
-  }, "密钥 (API Key)"), React.createElement("input", {
-    type: "password",
+  }, "密钥 (API Key)"), React.createElement("div", {
+    className: "config-secret-field"
+  }, React.createElement("input", {
+    type: visibleKeys.text ? 'text' : 'password',
     value: apiConfig.apiKey,
     onChange: e => setApiConfig({
       ...apiConfig,
       apiKey: e.target.value
     }),
     placeholder: "sk-...",
-    className: "mi-field config-input placeholder-slate-400"
-  }))), React.createElement(ConfigStatus, {
+    className: "mi-field config-input config-secret-input placeholder-slate-400"
+  }), React.createElement("button", {
+    type: "button",
+    onClick: () => toggleKeyVisibility('text'),
+    className: "mi-icon-button mi-icon-button-compact config-secret-toggle",
+    "aria-label": visibleKeys.text ? '隐藏文本模型 API Key' : '显示文本模型 API Key',
+    title: visibleKeys.text ? '隐藏 API Key' : '显示 API Key'
+  }, React.createElement(Icon, {
+    name: visibleKeys.text ? 'EyeOff' : 'Eye',
+    className: "h-4 w-4"
+  }))))), React.createElement(ConfigStatus, {
     state: configTools.textModels
   }), React.createElement(ConfigStatus, {
     state: configTools.textTest
@@ -2589,9 +2666,11 @@ const SettingsDialog = ({
     name: "SlidersHorizontal",
     className: "h-4 w-4 text-indigo-600"
   }), " 加工偏好"), React.createElement("p", {
-    className: "config-section-description"
+    className: "config-section-description",
+    hidden: true
   }, "MoreImg v6 核心规则和 JSON 协议已内置。这里仅调整内容表达，不会破坏页面读取。"))), React.createElement("div", {
-    className: "mi-feedback mi-feedback-info config-preference-note"
+    className: "mi-feedback mi-feedback-info config-preference-note",
+    hidden: true
   }, React.createElement(Icon, {
     name: "ShieldCheck",
     className: "h-4 w-4 shrink-0 text-indigo-600"
@@ -2718,7 +2797,8 @@ const SettingsDialog = ({
     name: "Image",
     className: "h-4 w-4 text-indigo-600"
   }), " 图片模型"), React.createElement("p", {
-    className: "config-section-description"
+    className: "config-section-description",
+    hidden: true
   }, "用于无字主视觉和 AI 整图。读取模型失败时仍可手动填写，正式生图就是最终接口验证。")), React.createElement("div", {
     className: "config-section-actions"
   }, React.createElement("button", {
@@ -2743,7 +2823,7 @@ const SettingsDialog = ({
       ...apiConfig,
       imageApiUrl: e.target.value
     }),
-    placeholder: "https://api.openai.com/v1 或完整图片地址",
+    placeholder: "https://api.aixoras.com/v1 或完整图片地址",
     className: "mi-field config-input"
   }), React.createElement("div", {
     className: "config-hint"
@@ -2775,37 +2855,46 @@ const SettingsDialog = ({
       ...apiConfig,
       imageModel: e.target.value
     }),
-    placeholder: "gpt-image-1",
+    placeholder: "gpt-image-2",
     className: "mi-field config-input"
   })), React.createElement("div", {
     className: "config-field"
   }, React.createElement("label", {
     className: "config-label"
-  }, "图片尺寸"), React.createElement("input", {
+  }, "图片比例"), React.createElement("input", {
     type: "text",
-    value: apiConfig.imageSize,
+    value: imageRatioValue,
     onChange: e => setApiConfig({
       ...apiConfig,
       imageSize: e.target.value
     }),
-    placeholder: "1024x1536",
+    placeholder: "3:4",
     className: "mi-field config-input"
-  }), React.createElement("div", {
-    className: "config-hint"
-  }, "实际请求：", normalizeImageSize(apiConfig.imageSize, apiConfig.imageModel))), React.createElement("div", {
+  })), React.createElement("div", {
     className: "config-field config-span-2"
   }, React.createElement("label", {
     className: "config-label"
-  }, "图片 API Key"), React.createElement("input", {
-    type: "password",
+  }, "图片 API Key"), React.createElement("div", {
+    className: "config-secret-field"
+  }, React.createElement("input", {
+    type: visibleKeys.image ? 'text' : 'password',
     value: apiConfig.imageApiKey,
     onChange: e => setApiConfig({
       ...apiConfig,
       imageApiKey: e.target.value
     }),
     placeholder: "sk-...",
-    className: "mi-field config-input"
-  }))), imageSizeWarning && React.createElement("div", {
+    className: "mi-field config-input config-secret-input"
+  }), React.createElement("button", {
+    type: "button",
+    onClick: () => toggleKeyVisibility('image'),
+    className: "mi-icon-button mi-icon-button-compact config-secret-toggle",
+    "aria-label": visibleKeys.image ? '隐藏图片 API Key' : '显示图片 API Key',
+    title: visibleKeys.image ? '隐藏 API Key' : '显示 API Key'
+  }, React.createElement(Icon, {
+    name: visibleKeys.image ? 'EyeOff' : 'Eye',
+    className: "h-4 w-4"
+  }))))), imageSizeWarning && React.createElement("div", {
     className: "mi-feedback mi-feedback-warning config-preference-note"
   }, React.createElement(Icon, {
     name: "TriangleAlert",
@@ -3574,10 +3663,10 @@ function App() {
     apiKey: '',
     promptVersion: DEFAULT_PROMPT_VERSION,
     processingPreferences: createDefaultProcessingPreferences(),
-    imageApiUrl: 'https://api.openai.com/v1/images/generations',
-    imageModel: 'gpt-image-1',
+    imageApiUrl: 'https://api.aixoras.com/v1/images/generations',
+    imageModel: 'gpt-image-2',
     imageApiKey: '',
-    imageSize: DEFAULT_IMAGE_SIZE
+    imageSize: DEFAULT_IMAGE_RATIO
   });
   const [isConfigOpen, setIsConfigOpen] = useState(() => !hasSavedApiConfig());
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
@@ -3877,10 +3966,10 @@ function App() {
           ...createDefaultProcessingPreferences(),
           ...(parsedConfig.processingPreferences || {})
         };
-        parsedConfig.imageApiUrl = parsedConfig.imageApiUrl || 'https://api.openai.com/v1/images/generations';
-        parsedConfig.imageModel = parsedConfig.imageModel || 'gpt-image-1';
+        parsedConfig.imageApiUrl = parsedConfig.imageApiUrl || 'https://api.aixoras.com/v1/images/generations';
+        parsedConfig.imageModel = parsedConfig.imageModel || 'gpt-image-2';
         parsedConfig.imageApiKey = parsedConfig.imageApiKey || '';
-        parsedConfig.imageSize = !parsedConfig.imageSize || parsedConfig.imageSize === '768x1024' ? DEFAULT_IMAGE_SIZE : parsedConfig.imageSize;
+        parsedConfig.imageSize = normalizeImageRatio(parsedConfig.imageSize);
         localStorage.setItem('agent_api_config', JSON.stringify(parsedConfig));
         setApiConfig(parsedConfig);
         if (parsedConfig.apiKey?.trim()) {
@@ -4079,6 +4168,7 @@ function App() {
     });
     const imageModel = apiConfig.imageModel.trim();
     const requestedSize = normalizeImageSize(apiConfig.imageSize, imageModel);
+    const requestedRatio = normalizeImageRatio(apiConfig.imageSize);
     const startedAt = Date.now();
     let generationCompletedAt = 0;
     let requestPhase = 'request';
@@ -4111,7 +4201,7 @@ function App() {
       sessionId,
       requestMode: '同步',
       endpointPath: getDiagnosticEndpointPath(imageEndpoint),
-      requestedFormat: isGptImageModel(imageModel) ? 'b64_json（模型默认）' : 'b64_json',
+      requestedFormat: isGptImage2Model(imageModel) ? 'url（请求指定）' : isGptImageModel(imageModel) ? 'b64_json（模型默认）' : 'b64_json',
       actualFormat: '等待响应',
       imageHost: '等待响应',
       storageBackend: 'IndexedDB',
@@ -4167,7 +4257,7 @@ function App() {
         cardTitle,
         mode,
         model: imageModel,
-        size: requestedSize,
+        size: isGptImage2Model(imageModel) ? requestedRatio : requestedSize,
         durationMs: Date.now() - startedAt,
         outcome: '成功',
         mayBeBilled: true,
@@ -4220,7 +4310,7 @@ function App() {
         cardTitle,
         mode,
         model: imageModel,
-        size: requestedSize,
+        size: isGptImage2Model(imageModel) ? requestedRatio : requestedSize,
         durationMs: Date.now() - startedAt,
         outcome: isUserCancelled ? '已取消' : '失败',
         mayBeBilled,
@@ -4717,6 +4807,11 @@ function App() {
       });
       return;
     }
+    setToast({
+      message: '将基于原文新建记录，原记录会保留',
+      type: 'neutral',
+      duration: 3500
+    });
     handleStartProcessing(item.originalInput);
   };
   const fallbackCopyText = text => {
@@ -4791,7 +4886,7 @@ function App() {
   const hasTextConfig = Boolean(apiConfig.apiUrl?.trim() && apiConfig.model?.trim() && apiConfig.apiKey?.trim());
   const processingActionMode = isProcessing ? 'running' : !inputText.trim() ? 'empty' : !hasTextConfig ? 'needs-config' : 'ready';
   const processingActionLabel = processingActionMode === 'running' ? '停止本次加工' : processingActionMode === 'needs-config' ? '配置文本模型后开始' : '一键生成 AI 物料包';
-  const processingActionHint = processingActionMode === 'empty' ? '请先粘贴需要加工的文章或文案。' : processingActionMode === 'needs-config' ? '还需填写文本接口地址、模型和 API Key。' : '';
+  const processingActionHint = processingActionMode === 'needs-config' ? '还需填写文本接口地址、模型和 API Key。' : '';
   const handleProcessingAction = () => {
     if (isProcessing) {
       handleStopProcessing();

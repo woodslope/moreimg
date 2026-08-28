@@ -69,7 +69,7 @@
     };
 
     const formatImageUsageLogText = (log = []) => {
-      const header = '时间\t模型\t尺寸\t页面/模式\t耗时(秒)\t结果\t可能已计费\t说明';
+      const header = '时间\t模型\t比例/尺寸\t页面/模式\t耗时(秒)\t结果\t可能已计费\t说明';
       const rows = log.map(item => [
         item.at ? new Date(item.at).toLocaleString() : '',
         item.model || '',

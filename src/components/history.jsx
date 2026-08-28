@@ -20,8 +20,10 @@ const HistoryItems = ({ history, isProcessing, activeHistoryId, showResults, set
         <button
           type="button"
           className="history-item-main"
-          onClick={() => {
+          onClick={(event) => {
             if (isProcessing) return;
+            // 鼠标点击查看后释放主体按钮焦点，避免父级 :focus-within 让右侧操作浮层继续显示；键盘操作仍保留焦点反馈。
+            if (event.detail > 0) event.currentTarget.blur();
             if (closeAfterOpen) setIsHistoryOpen(false);
             loadHistoryItem(item.id);
           }}
@@ -40,6 +42,8 @@ const HistoryItems = ({ history, isProcessing, activeHistoryId, showResults, set
               type="button"
               onClick={(event) => {
                 event.stopPropagation();
+                // 鼠标点击后主动失焦，避免 :focus-within 让浮层在移开鼠标后继续常显；键盘聚焦仍由 :focus-within 保留。
+                if (event.detail > 0) event.currentTarget.blur();
                 if (closeAfterOpen) setIsHistoryOpen(false);
                 retryHistoryItem(item.id);
               }}
@@ -53,6 +57,7 @@ const HistoryItems = ({ history, isProcessing, activeHistoryId, showResults, set
               type="button"
               onClick={(event) => {
                 event.stopPropagation();
+                if (event.detail > 0) event.currentTarget.blur();
                 if (closeAfterOpen) setIsHistoryOpen(false);
                 requestDeleteHistoryItem(item.id);
               }}

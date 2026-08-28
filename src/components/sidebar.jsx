@@ -4,7 +4,7 @@ const AppSidebar = ({ history, isProcessing, activeHistoryId, showResults, setIs
   <div className="sidebar-brand-row z-10 shrink-0">
     <h1 className="sidebar-brand-title">
       <div className="sidebar-brand-mark mr-3">
-        <Icon name="Sparkles" className="w-5 h-5 text-white" strokeWidth={2} />
+        <Icon name="Sparkles" className="text-white" strokeWidth={2} />
       </div>
       <span className="sidebar-brand-copy">
         <span className="sidebar-brand-name">一文多图</span>

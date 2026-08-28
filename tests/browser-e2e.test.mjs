@@ -823,6 +823,16 @@ try {
   assert.equal(await evaluate(`document.querySelector('.visual-error')?.textContent || ''`), '', 'AI 整图生成不应报错');
   const deferredComparisonImage = await evaluate(`(() => { const image = document.querySelector('.visual-comparison-image'); return image ? { loading: image.loading, decoding: image.decoding } : null; })()`);
   assert.deepEqual(deferredComparisonImage, { loading: 'lazy', decoding: 'async' }, '下方重复 AI 整图必须懒加载并异步解码');
+  const visualPreviewRatios = await evaluate(`([...document.querySelectorAll('.visual-preview, .visual-comparison-preview-frame, .html-card-preview-frame')]).map(frame => {
+    const rect = frame.getBoundingClientRect();
+    return { className: frame.className, width: rect.width, height: rect.height, ratio: rect.width / rect.height };
+  })`);
+  assert.ok(visualPreviewRatios.length >= 4, `视觉生成与对比应包含全部 3:4 预览框: ${JSON.stringify(visualPreviewRatios)}`);
+  assert.equal(
+    visualPreviewRatios.every(item => Math.abs(item.ratio - (3 / 4)) < 0.01),
+    true,
+    `视觉生成与对比中的预览框必须全部保持 3:4: ${JSON.stringify(visualPreviewRatios)}`
+  );
 
   // 生图计费安全：上游一旦受理就会计费，切换历史记录不得取消在途请求，
   // 结果必须仍然落盘到发起时的那条会话，否则用户付了钱却什么都拿不到。
@@ -869,7 +879,7 @@ try {
   assert.ok(billingUsageLog.length >= 1, '生图应写入可对账的请求记录');
   assert.equal(billingUsageLog[0].outcome, '成功');
   assert.equal(billingUsageLog[0].mayBeBilled, true, '成功记录必须标记已计费，便于与账单核对');
-  assert.equal(billingUsageLog[0].size, '1024x1536', '请求应使用合法尺寸，避免中转站静默替换');
+  assert.equal(billingUsageLog[0].size, '768x1024', '普通兼容接口应将 3:4 比例换算为 768x1024');
   await evaluate(`document.querySelectorAll('.history-item-main')[0].click()`);
   await waitFor(() => evaluate(`Boolean(document.querySelector('button[aria-label="下载主视觉"]'))`), 20000);
 
@@ -895,10 +905,10 @@ try {
   assert.ok(usageLogContract.itemCount >= 1, '生图后对账面板应至少有一条记录');
   assert.equal(usageLogContract.firstOutcome, '成功');
   assert.match(usageLogContract.firstMeta, /gpt-image-2|fixture-image/, '记录应显示实际使用的图片模型');
-  assert.match(usageLogContract.firstMeta, /1024x1536/, '记录应显示实际请求的尺寸');
+  assert.match(usageLogContract.firstMeta, /768x1024/, '记录应显示普通兼容接口换算后的尺寸');
   assert.deepEqual([usageLogContract.hasCopy, usageLogContract.hasClear], [true, true], '对账面板应提供复制与清空入口');
-  const imageSizeHint = await evaluate(`[...document.querySelectorAll('.config-hint')].map(item => item.textContent.trim()).find(text => text.startsWith('实际请求：1024x1536')) || ''`);
-  assert.ok(imageSizeHint, '图片尺寸字段应显示校正后的实际请求值');
+  assert.equal(await evaluate(`[...document.querySelectorAll('.config-hint')].some(item => item.textContent.includes('实际请求：'))`), true, '接口地址仍应显示实际请求地址');
+  assert.equal(await evaluate(`[...document.querySelectorAll('.config-label')].some(item => item.textContent.trim() === '图片比例')`), true, '设置面板应显示图片比例字段');
   await evaluate(`document.querySelector('button[aria-label="关闭设置"]').click()`);
   await waitFor(() => evaluate(`!document.querySelector('.config-dialog')`));
   const legacyWarningTitle = await evaluate(`(async () => {

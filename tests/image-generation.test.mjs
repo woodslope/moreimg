@@ -7,8 +7,10 @@ assert.match(source, /imageApiUrl:/);
 assert.match(source, /imageModel:/);
 assert.match(source, /imageApiKey:/);
 assert.match(source, /imageSize:/);
-assert.match(source, /imageSize: DEFAULT_IMAGE_SIZE/);
-assert.doesNotMatch(source, /imageSize:\s*'768x1024'/, '默认尺寸不得回退到 gpt-image 不接受的 768x1024');
+assert.match(source, /imageSize: DEFAULT_IMAGE_RATIO/);
+assert.match(source, /aspect_ratio/);
+assert.match(source, /图片比例/);
+assert.doesNotMatch(source, /图片尺寸[\s\S]*?实际请求：/);
 assert.match(source, /handleGenerateImage/);
 assert.match(source, /\/images\/generations/);
 assert.match(source, /b64_json/);
@@ -59,6 +61,11 @@ assert.match(fullPrompt, /「要点一」/);
 assert.match(fullPrompt, /「要点二」/);
 assert.match(fullPrompt, /「一句总结」/);
 assert.match(fullPrompt, /不要添加任何未提供的文字/);
+assert.match(fullPrompt, /垂直列表/);
+assert.match(fullPrompt, /细分隔线或独立强调区/);
+assert.match(fullPrompt, /统一左对齐/);
+assert.match(fullPrompt, /字段名“标题、要点、总结、页标、核心总结、行动号召”等只是排版说明/);
+assert.match(fullPrompt, /文字区约占上方 50%-52%/);
 
 const conflictingBackPrompt = buildFullImagePrompt(
   '3:4比例，深海蓝与暖金主色系，无文字视觉素材。画面中不生成任何文字、字母、数字、符号。避免：任何文字、字母、数字、Logo、水印、伪文字纹理、主体过小、低对比度。',

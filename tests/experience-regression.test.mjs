@@ -52,6 +52,7 @@ assert.equal(hasNoSavedApiConfig(), false, '未保存 API Key 时应保持设置
 assert.match(source, /className=\{`flex-1 px-8 md:px-12 pb-10 custom-scrollbar relative z-10 moreimg-main-scroll/);
 assert.doesNotMatch(source, /moreimg-main-scroll[^`]*transform-gpu/);
 assert.match(source, /@media \(max-width: 640px\) \{[\s\S]*?\.moreimg-main-scroll \{ padding-bottom: max\(32px, calc\(24px \+ env\(safe-area-inset-bottom\)\)\); \}/);
+assert.match(source, /@media \(max-width: 1023px\) \{[\s\S]*?\.moreimg-empty-state \{ height: auto; min-height: 100%; \}/, '中等宽度单列首页内容应允许高度撑开并由主区域滚动');
 assert.match(source, /\.moreimg-app-shell \{[^}]*background-image:\s*radial-gradient/, '应用外壳应保留蓝紫氛围色场');
 assert.match(source, /\.mi-surface-raised \{[^}]*background:\s*var\(--mi-surface-raised\)/, '视觉面板应保留共享抬升玻璃层次');
 assert.match(source, /\.mi-surface-panel \{[^}]*background:\s*var\(--mi-surface-panel\)/, '长内容表面应保留共享半透明层次');

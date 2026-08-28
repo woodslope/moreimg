@@ -1,42 +1,98 @@
     const IMAGE_SIZE_PATTERN = /^\d{3,5}x\d{3,5}$/;
-    // gpt-image 系列只接受这几个枚举值。填 768x1024 这类非法值时，宽松的中转站会按自己的
-    // 默认尺寸出图并照常计费，用户以为参数生效、实际拿到的是另一个规格。
-    const GPT_IMAGE_SIZES = ['1024x1024', '1024x1536', '1536x1024', 'auto'];
-    const DEFAULT_IMAGE_SIZE = '1024x1536';
+    const IMAGE_RATIO_PATTERN = /^\d{1,3}\s*:\s*\d{1,3}$/;
+    const IMAGE_RATIO_SIZES = Object.freeze({
+      '1:1': '1024x1024',
+      '16:9': '1792x1024',
+      '9:16': '1024x1792',
+      '4:3': '1024x768',
+      '3:4': '768x1024',
+      '3:2': '1536x1024',
+      '2:3': '1024x1536',
+      '21:9': '1344x576'
+    });
+    const DEFAULT_IMAGE_RATIO = '3:4';
+    const DEFAULT_IMAGE_SIZE = IMAGE_RATIO_SIZES[DEFAULT_IMAGE_RATIO];
+    const GPT_IMAGE_2_RATIOS = Object.freeze(Object.keys(IMAGE_RATIO_SIZES));
 
     const isGptImageModel = (model = '') => /^gpt-image/i.test(String(model || '').trim());
+    const isGptImage2Model = (model = '') => /^gpt-image-2(?:-|$)/i.test(String(model || '').trim());
+
+    const normalizeRatioText = value => String(value || '').trim().replace(/：/g, ':').replace(/\s+/g, '').toLowerCase();
+
+    const imageSizeToRatio = size => {
+      const value = String(size || '').trim().toLowerCase();
+      const directRatio = Object.entries(IMAGE_RATIO_SIZES).find(([, imageSize]) => imageSize === value)?.[0];
+      if (directRatio) return directRatio;
+      const match = value.match(/^(\d{3,5})x(\d{3,5})$/);
+      if (!match) return '';
+      const width = Number(match[1]);
+      const height = Number(match[2]);
+      const gcd = (a, b) => b ? gcd(b, a % b) : a;
+      const ratio = `${width / gcd(width, height)}:${height / gcd(width, height)}`;
+      return IMAGE_RATIO_SIZES[ratio] ? ratio : '';
+    };
+
+    const normalizeImageRatio = (ratio, fallback = DEFAULT_IMAGE_RATIO) => {
+      const value = normalizeRatioText(ratio);
+      if (IMAGE_RATIO_SIZES[value]) return value;
+      return imageSizeToRatio(value) || fallback;
+    };
+
+    const ratioToImageSize = (ratio, model = '') => {
+      const normalizedRatio = normalizeImageRatio(ratio, '');
+      const candidate = IMAGE_RATIO_SIZES[normalizedRatio] || '';
+      return candidate;
+    };
 
     const normalizeImageSize = (size, model = '') => {
-      const value = String(size || '').trim().toLowerCase();
-      if (isGptImageModel(model)) {
-        return GPT_IMAGE_SIZES.includes(value) ? value : DEFAULT_IMAGE_SIZE;
-      }
+      const rawValue = String(size || '').trim().toLowerCase();
+      if (isGptImage2Model(model)) return normalizeImageRatio(rawValue);
+      const ratioSize = ratioToImageSize(rawValue, model);
+      const value = ratioSize || rawValue;
       return IMAGE_SIZE_PATTERN.test(value) ? value : DEFAULT_IMAGE_SIZE;
     };
 
     const getImageSizeWarning = (size, model = '') => {
-      const value = String(size || '').trim().toLowerCase();
+      const value = normalizeRatioText(size);
       if (!value) return '';
-      if (isGptImageModel(model) && !GPT_IMAGE_SIZES.includes(value)) {
-        return `${model} 只支持 ${GPT_IMAGE_SIZES.join(' / ')}，将按 ${DEFAULT_IMAGE_SIZE} 请求。填写非法尺寸时中转站可能按自己的默认规格出图并照常计费。`;
+      if (isGptImage2Model(model)) {
+        const normalizedRatio = IMAGE_RATIO_SIZES[value] ? value : imageSizeToRatio(value);
+        return GPT_IMAGE_2_RATIOS.includes(normalizedRatio)
+          ? ''
+          : `比例格式应为“宽:高”，例如 ${DEFAULT_IMAGE_RATIO}；当前只支持 ${GPT_IMAGE_2_RATIOS.join(' / ')}。`;
       }
-      if (!isGptImageModel(model) && !IMAGE_SIZE_PATTERN.test(value)) {
-        return `尺寸格式应为“宽x高”，例如 ${DEFAULT_IMAGE_SIZE}，将按 ${DEFAULT_IMAGE_SIZE} 请求。`;
+      const ratioSize = IMAGE_RATIO_SIZES[value];
+      if (ratioSize) {
+        return '';
+      }
+      if (IMAGE_RATIO_PATTERN.test(value)) {
+        return `比例暂不支持“${value}”，当前只支持 ${Object.keys(IMAGE_RATIO_SIZES).join(' / ')}。`;
+      }
+      if (!IMAGE_SIZE_PATTERN.test(value) && !IMAGE_RATIO_PATTERN.test(value)) {
+        return `比例格式应为“宽:高”，例如 ${DEFAULT_IMAGE_RATIO}；当前只支持 ${Object.keys(IMAGE_RATIO_SIZES).join(' / ')}。`;
       }
       return '';
     };
 
-    // 走 URL 时图片要再从第三方 CDN 下载一次，而那些 CDN 多半不带 CORS 头、
-    // 链接也常在几分钟内失效，于是“已生成且已计费”的图会因为下载失败被判成整次失败。
-    // 所以尽量要求 base64：gpt-image 系列本来就只返回 b64_json，且会把
-    // response_format 当成未知参数直接 400，只能对其他模型显式声明。
-    const buildImageRequestBody = (model, prompt, size) => ({
-      model,
-      prompt,
-      size: normalizeImageSize(size, model),
-      n: 1,
-      ...(isGptImageModel(model) ? {} : { response_format: 'b64_json' })
-    });
+    // AIXoras 的 gpt-image-2 系列通过 CLIProxyAPI 转发，使用 aspect_ratio 控制比例，
+    // 输出像素由上游决定；其他 OpenAI Images 兼容模型仍使用 size 像素参数。
+    const buildImageRequestBody = (model, prompt, size) => isGptImage2Model(model)
+      ? {
+          model,
+          prompt,
+          n: 1,
+          aspect_ratio: normalizeImageRatio(size),
+          quality: 'standard',
+          response_format: 'url',
+          watermark: false
+        }
+      : {
+          model,
+          prompt,
+          size: normalizeImageSize(size, model),
+          n: 1,
+          ...(isGptImageModel(model) ? {} : { response_format: 'b64_json' })
+        };
 
     // 中转站在 5xx / 网关超时时返回的是 HTML 错误页，裸 response.json() 会抛
     // "Unexpected token '<'"，把真实状态码和上游提示全部吞掉。

@@ -67,31 +67,36 @@ assert.match(source, /接口返回了非 JSON 内容/);
 assert.match(source, /throw new Error\(`HTTP \$\{response\.status\}\$\{preview \? `：\$\{preview\}` : ''\}`\)/);
 
 // ---- 6. 尺寸校验与迁移 ----
-assert.match(source, /const GPT_IMAGE_SIZES = \['1024x1024', '1024x1536', '1536x1024', 'auto'\]/);
-assert.match(source, /const DEFAULT_IMAGE_SIZE = '1024x1536'/);
+assert.match(source, /const IMAGE_RATIO_SIZES = Object\.freeze/);
+assert.match(source, /const DEFAULT_IMAGE_RATIO = '3:4'/);
+assert.match(source, /const isGptImage2Model = /);
 assert.match(source, /const normalizeImageSize = /);
 assert.match(source, /const getImageSizeWarning = /);
-assert.match(source, /parsedConfig\.imageSize === '768x1024'/, '旧的非法默认值应被迁移');
+assert.match(source, /normalizeImageRatio\(parsedConfig\.imageSize\)/, '旧版像素尺寸应迁移为比例');
 
 const apiBlock = source.match(/const IMAGE_SIZE_PATTERN = [\s\S]*?(?=\n\s*const isResponsesApiEndpoint)/)?.[0];
 assert.ok(apiBlock, '应能提取图片请求辅助函数');
 const { normalizeImageSize, getImageSizeWarning, buildImageRequestBody, readImageResponse } =
   Function(`${apiBlock}; return { normalizeImageSize, getImageSizeWarning, buildImageRequestBody, readImageResponse };`)();
 
-assert.equal(normalizeImageSize('768x1024', 'gpt-image-2'), '1024x1536', 'gpt-image 的非法尺寸应回落到合法默认值');
-assert.equal(normalizeImageSize('1024x1536', 'gpt-image-2'), '1024x1536');
-assert.equal(normalizeImageSize('auto', 'gpt-image-1'), 'auto');
-assert.equal(normalizeImageSize('768x1024', 'seedream-3'), '768x1024', '非 gpt-image 模型保留用户填写的合法格式');
-assert.equal(normalizeImageSize('', 'seedream-3'), '1024x1536');
-assert.match(getImageSizeWarning('768x1024', 'gpt-image-2'), /只支持/);
-assert.equal(getImageSizeWarning('1024x1536', 'gpt-image-2'), '');
+assert.equal(normalizeImageSize('768x1024', 'gpt-image-2'), '3:4');
+assert.equal(normalizeImageSize('3:4', 'gpt-image-2'), '3:4');
+assert.equal(normalizeImageSize('1024x1536', 'gpt-image-2'), '2:3');
+assert.equal(normalizeImageSize('3:4', 'seedream-3'), '768x1024', '普通兼容模型应将比例换算为像素尺寸');
+assert.equal(normalizeImageSize('', 'seedream-3'), '768x1024');
+assert.equal(getImageSizeWarning('3:4', 'gpt-image-2'), '');
+assert.match(getImageSizeWarning('5:7', 'gpt-image-2'), /当前只支持/);
+assert.match(getImageSizeWarning('5:7', 'seedream-3'), /比例暂不支持/);
 
-// gpt-image 系列只返回 b64_json，且会把 response_format 当未知参数直接 400。
+// AIXoras gpt-image-2 系列使用 aspect_ratio，并可请求 URL 返回；其他模型继续走像素 size。
 assert.deepEqual(buildImageRequestBody('gpt-image-2', '提示词', '768x1024'), {
   model: 'gpt-image-2',
   prompt: '提示词',
-  size: '1024x1536',
-  n: 1
+  n: 1,
+  aspect_ratio: '3:4',
+  quality: 'standard',
+  response_format: 'url',
+  watermark: false
 });
 assert.deepEqual(buildImageRequestBody('seedream-3', '提示词', '768x1024'), {
   model: 'seedream-3',
@@ -145,15 +150,15 @@ const { appendImageUsageLog, loadImageUsageLog, clearImageUsageLog, formatImageU
   100
 );
 
-appendImageUsageLog({ cardTitle: '封面', mode: 'visual-only', model: 'gpt-image-2', size: '1024x1536', durationMs: 42000, outcome: '成功', mayBeBilled: true });
-appendImageUsageLog({ cardTitle: '正文1/3', mode: 'full', model: 'gpt-image-2', size: '1024x1536', durationMs: 601000, outcome: '失败', mayBeBilled: true, detail: '图片生成超过 600 秒' });
+appendImageUsageLog({ cardTitle: '封面', mode: 'visual-only', model: 'gpt-image-2', size: '3:4', durationMs: 42000, outcome: '成功', mayBeBilled: true });
+appendImageUsageLog({ cardTitle: '正文1/3', mode: 'full', model: 'gpt-image-2', size: '3:4', durationMs: 601000, outcome: '失败', mayBeBilled: true, detail: '图片生成超过 600 秒' });
 const log = loadImageUsageLog();
 assert.equal(log.length, 2);
 assert.equal(log[0].cardTitle, '正文1/3', '最新记录应排在最前');
 assert.ok(log[0].at, '每条记录都应带时间戳');
 assert.deepEqual(summarizeImageUsageLog(log), { total: 2, success: 1, billedFailures: 1 });
 const text = formatImageUsageLogText(log);
-assert.match(text, /时间\t模型\t尺寸/);
+assert.match(text, /时间\t模型\t比例\/尺寸/);
 assert.match(text, /601\.0/, '耗时应换算成秒便于对账');
 assert.equal(clearImageUsageLog().length, 0);
 assert.equal(loadImageUsageLog().length, 0);

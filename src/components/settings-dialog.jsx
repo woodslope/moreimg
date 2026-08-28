@@ -1,6 +1,9 @@
 const SettingsDialog = ({ isConfigOpen, onRequestClose, apiConfig, setApiConfig, configTools, handleLoadModels, handleTestTextConnection, handleModelSelection, textModels, imageModels, lastImageDiagnostic, imageUsageLog = [], copyImageUsageLog, handleClearImageUsageLog, handleSaveConfig }) => {
+  const [visibleKeys, setVisibleKeys] = useState({ text: false, image: false });
   const imageSizeWarning = getImageSizeWarning(apiConfig.imageSize, apiConfig.imageModel);
+  const imageRatioValue = imageSizeToRatio(apiConfig.imageSize) || apiConfig.imageSize;
   const usageSummary = summarizeImageUsageLog(imageUsageLog);
+  const toggleKeyVisibility = key => setVisibleKeys(previous => ({ ...previous, [key]: !previous[key] }));
   return (
   <ModalFrame
     isOpen={isConfigOpen}
@@ -27,7 +30,7 @@ const SettingsDialog = ({ isConfigOpen, onRequestClose, apiConfig, setApiConfig,
           <div className="config-section-header">
             <div>
               <h4 className="config-section-title"><Icon name="MessageSquareText" className="h-4 w-4 text-indigo-600" /> 文本模型</h4>
-              <p className="config-section-description">用于文章分析、内容重构和提示词生成。系统会根据 Endpoint 自动识别 Responses API 或 Chat Completions。</p>
+              <p className="config-section-description" hidden>用于文章分析、内容重构和提示词生成。系统会根据 Endpoint 自动识别 Responses API 或 Chat Completions。</p>
             </div>
             <div className="config-section-actions">
               <button type="button" onClick={() => handleLoadModels('text')} disabled={configTools.textModels.status === 'loading'} aria-busy={configTools.textModels.status === 'loading'} className="mi-button mi-button-compact config-action-button">
@@ -74,13 +77,18 @@ const SettingsDialog = ({ isConfigOpen, onRequestClose, apiConfig, setApiConfig,
             </div>
             <div className="config-field">
               <label className="config-label">密钥 (API Key)</label>
-              <input
-                type="password"
-                value={apiConfig.apiKey}
-                onChange={(e) => setApiConfig({...apiConfig, apiKey: e.target.value})}
-                placeholder="sk-..."
-                className="mi-field config-input placeholder-slate-400"
-              />
+              <div className="config-secret-field">
+                <input
+                  type={visibleKeys.text ? 'text' : 'password'}
+                  value={apiConfig.apiKey}
+                  onChange={(e) => setApiConfig({...apiConfig, apiKey: e.target.value})}
+                  placeholder="sk-..."
+                  className="mi-field config-input config-secret-input placeholder-slate-400"
+                />
+                <button type="button" onClick={() => toggleKeyVisibility('text')} className="mi-icon-button mi-icon-button-compact config-secret-toggle" aria-label={visibleKeys.text ? '隐藏文本模型 API Key' : '显示文本模型 API Key'} title={visibleKeys.text ? '隐藏 API Key' : '显示 API Key'}>
+                  <Icon name={visibleKeys.text ? 'EyeOff' : 'Eye'} className="h-4 w-4" />
+                </button>
+              </div>
             </div>
           </div>
           <ConfigStatus state={configTools.textModels} />
@@ -91,10 +99,10 @@ const SettingsDialog = ({ isConfigOpen, onRequestClose, apiConfig, setApiConfig,
           <div className="config-section-header">
             <div>
               <h4 className="config-section-title"><Icon name="SlidersHorizontal" className="h-4 w-4 text-indigo-600" /> 加工偏好</h4>
-              <p className="config-section-description">MoreImg v6 核心规则和 JSON 协议已内置。这里仅调整内容表达，不会破坏页面读取。</p>
+              <p className="config-section-description" hidden>MoreImg v6 核心规则和 JSON 协议已内置。这里仅调整内容表达，不会破坏页面读取。</p>
             </div>
           </div>
-          <div className="mi-feedback mi-feedback-info config-preference-note">
+          <div className="mi-feedback mi-feedback-info config-preference-note" hidden>
             <Icon name="ShieldCheck" className="h-4 w-4 shrink-0 text-indigo-600" />
             <span>每次加工仍只请求一次文本 API；固定生成封面、正文和封底。核心规则不可编辑。</span>
           </div>
@@ -149,7 +157,7 @@ const SettingsDialog = ({ isConfigOpen, onRequestClose, apiConfig, setApiConfig,
           <div className="config-section-header">
             <div>
               <h4 className="config-section-title"><Icon name="Image" className="h-4 w-4 text-indigo-600" /> 图片模型</h4>
-              <p className="config-section-description">用于无字主视觉和 AI 整图。读取模型失败时仍可手动填写，正式生图就是最终接口验证。</p>
+              <p className="config-section-description" hidden>用于无字主视觉和 AI 整图。读取模型失败时仍可手动填写，正式生图就是最终接口验证。</p>
             </div>
             <div className="config-section-actions">
               <button type="button" onClick={() => handleLoadModels('image')} disabled={configTools.imageModels.status === 'loading'} aria-busy={configTools.imageModels.status === 'loading'} className="mi-button mi-button-compact config-action-button">
@@ -161,7 +169,7 @@ const SettingsDialog = ({ isConfigOpen, onRequestClose, apiConfig, setApiConfig,
           <div className="config-grid">
             <div className="config-field config-span-2">
               <label className="config-label">图片接口地址（可填至 /v1）</label>
-              <input type="text" value={apiConfig.imageApiUrl} onChange={(e) => setApiConfig({...apiConfig, imageApiUrl: e.target.value})} placeholder="https://api.openai.com/v1 或完整图片地址" className="mi-field config-input" />
+              <input type="text" value={apiConfig.imageApiUrl} onChange={(e) => setApiConfig({...apiConfig, imageApiUrl: e.target.value})} placeholder="https://api.aixoras.com/v1 或完整图片地址" className="mi-field config-input" />
               <div className="config-hint">实际请求：{resolveApiEndpoint(apiConfig.imageApiUrl, 'image') || '请填写地址'}</div>
             </div>
             <div className="config-field">
@@ -176,17 +184,21 @@ const SettingsDialog = ({ isConfigOpen, onRequestClose, apiConfig, setApiConfig,
                   <Icon name="ChevronDown" className="config-select-icon" />
                 </div>
               ) : (
-                <input type="text" value={apiConfig.imageModel} onChange={(e) => setApiConfig({...apiConfig, imageModel: e.target.value})} placeholder="gpt-image-1" className="mi-field config-input" />
+                <input type="text" value={apiConfig.imageModel} onChange={(e) => setApiConfig({...apiConfig, imageModel: e.target.value})} placeholder="gpt-image-2" className="mi-field config-input" />
               )}
             </div>
             <div className="config-field">
-              <label className="config-label">图片尺寸</label>
-              <input type="text" value={apiConfig.imageSize} onChange={(e) => setApiConfig({...apiConfig, imageSize: e.target.value})} placeholder="1024x1536" className="mi-field config-input" />
-              <div className="config-hint">实际请求：{normalizeImageSize(apiConfig.imageSize, apiConfig.imageModel)}</div>
+              <label className="config-label">图片比例</label>
+              <input type="text" value={imageRatioValue} onChange={(e) => setApiConfig({...apiConfig, imageSize: e.target.value})} placeholder="3:4" className="mi-field config-input" />
             </div>
             <div className="config-field config-span-2">
               <label className="config-label">图片 API Key</label>
-              <input type="password" value={apiConfig.imageApiKey} onChange={(e) => setApiConfig({...apiConfig, imageApiKey: e.target.value})} placeholder="sk-..." className="mi-field config-input" />
+              <div className="config-secret-field">
+                <input type={visibleKeys.image ? 'text' : 'password'} value={apiConfig.imageApiKey} onChange={(e) => setApiConfig({...apiConfig, imageApiKey: e.target.value})} placeholder="sk-..." className="mi-field config-input config-secret-input" />
+                <button type="button" onClick={() => toggleKeyVisibility('image')} className="mi-icon-button mi-icon-button-compact config-secret-toggle" aria-label={visibleKeys.image ? '隐藏图片 API Key' : '显示图片 API Key'} title={visibleKeys.image ? '隐藏 API Key' : '显示 API Key'}>
+                  <Icon name={visibleKeys.image ? 'EyeOff' : 'Eye'} className="h-4 w-4" />
+                </button>
+              </div>
             </div>
           </div>
           {imageSizeWarning && <div className="mi-feedback mi-feedback-warning config-preference-note"><Icon name="TriangleAlert" className="h-4 w-4 shrink-0" /><span>{imageSizeWarning}</span></div>}
