@@ -12,7 +12,6 @@ const MOREIMG_IMAGE_DIAGNOSTIC_KEY = 'moreimg_last_image_diagnostic';
 const MOREIMG_IMAGE_USAGE_LOG_KEY = 'moreimg_image_usage_log';
 const IMAGE_USAGE_LOG_LIMIT = 100;
 const HISTORY_INDEX_KEY = 'moreimg_history_index';
-const LEGACY_HISTORY_KEY = 'agent_history';
 const HISTORY_LIMIT = 50;
 const loadLastImageDiagnostic = () => {
   try {
@@ -102,7 +101,7 @@ const openImageDatabase = () => new Promise((resolve, reject) => {
   request.onsuccess = () => resolve(request.result);
   request.onerror = () => reject(request.error);
 });
-const saveImageBlob = async (sessionId, cardTitle, blob, mode = 'visual', focusY) => {
+const saveImageBlob = async (sessionId, cardTitle, blob, mode = 'visual-only', focusY) => {
   const database = await openImageDatabase();
   await new Promise((resolve, reject) => {
     const transaction = database.transaction(IMAGE_STORE_NAME, 'readwrite');
@@ -238,11 +237,6 @@ const deleteSessionRecord = async id => {
     transaction.onerror = () => reject(transaction.error);
   });
   database.close();
-};
-const migrateLegacyHistory = async legacyHistory => {
-  const records = Array.isArray(legacyHistory) ? legacyHistory.filter(item => item?.id && item?.sessionData).slice(0, HISTORY_LIMIT) : [];
-  await Promise.all(records.map(saveSessionRecord));
-  return records.map(toHistoryIndex);
 };
 const dataUrlToBlob = dataUrl => {
   const [header, encoded] = dataUrl.split(',');
@@ -440,14 +434,6 @@ const createDemoSessionRecord = () => ({
   sessionData: {
     rawText: JSON.stringify(demoPackageData),
     packageData: demoPackageData,
-    stages: {
-      1: '',
-      2: '',
-      3: '',
-      4: '',
-      5: '',
-      6: ''
-    },
     isHalted: false,
     stopReason: '',
     warning: '',
@@ -575,26 +561,33 @@ const loadDemoHistory = async () => {
   await deleteSessionImages(DEMO_SESSION_ID).catch(() => {});
   return seedDemoHistory();
 };
-const DEFAULT_SYSTEM_PROMPT = String.raw`你是 MoreImg v6 内容加工与视觉规划 Agent。你必须在一次响应中，把用户原文加工成可供应用直接读取的 moreimg-1.0 JSON。
+const DEFAULT_SYSTEM_PROMPT = String.raw`你是 MoreImg v6 内容加工与视觉规划 Agent。应用内置核心规则不可编辑。你的任务是：在一次响应中，把用户原文加工成应用可直接读取的 moreimg-1.0 JSON。
 
-总原则
-- 一次完成内容判型、事实边界检查、完整文章精修、卡片拆分、Style Lock 设计和逐页无文字主视觉映射。
-- 忠于原文，不得编造原文没有的数据、案例、经历、人物、产品能力、时间、结论、比喻或行动建议。
-- 不得声称已经联网、全网搜索或完成外部事实核验。
+工作顺序（只在内部执行，不要输出过程）
+1. 识别原文主题、核心判断、观点单元和事实边界。
+2. 在不改变原意的前提下精修完整文章。
+3. 按文章论证顺序拆分封面、正文页和封底。
+4. 为整套页面建立一个 Style Lock，再为每页生成语义和无文字主视觉描述。
+5. 检查 JSON、字段类型、页码连续性和内容可追溯性后一次性输出。
 
-唯一输出协议
-1. 只输出一个合法 JSON 对象，JSON 前后不得出现任何其他字符。
-2. 禁止输出 Markdown 代码块、阶段标题、解释、前言、后记、自检结论或注释。
-3. 所有属性名和字符串必须使用双引号；禁止尾随逗号、undefined、NaN 和未转义换行。
-4. schema_version 必须严格等于 "moreimg-1.0"。
-5. status 只能是 "complete" 或 "rejected"。
-6. 不得输出 validation 字段，不得创建独立 cards 数组或 prompts 数组。
-7. 同一页的 card、semantic 和 image_prompt 必须位于同一个 pages 元素中。
-8. 所有规定为数组的字段都必须输出 JSON 数组；即使没有内容也必须输出空数组 []。
-9. 禁止将数组字段输出为字符串、null 或对象；只有字段内的单个元素才能是字符串或规定的对象。
+优先级
+1. 输出协议和字段类型是硬约束。
+2. 忠于原文，不能用排版建议牺牲事实、判断、论据、因果关系或行动条件。
+3. 页面语义、Style Lock 和 image_prompt 必须互相对应，不能各自另起主题。
+4. 标题、要点和视觉描述都必须能回溯到原文或精修正文。
+
+一、唯一输出协议
+- 只输出一个合法 JSON 对象，JSON 前后不得出现任何其他字符。
+- 禁止 Markdown 代码块、阶段标题、解释、前言、后记、自检结论和注释。
+- 所有属性名和字符串使用双引号；禁止尾随逗号、undefined、NaN 和未转义换行。
+- schema_version 必须严格等于 "moreimg-1.0"；status 只能是 "complete" 或 "rejected"。
+- 成功结果必须且只能包含以下顶层字段：schema_version、status、analysis、article、style_lock、pages。
+- 不得输出 validation 字段，不得创建独立 cards 数组或 prompts 数组；同一页的 card、semantic 和 image_prompt 必须位于同一个 pages 元素中。
 
 数组字段硬约束
-- analysis 中的 independent_units、fact_notes、logic_issues、article 中的 paragraphs 必须是数组。
+- 所有规定为数组的字段都必须输出 JSON 数组；即使没有内容也必须输出空数组 []。
+- 禁止将数组字段输出为字符串、null 或对象；数组元素的类型也必须符合下列定义。
+- analysis 中的 independent_units、fact_notes、logic_issues，以及 article 中的 paragraphs 必须是数组。
 - 每页 card.points、semantic.supporting_concepts、semantic.excluded_concepts、semantic.avoid_misread 必须是字符串数组。
 - style_lock.visual_dna.recurring_elements、style_lock.negative 和每页 image_prompt.avoid 必须是字符串数组。
 - pages 必须是对象数组；fact_notes 必须是对象数组；其余上述数组字段不得包含对象。
@@ -604,71 +597,65 @@ const DEFAULT_SYSTEM_PROMPT = String.raw`你是 MoreImg v6 内容加工与视觉
 - 不得因为文章短、缺少数据、不需要事实核查或只有一个观点而拒绝。
 - 拒绝时只能输出：{"schema_version":"moreimg-1.0","status":"rejected","reason":"明确简短的原因"}
 
-成功结果必须且只能包含以下顶层字段：
-- schema_version
-- status
-- analysis
-- article
-- style_lock
-- pages
-
-analysis
+二、内容理解与事实边界
+analysis 必须包含 mode、topic、core_claim、independent_units、fact_notes、logic_issues。
 - mode 只能是 "standard"、"short" 或 "single_point"。
-- 必须包含 topic、core_claim、independent_units、fact_notes、logic_issues。
-- fact_notes 每项包含 claim、category、status、note。
-- category 只能是 author_statement、public_fact、opinion、scene。
-- status 只能是 consistent、unverified、uncertain、not_applicable。
+- fact_notes 每项包含 claim、category、status、note；category 只能是 author_statement、public_fact、opinion、scene；status 只能是 consistent、unverified、uncertain、not_applicable。
 - 作者自述只检查内部一致性；公开事实无法核实时使用 unverified 或 uncertain；观点和场景不得伪装成已核实事实。
+- 忠于原文，不得编造原文没有的数据、案例、经历、人物、产品能力、时间、结论、比喻或行动建议。
+- 不得声称已经联网、全网搜索或完成外部事实核验；没有检索能力时必须如实保留未核实状态。
 
-article
-- 必须包含 title、subtitle、paragraphs。
-- paragraphs 必须是字符串数组，每项是一段完整正文，不得输出摘要、提纲、检查说明或卡片文案代替全文。
-- standard 模式保留原文开场、论证、分观点、转折和收束，通常保持原文有效正文的 80%-120%，只删除重复、调整顺序、消除歧义并补充必要连接句。
+三、完整文章
+article 必须包含 title、subtitle、paragraphs；paragraphs 是字符串数组，每项是一段完整正文，不得用摘要、提纲、检查说明或卡片文案代替全文。
+- standard 模式保留原文开场、论证、分观点、转折和收束，通常保持原文有效正文的 80%-120%；只删除重复、调整顺序、消除歧义并补充必要连接句。
 - short 和 single_point 模式不得为凑篇幅而扩写，但仍须输出完整、可独立阅读的精修正文。
 
-pages
-- 固定结构为封面 + 1-7张正文 + 封底，封底始终生成。
+四、页面结构与卡片文字
+pages 固定结构为封面 + 1-7张正文 + 封底，封底始终生成。
 - 第1页 page_id 为 "cover"，page_type 为 "cover"。
-- 正文 page_id 从 "content-01" 连续编号。
-- 最后一页 page_id 为 "closing"，page_type 为 "quote"。
-- order 从1开始连续递增且不得重复。
-- page_type 只能是 cover、process、timeline、relationship、comparison、checklist、framework、quote。
+- 正文 page_id 从 "content-01" 连续编号；最后一页 page_id 为 "closing"，page_type 为 "quote"。
+- order 从1开始连续递增且不得重复；page_type 只能是 cover、process、timeline、relationship、comparison、checklist、framework、quote。
 - 每页只表达一个核心判断，页面顺序必须跟随文章论证顺序。
 
-card
-- 每页必须包含 title、subtitle、points、summary；不使用的字符串输出空字符串，不使用的 points 输出空数组。
-- 封面 points 必须为空；title 是核心标题，默认优先保留原文标题或原文明确的核心命名，不得擅自改写成新的问题句、营销句或另一主题名；subtitle 是短副标题，summary 是标语或记忆句，三者不得机械重复。
-- 正文 title 建议4-14个汉字；standard 模式通常保留3-5条有效信息，short 和 single_point 模式通常保留2-4条，每条建议控制在25个汉字以内；summary 最多一句且建议控制在20个汉字以内。字数仅是写作建议，不作为结果是否可用的判断条件。
-- 不得为了适配字数限制删除关键判断、必要论据、因果关系或行动条件。单页容纳不下时，优先拆分到相邻正文页，并保持文章论证顺序；信息不足时不得凑数或重复改写同一观点。
+每页 card 必须包含 title、subtitle、points、summary；不使用的字符串输出空字符串，不使用的 points 输出空数组。
+- 封面 points 必须为空。title 是核心标题，默认优先保留原文标题或原文明确的核心命名，不得擅自改写成新的问题句、营销句或另一主题名；在要求保留标题时，标题必须优先保留，除非原文没有可用标题。subtitle 是短副标题，summary 是标语或记忆句，三者不得机械重复。
+- 正文 title 建议4-14个汉字；standard 模式通常保留3-5条有效信息，short 和 single_point 模式通常保留2-4条；每条建议控制在25个汉字以内，summary 最多一句且建议控制在20个汉字以内。以上数量和字数仅是写作建议，不作为结果是否可用的判断条件。
+- 不得为了适配字数限制删除关键判断、必要论据、因果关系或行动条件，也不得擅自合并或改写原文信息。单页容纳不下时，优先拆分到相邻正文页，并保持文章论证顺序；信息不足时不得凑数或重复改写同一观点。
 - 封底自然收束全文。原文有行动建议时可以提炼；原文没有时使用核心结论或中性收束，禁止新增任务、互动问题、关注引导和营销号召。
 - 所有入图文字必须可回溯到原文或精修正文。
 
-semantic
-- 每页必须包含 page_goal、primary_claim、primary_concept、primary_relation、supporting_concepts、excluded_concepts、avoid_misread。
-- primary_relation 必须是本页独有的具体关系，不得让所有页面重复整篇文章总主题。
+结果页 tab 映射（必须保持）
+- 外层结果阶段固定分组："理解与核查" 对应 analysis 的阶段1-2；"文章与卡片" 对应 article 与 pages[].card 的阶段3-4；"视觉生成与对比" 对应 pages[].image_prompt 的阶段5。不要输出用于驱动外层 tab 的自定义字段。
+- “理解与核查” tab 读取 analysis：其中 topic、core_claim、independent_units 用于判型，fact_notes 和 logic_issues 用于事实边界与逻辑检查。
+- “文章与卡片” tab 读取 article 和 pages[].card：article.paragraphs 渲染精修正文，pages[].card 渲染知识卡片内容包。
+- “视觉生成与对比” tab 读取同一 pages 数组中的 pages[].image_prompt，并结合唯一的 style_lock 生成每页主视觉；不要另建视觉页数组。
+- 每个 pages 元素必须同时包含同一页的 card、semantic、image_prompt；不要拆成跨数组数据，也不要输出 stage、tab、cards 或 prompts 字段。
+- 视觉页内页签的显示顺序和名称由 page_id、order 生成：cover 对应封面，content-01 起对应正文1/N、正文2/N，closing 对应封底。不要用自定义标题替代这些标识，也不要跳号、重复或调换顺序。
+
+五、页面语义
+每页 semantic 必须包含 page_goal、primary_claim、primary_concept、primary_relation、supporting_concepts、excluded_concepts、avoid_misread。
+- primary_relation 必须是本页独有的具体关系，不得让所有页面重复整篇文章总主题；image_prompt.relationship 必须与它一致。
 - 先判断主概念和主关系，再判断辅助概念。类比、旁注、背景说明及不同抽象层级概念默认放入 excluded_concepts。
 - 不得因为出现三个名词就画成三层架构、三栏并列或三个同等主体。
 
-style_lock
-- 整套只能使用一个 Style Lock，必须包含 style_id、style_name、card_shell、prompt_prefix、visual_dna、negative。
+六、全套 Style Lock
+整套只能使用一个 Style Lock，必须包含 style_id、style_name、card_shell、prompt_prefix、visual_dna、negative。
 - card_shell.preset 固定为 "moreimg-clean-v1"；surface 只能是 "light" 或 "dark"；accent_color 使用 #RRGGBB；overlay 只能是 "none"、"soft_dark" 或 "soft_light"。
 - visual_dna 必须包含 medium、visual_world、shape_language、perspective、lighting、material、recurring_subject、recurring_elements。
 - medium 只能是 3d_model、geometric_silhouette、hand_drawn_line、isometric_icon、flat_vector、wireframe_perspective。
-- visual_world 必须定义具体统一的视觉世界，不能只写科技感、高级感等空泛词。
-- recurring_subject 必须定义跨页重复的人物、物体或符号系统。
+- visual_world 必须定义具体统一的视觉世界，不能只写科技感、高级感等空泛词；recurring_subject 必须定义跨页重复的人物、物体或符号系统。
 - 各页可以改变场景和关系，但不得改变主色体系、视觉媒介、造型语言、透视、光影、材质、视觉世界和重复主体系统。
 - 禁止把每页分别设计成互不相关的航海、音乐厅、流程图、工具箱或城市世界。
 
-image_prompt
-- 每页必须包含 scene、relationship、composition、safe_area、continuity、avoid。
-- image_prompt 只描述无文字主视觉，不负责生成卡片文字。
+七、逐页无文字主视觉
+每页 image_prompt 必须包含 scene、relationship、composition、safe_area、continuity、avoid；image_prompt 只描述无文字主视觉，不负责生成卡片文字。
 - 封面 safe_area 使用 "top_40"；正文使用 "top_52"；封底使用 "top_36"。safe_area 表示适合叠加文字的低细节范围，不是纯色留白比例；背景、光影和弱化后的环境结构必须连续穿过该区域。
 - scene 必须明确实际出现的主体与场景；relationship 必须与 semantic.primary_relation 一致；composition 必须说明视觉重心和上下连续关系，主体轮廓、路径或环境结构要进入画面中部，不能把画面切成“上方空白、下方贴图”；continuity 必须说明如何继承 Style Lock。
 - 禁止用大片纯色、空雾、无内容墙面或空台面代替文字承载区；只降低细节和对比，不得让卡片显得信息单薄。
 - avoid 只写本页特有误读风险，全局禁用项放入 style_lock.negative。
-- 所有图片禁止文字、字母、数字、Logo、水印、伪文字、UI标签和随机符号。
+- 所有图片禁止文字、字母、数字、Logo、水印、伪文字、UI标签、随机符号、卡片框架和任何伪文字纹理。
 
-输出前在内部检查：完整正文没有摘要化；封面、正文、封底齐全；page_id 与 order 连续；每个 pages 元素都必须包含 card、semantic、image_prompt；每个 card.title 都必须是非空字符串（包括最后一页）；style_lock.negative 必须是至少包含一项的字符串数组；所有规定为数组的字段必须逐项检查类型；主关系符合原文概念层级；全套只有一个 Style Lock；没有新增原文外事实。不要输出检查过程。`;
+输出前仅在内部检查：完整正文没有摘要化；封面、正文、封底齐全；page_id 与 order 连续；每个 pages 元素都包含 card、semantic、image_prompt；每个 card.title 都是非空字符串（包括最后一页）；style_lock.negative 是至少包含一项的字符串数组；所有规定为数组的字段逐项检查类型；主关系符合原文概念层级；全套只有一个 Style Lock；没有新增原文外事实。不要输出检查过程。`;
 const Icon = React.memo(({
   name,
   className = "",
@@ -819,36 +806,6 @@ const NEW_STAGES = [{
   icon: 'Image',
   subStages: [5]
 }];
-const parseStreamedText = fullText => {
-  const stages = {
-    1: '',
-    2: '',
-    3: '',
-    4: '',
-    5: '',
-    6: ''
-  };
-  const stageRegex = /(?:^|\n)[ \t#*\[【]*阶段[ \t]*([1-6])[ \t]*[\]】#*]*[ \t]*[：:]?[ \t]*/g;
-  let match;
-  let lastIndex = 0;
-  let currentStage = null;
-  while ((match = stageRegex.exec(fullText)) !== null) {
-    if (currentStage !== null) {
-      stages[currentStage] = fullText.substring(lastIndex, match.index).trim();
-    }
-    currentStage = parseInt(match[1]);
-    lastIndex = match.index + match[0].length;
-  }
-  if (currentStage !== null) {
-    stages[currentStage] = fullText.substring(lastIndex).trim();
-  } else if (fullText.trim()) {
-    stages[1] = fullText.trim();
-  }
-  return {
-    stages,
-    latestStage: currentStage || 1
-  };
-};
 const PROCESSING_MAX_OUTPUT_TOKENS = 12000;
 const TEXT_REQUEST_TIMEOUT_MS = 300000;
 const TEXT_TEST_TIMEOUT_MS = 30000;
@@ -888,123 +845,6 @@ const runWithRequestControl = (task, options = {}) => {
     });
   });
 };
-const parsePromptSections = (content = '') => {
-  const source = String(content || '');
-  const headingSections = [];
-  const headingRegex = /###\s*\[?((?:封面|正文\d+\/\d+|封底))\]?\s*([\s\S]*?)(?=###|$)/g;
-  let match;
-  while ((match = headingRegex.exec(source)) !== null) {
-    headingSections.push({
-      title: match[1].trim(),
-      text: match[2].trim()
-    });
-  }
-  const parseBracketSections = value => {
-    const items = [];
-    const bracketRegex = /\[((?:封面|正文\d+\/\d+|封底))\]\s*([\s\S]*?)(?=\[(?:封面|正文\d+\/\d+|封底)\]|$)/g;
-    while ((match = bracketRegex.exec(value)) !== null) {
-      items.push({
-        title: match[1].trim(),
-        text: match[2].trim()
-      });
-    }
-    return items;
-  };
-  const codeBlockSources = [...source.matchAll(/```[^\n]*\n([\s\S]*?)```/g)].map(block => block[1]);
-  const bracketCandidates = [...codeBlockSources.map(parseBracketSections), parseBracketSections(source)];
-  const plainHeaderRegex = /(?:^|\n)\s*(?:#{1,6}\s*)?(封面|正文\d+\/\d+|封底)(?:提示词)?\s*[：:]?\s*(?=\n|$)/g;
-  const headers = [...source.matchAll(plainHeaderRegex)];
-  const plainSections = headers.map((header, index) => {
-    const blockStart = header.index + header[0].length;
-    const blockEnd = headers[index + 1]?.index ?? source.length;
-    return {
-      title: header[1].trim(),
-      text: source.slice(blockStart, blockEnd).trim()
-    };
-  });
-  const dedupeSections = items => {
-    const seen = new Set();
-    return items.filter(section => {
-      if (!section.title || !section.text || seen.has(section.title)) return false;
-      seen.add(section.title);
-      return true;
-    });
-  };
-  return [headingSections, ...bracketCandidates, plainSections].map(dedupeSections).sort((left, right) => right.length - left.length)[0] || [];
-};
-const assessAnalysisDepth = (parsed, originalText = '') => {
-  const inputLength = String(originalText || '').replace(/\s+/g, '').length;
-  if (!inputLength) return {
-    isAdequate: true,
-    requiredStage3Length: 0
-  };
-  const stageLengths = [1, 2, 3].map(stage => String(parsed.stages[stage] || '').replace(/\s+/g, '').length);
-  const isCompactSource = inputLength < 600;
-  const requiredStage3Length = isCompactSource ? Math.max(60, Math.floor(inputLength * 0.45)) : Math.min(1200, Math.max(360, Math.floor(inputLength * 0.5)));
-  const requiredStage1Length = isCompactSource ? 40 : 60;
-  const requiredStage2Length = isCompactSource ? 60 : 180;
-  return {
-    isAdequate: stageLengths[0] >= requiredStage1Length && stageLengths[1] >= requiredStage2Length && stageLengths[2] >= requiredStage3Length,
-    requiredStage3Length,
-    stageLengths
-  };
-};
-const assessProcessingResult = (fullText, originalText = '') => {
-  const text = String(fullText || '').trim();
-  const parsed = parseStreamedText(text);
-  const isRejected = parsed.latestStage === 1 && /(不适合|不通过|不足以|建议提供|暂不适合)/.test(parsed.stages[1] || '');
-  const hasStage4 = Boolean(parsed.stages[4]?.trim());
-  const hasStage5 = Boolean(parsed.stages[5]?.trim());
-  const parsedCards = parseCardPackage(parsed.stages[4]);
-  const parsedPrompts = parsePromptSections(parsed.stages[5]);
-  const cardTypes = new Set(parsedCards.map(card => card.type));
-  const cardPageKeys = parsedCards.map(card => card.imageKey);
-  const promptHeadingKeys = [...String(parsed.stages[5] || '').matchAll(/(?:^|\n)\s*#{1,6}\s*\[?((?:封面|正文\d+\/\d+|封底))\]?\s*(?=\n|$)/g)].map(match => match[1]);
-  const promptPageKeys = promptHeadingKeys.length > 0 ? promptHeadingKeys : parsedPrompts.map(section => section.title);
-  const promptTitles = new Set(promptPageKeys);
-  const hasUsableCards = cardTypes.has('cover') && cardTypes.has('body') && cardTypes.has('back');
-  const hasUsablePrompts = promptTitles.has('封面') && [...promptTitles].some(title => /^正文\d+\/\d+$/.test(title)) && promptTitles.has('封底');
-  const isValidPageSequence = pageKeys => {
-    if (pageKeys.length < 3 || pageKeys[0] !== '封面' || pageKeys.at(-1) !== '封底') return false;
-    if (new Set(pageKeys).size !== pageKeys.length) return false;
-    const bodyKeys = pageKeys.slice(1, -1);
-    return bodyKeys.length > 0 && bodyKeys.every((pageKey, index) => {
-      const match = pageKey.match(/^正文(\d+)\/(\d+)$/);
-      return Boolean(match) && Number(match[1]) === index + 1 && Number(match[2]) === bodyKeys.length;
-    });
-  };
-  const hasExactPageMapping = isValidPageSequence(cardPageKeys) && isValidPageSequence(promptPageKeys) && cardPageKeys.length === promptPageKeys.length && cardPageKeys.every((pageKey, index) => pageKey === promptPageKeys[index]);
-  const hasFormatError = text.includes('接口返回格式异常');
-  const analysisDepth = assessAnalysisDepth(parsed, originalText);
-  const isComplete = hasUsableCards && hasUsablePrompts && hasExactPageMapping && analysisDepth.isAdequate && !hasFormatError;
-  const canContinue = hasStage4 && hasStage5 && hasUsableCards && hasUsablePrompts && hasExactPageMapping && !hasFormatError;
-  const warning = canContinue && !analysisDepth.isAdequate ? '阶段1至3内容仍过于简略，已保留卡片和提示词，建议换用指令遵循能力更强的文本模型重试。' : canContinue && !isComplete ? '内容已生成，但部分卡片或提示词格式不标准，请在生图前检查。' : '';
-  return {
-    parsed,
-    analysisDepth,
-    isComplete,
-    canContinue,
-    warning,
-    isRejected,
-    reason: hasFormatError ? '接口返回格式异常' : !hasStage4 ? '尚未生成阶段4卡片内容' : !hasStage5 ? '尚未生成阶段5提示词内容' : !hasUsableCards ? '阶段4卡片格式不完整' : !hasUsablePrompts ? '阶段5提示词格式不完整' : !hasExactPageMapping ? '卡片与提示词未一一对应' : !analysisDepth.isAdequate ? '阶段1至3内容过于简略' : ''
-  };
-};
-const applyProcessingFinishReason = (assessment, finishReason = '') => {
-  const normalizedFinishReason = String(finishReason || '').trim().toLowerCase();
-  const isTruncated = ['length', 'max_tokens', 'max_output_tokens'].includes(normalizedFinishReason);
-  if (!isTruncated || assessment.isRejected) return {
-    ...assessment,
-    finishReason: normalizedFinishReason
-  };
-  return {
-    ...assessment,
-    isComplete: false,
-    canContinue: false,
-    warning: '',
-    reason: `输出达到 ${PROCESSING_MAX_OUTPUT_TOKENS} Token 上限`,
-    finishReason: normalizedFinishReason
-  };
-};
 const formatProcessingError = error => {
   const message = String(error?.message || error || '未知错误').trim();
   if (error?.code === 'response_content') return message;
@@ -1026,13 +866,6 @@ const MOREIMG_MEDIA = new Set(['3d_model', 'geometric_silhouette', 'hand_drawn_l
 const MOREIMG_SURFACES = new Set(['light', 'dark']);
 const MOREIMG_OVERLAYS = new Set(['none', 'soft_dark', 'soft_light']);
 const DEFAULT_STYLE_NEGATIVE = Object.freeze(['文字', '字母', '数字', 'Logo', '水印', '伪文字']);
-const createDefaultProcessingPreferences = () => ({
-  refinement: 'standard',
-  pageCount: 'auto',
-  preserveTitle: true,
-  tone: 'preserve',
-  customInstruction: ''
-});
 const requireObject = (value, path, errors) => {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
     errors.push(`${path} 必须是对象`);
@@ -1239,9 +1072,7 @@ const validateMoreImgPackage = (packageData, originalText = '') => {
         requireString(page.card.subtitle, `${path}.card.subtitle`, errors, {
           allowEmpty: true
         });
-        requireStringArray(page.card.points, `${path}.card.points`, errors, {
-          max: 5
-        });
+        requireStringArray(page.card.points, `${path}.card.points`, errors);
         requireString(page.card.summary, `${path}.card.summary`, errors, {
           allowEmpty: true
         });
@@ -1328,26 +1159,13 @@ const buildPageImagePrompt = (styleLock, page) => {
   const compositionBridge = page.page_id === 'closing' ? '收束主体、路径或结构走势必须进入画面中部，与上方结论自然衔接' : page.page_id === 'cover' ? '主场景轮廓从画面中部开始清晰出现，与标题区域形成连续叙事' : '弱化后的环境结构延伸到文字区，主关系在画面中部开始建立';
   return `无文字主视觉，3:4全幅连续背景。画面气质：${styleLock.prompt_prefix}。场景：${page.image_prompt.scene}。主关系：${page.image_prompt.relationship}。构图：${page.image_prompt.composition}；${safeArea}，只降低细节和对比，背景、光影与环境结构仍须连续，不能成为纯色留白或空雾占位；${compositionBridge}。系列连续性：${page.image_prompt.continuity}。避免：${[...globalAvoid, ...localAvoid].filter(Boolean).join('、')}。不得出现任何文字、字母、数字、符号、Logo、水印、UI标签、卡片框架或伪文字纹理。`;
 };
-const PROCESSING_PREFERENCE_LABELS = {
-  refinement: {
-    standard: '标准精修',
-    light: '轻度整理'
-  },
-  tone: {
-    preserve: '尽量保留原文语气',
-    concise: '更简洁克制',
-    conversational: '更口语自然'
-  }
-};
-const buildInitialProcessingMessages = (originalText, systemPrompt = '', preferences = createDefaultProcessingPreferences()) => {
-  const pageCountText = preferences.pageCount === 'auto' ? '自动决定，固定包含封面和封底' : `总页数：${preferences.pageCount}页，固定包含封面和封底`;
-  const preferenceLines = [`精修方式：${PROCESSING_PREFERENCE_LABELS.refinement[preferences.refinement] || PROCESSING_PREFERENCE_LABELS.refinement.standard}`, `卡片页数：${pageCountText}`, `原文标题：${preferences.preserveTitle ? '必须优先保留，除非原文没有可用标题' : '允许优化但不得改变核心命名'}`, `内容口吻：${PROCESSING_PREFERENCE_LABELS.tone[preferences.tone] || PROCESSING_PREFERENCE_LABELS.tone.preserve}`, preferences.customInstruction?.trim() ? `补充要求：${preferences.customInstruction.trim()}` : ''].filter(Boolean);
+const buildInitialProcessingMessages = (originalText, systemPrompt = '') => {
   return [{
     role: 'system',
     content: systemPrompt
   }, {
     role: 'user',
-    content: `请按内置规则处理以下原文，并只返回 moreimg-1.0 JSON。\n\n加工偏好：\n${preferenceLines.join('\n')}\n\n原文：\n${originalText}`
+    content: `请按内置规则处理以下原文，并只返回 moreimg-1.0 JSON。\n\n原文：\n${originalText}`
   }];
 };
 const IMAGE_SIZE_PATTERN = /^\d{3,5}x\d{3,5}$/;
@@ -1422,6 +1240,7 @@ const buildImageRequestBody = (model, prompt, size) => isGptImage2Model(model) ?
   prompt,
   n: 1,
   aspect_ratio: normalizeImageRatio(size),
+  size: ratioToImageSize(size) || DEFAULT_IMAGE_SIZE,
   quality: 'standard',
   response_format: 'url',
   watermark: false
@@ -1742,75 +1561,17 @@ const readProcessingResponse = async response => {
   };
 };
 const getCardVisibleText = card => card ? [card.title, card.subtitle, ...(card.points || []), card.summary].filter(Boolean) : [];
-const buildVisualOnlyPrompt = (visualPrompt, card) => {
-  const visibleText = card ? [card.title, card.subtitle, ...(card.points || []), card.summary].filter(Boolean) : [];
-  let sanitizedPrompt = String(visualPrompt || '').replace(/```[^\n]*\n?/g, '').replace(/```/g, '').replace(/「[^」]*」|“[^”]*”|"[^"]*"/g, '').replace(/(?:核心)?主体(?:必须)?占(?:整个)?画面(?:的)?45%-65%[^。；\n]*[。；]?/g, '').replace(/顶部55%[^。；\n]*[。；]?/g, '').trim();
-  visibleText.forEach(text => {
-    sanitizedPrompt = sanitizedPrompt.split(String(text)).join('');
-  });
-  const textLayoutInstruction = /(?:主标题|副标题|标题|要点|总结|行动号召|信息条|文字排版|文本排版|字体|字号|字重|文案|准确绘制|逐字|写上|标注|页码|署名|二维码)/;
-  const sceneDescription = sanitizedPrompt.split(/[。！？；\n]+/).map(sentence => sentence.split(/[，,]+/).map(part => part.trim().replace(/^[、:：\s]+|[、:：\s]+$/g, '')).filter(part => part && !textLayoutInstruction.test(part)).join('，')).filter(part => part && !textLayoutInstruction.test(part)).join('。');
-  const safeArea = card?.type === 'cover' ? '顶部约38%-42%作为文字承载范围' : card?.type === 'back' ? '顶部约34%-38%作为文字承载范围' : '顶部约50%-52%作为文字承载范围';
-  const compositionBridge = card?.type === 'back' ? '收束主体、路径、视线或结构走势从下方向上进入画面中部，与上方结论形成联系；' : card?.type === 'cover' ? '主场景轮廓从画面中部开始清晰出现，与标题区形成连续叙事；' : '主关系从画面中部开始建立，弱化后的环境结构继续延伸到文字区；';
-  return `无文字主视觉。生成一张可作为整张 3:4 卡片全幅背景的连续画面，背景自然延伸到四边，空间、光影和结构保持连贯，不要内嵌图片框、海报边框或独立卡片容器。主视觉重心位于中下部并占据足够面积，${safeArea}，但这里只降低细节和对比，不能处理成大片纯色、空雾、无内容墙面或空台面；${compositionBridge}避免上下割裂或中间出现无意义空白。底部只展示主视觉，不预留文字位置。只保留并生成以下场景或插图元素：${sceneDescription || '围绕卡片主关系设计一个主体明确、构图简洁的视觉场景'}。不得出现任何文字、字母、数字、符号、Logo、水印、卡片框架、UI、信息条或伪文字纹理；不要绘制标题、要点、总结和按钮标签。`;
-};
 const buildFullImagePrompt = (visualPrompt, card) => {
   const visibleText = getCardVisibleText(card);
+  const textBindings = card?.type === 'cover' ? [card.title ? `主标题：「${card.title}」` : '', card.subtitle ? `副标题：「${card.subtitle}」` : '', card.summary ? `总结/记忆句：「${card.summary}」` : ''].filter(Boolean) : card?.type === 'back' ? [card.title ? `核心总结：「${card.title}」` : '', card.summary ? `行动号召：「${card.summary}」` : ''].filter(Boolean) : [card.title ? `标题：「${card.title}」` : '', card.subtitle ? `副标题：「${card.subtitle}」` : '', ...(Array.isArray(card?.points) ? card.points : []).map((point, index) => `要点${index + 1}：「${point}」`), card.summary ? `总结：「${card.summary}」` : ''].filter(Boolean);
   const sanitizedVisualPrompt = String(visualPrompt || '').replace(/无文字主视觉|无文字视觉素材/g, '完整卡片视觉').replace(/画面中不生成任何文字[^。；\n]*[。；]?/g, '').replace(/不得出现任何文字[^。；\n]*[。；]?/g, '').replace(/不要绘制标题[^。；\n]*[。；]?/g, '').replace(/(?:核心)?主体(?:必须)?占(?:整个)?画面(?:的)?45%-65%[^。；\n]*[。；]?/g, '').replace(/避免：([^。；\n]*)/g, (_, items) => {
     const keptItems = items.split(/[、，,]/).map(item => item.trim()).filter(item => item && !/(文字|字母|数字|符号|Logo|水印|标签|代码字符|伪文字)/i.test(item));
     return keptItems.length > 0 ? `避免：${keptItems.join('、')}` : '';
   }).replace(/[。；]{2,}/g, '。').trim();
-  const layoutInstruction = card?.type === 'back' ? '这是封底。请按严格的三段层级排版：页标置于最上方，核心总结作为醒目的主标题，行动号召紧随其下并与主标题形成清晰层级；三者在上半部沿同一左对齐轴排列，保持明确的上下间距。下半部只展示主视觉，不放任何文字。' : card?.type === 'cover' ? '这是封面。请按严格的标题组排版：主标题作为最大字号的唯一视觉焦点，允许自然换行但必须保持完整；副标题紧跟主标题下方，字号明显小一级、颜色弱一级；标题组固定在上半部同一左对齐轴内，主视觉从中部向下承接。' : '这是正文页。请按严格的内容卡片结构排版：标题作为上半部第一层级的醒目主标题；所有要点作为同一组垂直列表，逐条换行并保持统一左对齐，使用连续的圆点或编号标记；总结单独放在要点列表下方，与列表之间留出明显间距，并用细分隔线或独立强调区与要点区分开。标题、要点列表、总结必须按此顺序排列，不能横向散落、重叠或穿插在主视觉中；下半部只展示主视觉，不放任何文字。';
+  const layoutInstruction = card?.type === 'back' ? `这是封底。请按严格的层级排版：${card.title ? '核心总结作为醒目的主标题，允许自然换行但必须保持完整；' : ''}${card.summary ? '行动号召紧随主标题下方，字号明显小一级、颜色弱一级；' : ''}已有文字在上半部沿同一左对齐轴排列，保持明确的上下间距；未提供页标时不得自行添加“封底”等文字。下半部只展示主视觉，不放任何文字。` : card?.type === 'cover' ? `这是封面。请按严格的标题组排版：${card.title ? '主标题作为最大字号的唯一视觉焦点，允许自然换行但必须保持完整；' : ''}${card.subtitle ? '副标题紧跟主标题下方，字号明显小一级、颜色弱一级；' : ''}${card.summary ? '总结/记忆句置于副标题下方，字号再小一级或使用强调色收束；' : ''}标题组固定在上半部同一左对齐轴内，主视觉从中部向下承接。` : `这是正文页。请按严格的内容卡片结构排版：${card.title ? '标题作为上半部第一层级的醒目主标题；' : ''}${card.subtitle ? '副标题紧跟标题下方，字号明显小一级、颜色弱一级；' : ''}${card.points?.length ? '所有要点作为同一组垂直列表，逐条换行并保持统一左对齐，使用连续的圆点或编号标记；' : ''}${card.summary ? '总结单独放在要点列表下方，与列表之间留出明显间距，并用细分隔线或独立强调区与要点区分开；' : ''}以上文字必须按绑定角色顺序排列，不能横向散落、重叠或穿插在主视觉中；下半部只展示主视觉，不放任何文字。`;
   const typographyInstruction = '版式执行要求：画布为竖版 3:4，文字区约占上方 50%-52%，主视觉区从画面中部向下连续展开。所有文字放在同一清晰的文字承载区域内，建立明确的字号层级、字重层级、行距和段间距；优先使用现代无衬线字体，文字颜色与背景保持高对比，左右留出安全边距。仅将下列文本作为可见文字，字段名“标题、要点、总结、页标、核心总结、行动号召”等只是排版说明，不得绘制出来。';
-  return `生成一张完整的小红书知识卡片成品图，直接完成3:4排版。本页必须包含且只能包含以下文字：${visibleText.map(text => `「${text}」`).join('、')}。${layoutInstruction}${typographyInstruction}所有文字必须清晰可读、逐字保持不变，不能省略、改写、拆散或替换；禁止生成无文字版本，不要添加任何未提供的文字。\n\n视觉背景参考：${sanitizedVisualPrompt}。AI 整图为实验性输出，优先保证文字与卡片结构对应。`;
-};
-const cleanCardValue = (value = '') => value.replace(/^\s*[-*•]\s*/, '').replace(/^\*\*|\*\*$/g, '').replace(/^[「“\"]|[」”\"]$/g, '').trim();
-const readCardField = (block, fieldNames) => {
-  const names = (Array.isArray(fieldNames) ? fieldNames : [fieldNames]).map(name => name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
-  const match = block.match(new RegExp(`(?:^|\\n)\\s*(?:[-*•]\\s*)?(?:\\*\\*)?(?:${names})(?:\\*\\*)?\\s*[：:]\\s*(.+)`, 'm'));
-  return cleanCardValue(match?.[1] || '');
-};
-const readCardPoints = block => {
-  const lines = block.split('\n');
-  const points = [];
-  let collecting = false;
-  for (const rawLine of lines) {
-    const line = rawLine.trim();
-    if (/^(?:[-*•]\s*)?(?:\*\*)?(?:内容要点|要点)(?:\*\*)?\s*[：:]/.test(line)) {
-      collecting = true;
-      const inlineValue = line.replace(/^(?:[-*•]\s*)?(?:\*\*)?(?:内容要点|要点)(?:\*\*)?\s*[：:]\s*/, '');
-      if (inlineValue) points.push(...inlineValue.split(/[；;]/).map(cleanCardValue).filter(Boolean));
-      continue;
-    }
-    if (collecting && /^(?:[-*•]\s*)?(?:\*\*)?(?:一句话总结|总结|核心总结|行动号召|核心比喻)(?:\*\*)?\s*[：:]/.test(line)) break;
-    if (collecting && /^[-*•]\s+/.test(line)) points.push(cleanCardValue(line));
-  }
-  return points;
-};
-const parseCardPackage = content => {
-  if (!content) return [];
-  const headerRegex = /(?:^|\n)\s*(?:#{1,6}\s*)?(?:\*\*)?(封面卡片|正文卡片\s*\d+\/\d+|封底卡片)(?:\*\*)?\s*[：:]?\s*(?=\n|$)/g;
-  const headers = [...content.matchAll(headerRegex)];
-  return headers.map((header, index) => {
-    const label = header[1].replace(/\s+/g, ' ').trim();
-    const blockStart = header.index + header[0].length;
-    const blockEnd = headers[index + 1]?.index ?? content.length;
-    const block = content.slice(blockStart, blockEnd).trim();
-    const isCover = label === '封面卡片';
-    const isBack = label === '封底卡片';
-    const bodyMatch = label.match(/正文卡片\s*(\d+\/\d+)/);
-    const imageKey = isCover ? '封面' : isBack ? '封底' : `正文${bodyMatch?.[1] || index}`;
-    return {
-      id: `${imageKey}-${index}`,
-      label: isCover ? '封面' : isBack ? '封底' : `正文 ${bodyMatch?.[1] || ''}`,
-      imageKey,
-      type: isCover ? 'cover' : isBack ? 'back' : 'body',
-      title: isCover ? readCardField(block, '主标题') : isBack ? readCardField(block, '核心总结') : readCardField(block, '标题'),
-      subtitle: isCover ? readCardField(block, '副标题') : '',
-      points: isCover || isBack ? [] : readCardPoints(block),
-      summary: isBack ? readCardField(block, '行动号召') : readCardField(block, ['一句话总结', '总结'])
-    };
-  }).filter(card => card.title || card.subtitle || card.points.length || card.summary);
+  const boundText = textBindings.length > 0 ? textBindings.join('；') : visibleText.map(text => `未命名文字：「${text}」`).join('；');
+  return `生成一张完整的小红书知识卡片成品图，直接完成3:4排版。本页必须包含且只能包含以下文字：${boundText}。其中角色名仅用于排版定位，不得绘制。${layoutInstruction}${typographyInstruction}所有文字必须清晰可读、逐字保持不变，不能省略、改写、拆散或替换；禁止生成无文字版本，不要添加任何未提供的文字。\n\n视觉背景参考：${sanitizedVisualPrompt}。AI 整图为实验性输出，优先保证文字与卡片结构对应。`;
 };
 const getPageDisplayName = (page, contentCount = 0) => {
   if (page.page_id === 'cover') return '封面';
@@ -1873,6 +1634,199 @@ const getCardShellPresentation = styleLock => {
     }
   };
 };
+const loadRemoteModels = async ({
+  apiUrl,
+  apiKey,
+  kind = 'text',
+  signal
+}) => {
+  const endpoint = resolveApiEndpoint(apiUrl, kind);
+  const modelsEndpoint = deriveModelsEndpoint(endpoint);
+  const response = await runWithRequestControl(requestSignal => fetchApiRequest(modelsEndpoint, 'models', {
+    method: 'GET',
+    headers: {
+      'Authorization': `Bearer ${String(apiKey || '').trim()}`
+    },
+    signal: requestSignal
+  }), {
+    timeoutMs: 30000,
+    signal,
+    timeoutMessage: '读取模型列表超过 30 秒，请检查接口地址或稍后重试。'
+  });
+  if (!response.ok) throw new Error(`(HTTP ${response.status}) ${await readApiErrorMessage(response)}`);
+  const rawModels = await response.text();
+  let data;
+  try {
+    data = JSON.parse(rawModels);
+  } catch {
+    throw new Error(`接口返回了非 JSON 内容：${rawModels.replace(/\s+/g, ' ').trim().slice(0, 200) || '空响应'}`);
+  }
+  const modelIds = extractModelIds(data);
+  if (modelIds.length === 0) throw new Error('接口未返回可用模型');
+  return modelIds;
+};
+const requestTextProcessing = ({
+  apiUrl,
+  apiKey,
+  model,
+  messages,
+  maxOutputTokens = PROCESSING_MAX_OUTPUT_TOKENS,
+  signal,
+  timeoutMs = TEXT_REQUEST_TIMEOUT_MS,
+  timeoutMessage = '内容生成超过 300 秒，已自动停止。请先测试接口，或换用响应更快的文本模型。'
+}) => runWithRequestControl(async requestSignal => {
+  const endpoint = resolveApiEndpoint(apiUrl, 'text');
+  const response = await fetchTextRequest(endpoint, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${String(apiKey || '').trim()}`
+    },
+    body: JSON.stringify(buildProcessingRequestBody(endpoint, String(model || '').trim(), messages, maxOutputTokens, true)),
+    signal: requestSignal
+  });
+  if (!response.ok) throw new Error(`(HTTP ${response.status}) ${await readApiErrorMessage(response)}`);
+  const processingResponse = await readProcessingResponse(response);
+  if (!processingResponse.text.trim()) throw new Error('大模型未返回任何有效内容，请检查接口配置或稍后重试。');
+  return processingResponse;
+}, {
+  timeoutMs,
+  signal,
+  timeoutMessage
+});
+const testTextServiceConnection = async ({
+  apiUrl,
+  apiKey,
+  model,
+  signal
+}) => {
+  const startedAt = Date.now();
+  const response = await requestTextProcessing({
+    apiUrl,
+    apiKey,
+    model,
+    messages: [{
+      role: 'system',
+      content: '这是连接测试。'
+    }, {
+      role: 'user',
+      content: '只回复 OK'
+    }],
+    maxOutputTokens: 64,
+    signal,
+    timeoutMs: TEXT_TEST_TIMEOUT_MS,
+    timeoutMessage: '接口测试超过 30 秒，请检查接口地址、模型或服务状态。'
+  });
+  const text = response.text.trim();
+  if (!text) throw new Error('接口成功响应，但没有可解析文本');
+  return {
+    text,
+    elapsedMs: Date.now() - startedAt,
+    preview: text.replace(/\s+/g, ' ').slice(0, 48)
+  };
+};
+const requestImageAsset = async ({
+  apiUrl,
+  apiKey,
+  model,
+  prompt,
+  size,
+  controller,
+  fetchImpl = fetch,
+  onImageResponse = () => {}
+}) => {
+  const imageModel = String(model || '').trim();
+  const requestedSize = normalizeImageSize(size, imageModel);
+  const requestedRatio = normalizeImageRatio(size);
+  const imageEndpoint = resolveApiEndpoint(apiUrl, 'image');
+  const imageTransport = getRequestTransport(imageEndpoint, 'image');
+  const requestController = controller || new AbortController();
+  let generationCompletedAt = 0;
+  let requestPhase = 'request';
+  let timedOutPhase = '';
+  let phaseTimeout = setTimeout(() => {
+    timedOutPhase = 'request';
+    requestController.abort();
+  }, IMAGE_REQUEST_TIMEOUT_MS);
+  const restartTimeoutForPhase = (phase, timeoutMs) => {
+    clearTimeout(phaseTimeout);
+    phaseTimeout = setTimeout(() => {
+      timedOutPhase = phase;
+      requestController.abort();
+    }, timeoutMs);
+  };
+  try {
+    const response = await fetchImpl(imageTransport.url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${String(apiKey || '').trim()}`,
+        ...imageTransport.headers
+      },
+      body: JSON.stringify(buildImageRequestBody(imageModel, prompt, requestedSize)),
+      signal: requestController.signal
+    });
+    const {
+      remoteUrl,
+      dataUrl
+    } = await readImageResponse(response);
+    generationCompletedAt = Date.now();
+    requestPhase = 'download';
+    restartTimeoutForPhase('download', IMAGE_DOWNLOAD_TIMEOUT_MS);
+    onImageResponse({
+      remoteUrl,
+      dataUrl
+    });
+    let imageBlob;
+    if (dataUrl) {
+      imageBlob = dataUrlToBlob(dataUrl);
+    } else {
+      const downloadTransport = getImageDownloadTransport(remoteUrl);
+      const imageResponse = await fetchImpl(downloadTransport.url, {
+        headers: downloadTransport.headers,
+        signal: requestController.signal
+      });
+      if (!imageResponse.ok) throw new Error(`图片下载失败 HTTP ${imageResponse.status}`);
+      imageBlob = await imageResponse.blob();
+    }
+    return {
+      imageBlob,
+      imageEndpoint,
+      imageModel,
+      requestedSize,
+      requestedRatio,
+      dataUrl,
+      remoteUrl,
+      requestMeta: {
+        generationCompletedAt,
+        requestPhase: 'storage',
+        timedOutPhase: '',
+        isUserCancelled: false,
+        mayBeBilled: true
+      }
+    };
+  } catch (error) {
+    const isUserCancelled = requestController.signal.aborted && !timedOutPhase;
+    let failureError = error;
+    if (timedOutPhase === 'request') {
+      failureError = new Error(`图片生成超过 ${Math.round(IMAGE_REQUEST_TIMEOUT_MS / 1000)} 秒，已停止等待。上游可能已出图并计费，请先核对账单再重试。`);
+    } else if (timedOutPhase === 'download') {
+      failureError = new Error(`图片下载超过 ${Math.round(IMAGE_DOWNLOAD_TIMEOUT_MS / 1000)} 秒，已停止等待。本次生成已计费，请重试下载或换用返回 b64_json 的接口。`);
+    } else if (isUserCancelled) {
+      failureError = new Error('已取消生图。若上游已受理，本次仍可能计费。');
+    }
+    failureError.imageServiceMeta = {
+      generationCompletedAt,
+      requestPhase,
+      timedOutPhase,
+      isUserCancelled,
+      mayBeBilled: Boolean(generationCompletedAt) || requestPhase !== 'request' || timedOutPhase === 'request' || isUserCancelled
+    };
+    throw failureError;
+  } finally {
+    clearTimeout(phaseTimeout);
+  }
+};
 const HTML_CARD_EXPORT_STYLES = `
       .moreimg-export-card{--moreimg-card-accent:#F59E42;box-sizing:border-box;position:relative;isolation:isolate;width:1242px;height:1656px;overflow:hidden;background:#121417;color:#f7f7f2;font-family:"Noto Sans SC Variable",sans-serif;padding:0;letter-spacing:0}
       .moreimg-export-card *{box-sizing:border-box}
@@ -1893,9 +1847,9 @@ const HTML_CARD_EXPORT_STYLES = `
       .moreimg-card-title{margin:44px 0 0;font-size:92px;line-height:1.08;font-weight:920;letter-spacing:0;color:#f8f7f2;max-width:930px;overflow-wrap:anywhere;text-wrap:balance;text-shadow:0 2px 12px rgba(0,0,0,.3)}
       .moreimg-card-subtitle{margin-top:26px;max-width:840px;font-size:38px;line-height:1.42;font-weight:660;color:rgba(255,255,255,.82);text-shadow:0 1px 8px rgba(0,0,0,.26)}
       .moreimg-card-points{margin-top:34px;padding:0 6px;background:transparent}
-      .moreimg-card-point{min-height:88px;padding:22px 0;display:flex;align-items:center;border-bottom:0;font-size:36px;line-height:1.34;font-weight:740;color:#f7f6f1;text-shadow:0 1px 8px rgba(0,0,0,.3)}
+      .moreimg-card-point{min-height:88px;padding:22px 0;display:flex;align-items:baseline;border-bottom:0;font-size:36px;line-height:1.34;font-weight:740;color:#f7f6f1;text-shadow:0 1px 8px rgba(0,0,0,.3)}
       .moreimg-card-point:last-child{border-bottom:0}
-      .moreimg-card-point-index{width:62px;margin-right:20px;flex:none;color:var(--moreimg-card-accent);font-size:23px;font-variant-numeric:tabular-nums;letter-spacing:.08em}
+      .moreimg-card-point-index{width:62px;margin-right:20px;flex:none;color:var(--moreimg-card-accent);font-size:23px;transform:translateY(-.08em);font-variant-numeric:tabular-nums;letter-spacing:.08em}
       .moreimg-card-summary{margin-top:20px;padding:24px 6px 0;border-top:2px solid rgba(255,255,255,.4);font-size:37px;line-height:1.36;font-weight:840;color:#fbfaf5;text-shadow:0 1px 8px rgba(0,0,0,.3)}
       .moreimg-card-cover .moreimg-card-summary,.moreimg-card-back .moreimg-card-summary{border-top:0;padding-top:0}
       .moreimg-card-cover .moreimg-card-summary{margin-top:26px}
@@ -1934,6 +1888,16 @@ const HTML_CARD_EXPORT_STYLES = `
       .moreimg-card-surface-light .moreimg-card-summary{border-top-color:var(--moreimg-card-accent);color:#14202b;text-shadow:none}
       .moreimg-card-surface-light.moreimg-card-overlay-soft_dark .moreimg-card-shade{background:linear-gradient(180deg,rgba(20,29,36,.82) 0%,rgba(20,29,36,.58) 28%,rgba(20,29,36,.12) 62%,transparent 100%)}
       .moreimg-card-surface-light.moreimg-card-overlay-soft_dark .moreimg-card-kicker,.moreimg-card-surface-light.moreimg-card-overlay-soft_dark .moreimg-card-title,.moreimg-card-surface-light.moreimg-card-overlay-soft_dark .moreimg-card-subtitle,.moreimg-card-surface-light.moreimg-card-overlay-soft_dark .moreimg-card-point,.moreimg-card-surface-light.moreimg-card-overlay-soft_dark .moreimg-card-summary{color:#f8faf7;text-shadow:0 1px 8px rgba(0,0,0,.3)}
+      /* 没有主视觉时仍输出可用卡片：纯白底、移除背景装饰，并固定深色文字。 */
+      .moreimg-card-no-visual{background:#fff!important;color:#17202a!important}
+      .moreimg-card-no-visual .moreimg-card-media{background:#fff!important}
+      .moreimg-card-no-visual .moreimg-card-visual-placeholder{display:none}
+      .moreimg-card-no-visual .moreimg-card-shade,.moreimg-card-no-visual .moreimg-card-noise{display:none!important}
+      .moreimg-card-no-visual .moreimg-card-kicker{color:#5b6671!important;text-shadow:none!important}
+      .moreimg-card-no-visual .moreimg-card-title{color:#17202a!important;text-shadow:none!important}
+      .moreimg-card-no-visual .moreimg-card-subtitle{color:#53616e!important;text-shadow:none!important}
+      .moreimg-card-no-visual .moreimg-card-point{color:#25313b!important;text-shadow:none!important}
+      .moreimg-card-no-visual .moreimg-card-summary{color:#17202a!important;text-shadow:none!important;border-top-color:var(--moreimg-card-accent)!important}
     `;
 const getCardTextDensity = card => {
   const titleLength = [...String(card?.title || '')].length;
@@ -1959,6 +1923,7 @@ const HtmlCard = ({
 }) => {
   const presentation = getCardShellPresentation(styleLock);
   const density = getCardTextDensity(card);
+  const hasVisual = Boolean(imageUrl);
   const resolvedFocusY = Number.isFinite(Number(focusY)) ? Number(focusY) : getDefaultCardFocus(card);
   return React.createElement("div", {
     ref: cardRef,
@@ -1966,7 +1931,7 @@ const HtmlCard = ({
       ...presentation.style,
       '--moreimg-card-focus-y': `${resolvedFocusY}%`
     },
-    className: `moreimg-export-card moreimg-card-${card.type} moreimg-card-density-${density} ${presentation.className}`
+    className: `moreimg-export-card moreimg-card-${card.type} moreimg-card-density-${density} ${presentation.className}${hasVisual ? '' : ' moreimg-card-no-visual'}`
   }, React.createElement("div", {
     className: "moreimg-card-media"
   }, imageUrl ? React.createElement("img", {
@@ -2834,137 +2799,6 @@ const SettingsDialog = ({
   }, React.createElement("div", null, React.createElement("h4", {
     className: "config-section-title"
   }, React.createElement(Icon, {
-    name: "SlidersHorizontal",
-    className: "h-4 w-4 text-indigo-600"
-  }), " 加工偏好"), React.createElement("p", {
-    className: "config-section-description",
-    hidden: true
-  }, "MoreImg v6 核心规则和 JSON 协议已内置。这里仅调整内容表达，不会破坏页面读取。"))), React.createElement("div", {
-    className: "mi-feedback mi-feedback-info config-preference-note",
-    hidden: true
-  }, React.createElement(Icon, {
-    name: "ShieldCheck",
-    className: "h-4 w-4 shrink-0 text-indigo-600"
-  }), React.createElement("span", null, "每次加工仍只请求一次文本 API；固定生成封面、正文和封底。核心规则不可编辑。")), React.createElement("div", {
-    className: "config-grid"
-  }, React.createElement("div", {
-    className: "config-field"
-  }, React.createElement("label", {
-    className: "config-label"
-  }, "精修方式"), React.createElement("div", {
-    className: "config-select-shell"
-  }, React.createElement("select", {
-    value: apiConfig.processingPreferences?.refinement || 'standard',
-    onChange: e => setApiConfig(prev => ({
-      ...prev,
-      processingPreferences: {
-        ...createDefaultProcessingPreferences(),
-        ...prev.processingPreferences,
-        refinement: e.target.value
-      }
-    })),
-    className: "mi-field config-input config-select"
-  }, React.createElement("option", {
-    value: "standard"
-  }, "标准精修"), React.createElement("option", {
-    value: "light"
-  }, "轻度整理")), React.createElement(Icon, {
-    name: "ChevronDown",
-    className: "config-select-icon"
-  }))), React.createElement("div", {
-    className: "config-field"
-  }, React.createElement("label", {
-    className: "config-label"
-  }, "卡片总页数"), React.createElement("div", {
-    className: "config-select-shell"
-  }, React.createElement("select", {
-    value: apiConfig.processingPreferences?.pageCount || 'auto',
-    onChange: e => setApiConfig(prev => ({
-      ...prev,
-      processingPreferences: {
-        ...createDefaultProcessingPreferences(),
-        ...prev.processingPreferences,
-        pageCount: e.target.value
-      }
-    })),
-    className: "mi-field config-input config-select"
-  }, React.createElement("option", {
-    value: "auto"
-  }, "自动决定"), [3, 4, 5, 6, 7, 8, 9].map(count => React.createElement("option", {
-    key: count,
-    value: String(count)
-  }, count, " 页"))), React.createElement(Icon, {
-    name: "ChevronDown",
-    className: "config-select-icon"
-  }))), React.createElement("div", {
-    className: "config-field"
-  }, React.createElement("label", {
-    className: "config-label"
-  }, "内容口吻"), React.createElement("div", {
-    className: "config-select-shell"
-  }, React.createElement("select", {
-    value: apiConfig.processingPreferences?.tone || 'preserve',
-    onChange: e => setApiConfig(prev => ({
-      ...prev,
-      processingPreferences: {
-        ...createDefaultProcessingPreferences(),
-        ...prev.processingPreferences,
-        tone: e.target.value
-      }
-    })),
-    className: "mi-field config-input config-select"
-  }, React.createElement("option", {
-    value: "preserve"
-  }, "尽量保留原文"), React.createElement("option", {
-    value: "concise"
-  }, "更简洁克制"), React.createElement("option", {
-    value: "conversational"
-  }, "更口语自然")), React.createElement(Icon, {
-    name: "ChevronDown",
-    className: "config-select-icon"
-  }))), React.createElement("div", {
-    className: "config-field"
-  }, React.createElement("label", {
-    className: "config-label"
-  }, "标题处理"), React.createElement("label", {
-    className: "mi-field config-checkbox"
-  }, React.createElement("input", {
-    type: "checkbox",
-    checked: Boolean(apiConfig.processingPreferences?.preserveTitle),
-    onChange: e => setApiConfig(prev => ({
-      ...prev,
-      processingPreferences: {
-        ...createDefaultProcessingPreferences(),
-        ...prev.processingPreferences,
-        preserveTitle: e.target.checked
-      }
-    }))
-  }), React.createElement("span", null, "优先保留原文标题"))), React.createElement("div", {
-    className: "config-field config-span-2"
-  }, React.createElement("label", {
-    className: "config-label"
-  }, "补充要求（可选）"), React.createElement("textarea", {
-    value: apiConfig.processingPreferences?.customInstruction || '',
-    onChange: e => setApiConfig(prev => ({
-      ...prev,
-      processingPreferences: {
-        ...createDefaultProcessingPreferences(),
-        ...prev.processingPreferences,
-        customInstruction: e.target.value
-      }
-    })),
-    className: "mi-field config-preference-textarea",
-    placeholder: "例如：保留第一人称；标题不要太营销；正文尽量克制。",
-    spellCheck: "false"
-  }))), React.createElement("p", {
-    className: "config-hint"
-  }, "API Key 和加工偏好仅保存在当前浏览器 localStorage，不会上传到作者服务器。")), React.createElement("section", {
-    className: "config-section"
-  }, React.createElement("div", {
-    className: "config-section-header"
-  }, React.createElement("div", null, React.createElement("h4", {
-    className: "config-section-title"
-  }, React.createElement(Icon, {
     name: "Image",
     className: "h-4 w-4 text-indigo-600"
   }), " 图片模型"), React.createElement("p", {
@@ -3344,9 +3178,8 @@ const useResultContent = ({
   const renderStageContent = () => {
     const currentStageConfig = NEW_STAGES.find(s => s.id === activeStageTab);
     if (!currentStageConfig) return null;
-    const isJsonPackage = currentSession.packageData?.status === 'complete';
     const hasContent = currentStageConfig.subStages.some(sId => {
-      const content = isJsonPackage ? getPackageStageText(currentSession.packageData, sId) : currentSession.stages[sId];
+      const content = getPackageStageText(currentSession.packageData, sId);
       return Boolean(content && content.trim());
     });
     if (!hasContent) {
@@ -3365,7 +3198,7 @@ const useResultContent = ({
     return React.createElement("div", {
       className: "space-y-12"
     }, currentStageConfig.subStages.map(sId => {
-      const content = isJsonPackage ? getPackageStageText(currentSession.packageData, sId) : currentSession.stages[sId];
+      const content = getPackageStageText(currentSession.packageData, sId);
       if (!content || !content.trim()) return null;
       return React.createElement("div", {
         key: sId
@@ -3377,64 +3210,35 @@ const useResultContent = ({
         className: "mi-surface mi-surface-panel mi-surface-raised stage-content-panel p-8 md:p-10"
       }, React.createElement(FormattedContent, {
         text: content
-      })) : sId === 4 ? (() => {
-        if (isJsonPackage) {
-          return React.createElement("div", {
-            className: "content-card-grid grid grid-cols-1 md:grid-cols-2 gap-8"
-          }, currentSession.packageData.pages.map((page, index, pages) => React.createElement("div", {
-            key: page.page_id,
-            className: "mi-surface mi-surface-panel mi-surface-raised content-card-panel"
-          }, React.createElement("h3", {
-            className: "text-[18px] font-bold text-slate-800 mb-6 flex items-center"
-          }, React.createElement("span", {
-            className: "w-8 h-8 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center text-[14px] mr-3 font-mono shadow-sm border border-indigo-100"
-          }, index + 1), React.createElement("span", {
-            className: "truncate"
-          }, getPageDisplayName(page, pages.length - 2))), React.createElement("div", {
-            className: "content-card-body"
-          }, React.createElement("div", null, React.createElement("div", {
-            className: "font-extrabold text-slate-900 text-[16px]"
-          }, page.card.title), page.card.subtitle && React.createElement("div", {
-            className: "content-card-heading-sub"
-          }, page.card.subtitle)), page.card.points.length > 0 && React.createElement("div", {
-            className: "content-card-points"
-          }, page.card.points.map((point, pointIndex) => React.createElement("div", {
-            key: pointIndex,
-            className: "content-card-point"
-          }, React.createElement("span", {
-            className: "content-card-point-mark"
-          }, "•"), React.createElement("span", null, point)))), page.card.summary && React.createElement("div", {
-            className: "content-card-summary"
-          }, page.card.summary), React.createElement("div", {
-            className: "content-card-meta"
-          }, React.createElement("div", null, "页面目标：", page.semantic.page_goal), React.createElement("div", null, "主关系：", page.semantic.primary_relation))))));
-        }
-        const {
-          cardBlocks,
-          cardHeaders
-        } = parsedSession;
-        if (cardBlocks.length > 0 && cardHeaders.length === cardBlocks.length) {
-          return React.createElement("div", {
-            className: "content-card-grid grid grid-cols-1 md:grid-cols-2 gap-8"
-          }, cardBlocks.map((block, i) => React.createElement("div", {
-            key: i,
-            className: "mi-surface mi-surface-panel mi-surface-raised content-card-panel"
-          }, React.createElement("h3", {
-            className: "text-[18px] font-bold text-slate-800 mb-6 flex items-center"
-          }, React.createElement("span", {
-            className: "w-8 h-8 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center text-[14px] mr-3 font-mono shadow-sm border border-indigo-100"
-          }, i + 1), React.createElement("span", {
-            className: "truncate"
-          }, cardHeaders[i].replace(/\*\*/g, ''))), React.createElement("div", null, React.createElement(FormattedContent, {
-            text: block.trim()
-          })))));
-        }
-        return React.createElement("div", {
-          className: "mi-surface mi-surface-panel mi-surface-raised stage-content-panel p-8"
-        }, React.createElement(FormattedContent, {
-          text: content
-        }));
-      })() : sId === 5 ? (() => {
+      })) : sId === 4 ? React.createElement("div", {
+        className: "content-card-grid grid grid-cols-1 md:grid-cols-2 gap-8"
+      }, currentSession.packageData.pages.map((page, index, pages) => React.createElement("div", {
+        key: page.page_id,
+        className: "mi-surface mi-surface-panel mi-surface-raised content-card-panel"
+      }, React.createElement("h3", {
+        className: "text-[18px] font-bold text-slate-800 mb-6 flex items-center"
+      }, React.createElement("span", {
+        className: "w-8 h-8 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center text-[14px] mr-3 font-mono shadow-sm border border-indigo-100"
+      }, index + 1), React.createElement("span", {
+        className: "truncate"
+      }, getPageDisplayName(page, pages.length - 2))), React.createElement("div", {
+        className: "content-card-body"
+      }, React.createElement("div", null, React.createElement("div", {
+        className: "font-extrabold text-slate-900 text-[16px]"
+      }, page.card.title), page.card.subtitle && React.createElement("div", {
+        className: "content-card-heading-sub"
+      }, page.card.subtitle)), page.card.points.length > 0 && React.createElement("div", {
+        className: "content-card-points"
+      }, page.card.points.map((point, pointIndex) => React.createElement("div", {
+        key: pointIndex,
+        className: "content-card-point"
+      }, React.createElement("span", {
+        className: "content-card-point-mark"
+      }, "•"), React.createElement("span", null, point)))), page.card.summary && React.createElement("div", {
+        className: "content-card-summary"
+      }, page.card.summary), React.createElement("div", {
+        className: "content-card-meta"
+      }, React.createElement("div", null, "页面目标：", page.semantic.page_goal), React.createElement("div", null, "主关系：", page.semantic.primary_relation)))))) : sId === 5 ? (() => {
         const {
           promptSections,
           htmlCards
@@ -3456,7 +3260,7 @@ const useResultContent = ({
           const selectedHtmlFocusY = selectedHtmlCard ? selectedHtmlImageResult?.focusY ?? getDefaultCardFocus(selectedHtmlCard) : 50;
           const isSelectedHtmlCardExporting = Boolean(selectedHtmlCard && htmlExportState.cardId === selectedHtmlCard.id && htmlExportState.status === 'pending');
           const selectedHtmlCardExportError = selectedHtmlCard && htmlExportState.cardId === selectedHtmlCard.id && htmlExportState.status === 'error' ? htmlExportState.error : '';
-          const visualOnlyPrompt = isJsonPackage ? cleanPromptText : buildVisualOnlyPrompt(cleanPromptText, matchingCard);
+          const visualOnlyPrompt = cleanPromptText;
           const fullImagePrompt = matchingCard ? buildFullImagePrompt(cleanPromptText, matchingCard) : '';
           return React.createElement("div", {
             className: "visual-workbench"
@@ -3556,12 +3360,10 @@ const useResultContent = ({
             className: "visual-result-item-header"
           }, React.createElement("span", null, isBuiltInDemo ? '内置示例占位图' : 'HTML 主视觉')), React.createElement("div", {
             className: "mi-empty-state mi-empty-state-media visual-result-slot-empty"
-          }, React.createElement("div", {
-            className: "mi-empty-state-icon"
           }, React.createElement(Icon, {
-            name: imageResult?.status === 'loading' ? 'LoaderCircle' : 'ImagePlus',
-            className: `h-5 w-5 ${imageResult?.status === 'loading' ? 'animate-spin' : ''}`
-          })), React.createElement("span", {
+            name: imageResult?.status === 'loading' ? 'LoaderCircle' : 'LayoutTemplate',
+            className: `visual-empty-state-icon ${imageResult?.status === 'loading' ? 'animate-spin' : ''}`
+          }), React.createElement("span", {
             className: "mi-empty-state-hint"
           }, imageResult?.status === 'loading' ? '生成中' : '等待生成')), React.createElement("div", {
             className: "visual-preview-meta"
@@ -3613,12 +3415,10 @@ const useResultContent = ({
             className: "h-3.5 w-3.5"
           }))), React.createElement("div", {
             className: "mi-empty-state mi-empty-state-media visual-result-slot-empty"
-          }, React.createElement("div", {
-            className: "mi-empty-state-icon"
           }, React.createElement(Icon, {
             name: fullImageResult?.status === 'loading' ? 'LoaderCircle' : 'LayoutTemplate',
-            className: `h-5 w-5 ${fullImageResult?.status === 'loading' ? 'animate-spin' : ''}`
-          })), React.createElement("span", {
+            className: `visual-empty-state-icon ${fullImageResult?.status === 'loading' ? 'animate-spin' : ''}`
+          }), React.createElement("span", {
             className: "mi-empty-state-hint"
           }, fullImageResult?.status === 'loading' ? '生成中' : fullImageResult?.status === 'success' ? '已隐藏' : '等待生成')), React.createElement("div", {
             className: "visual-preview-meta"
@@ -3708,7 +3508,7 @@ const useResultContent = ({
             "aria-label": "调整主视觉纵向焦点"
           }), React.createElement("span", {
             className: "visual-focus-value"
-          }, selectedHtmlFocusY, "%")), selectedHtmlCardReady ? React.createElement("button", {
+          }, selectedHtmlFocusY, "%")), React.createElement("button", {
             onClick: () => exportHtmlCard(selectedHtmlCard),
             disabled: isSelectedHtmlCardExporting,
             "aria-busy": isSelectedHtmlCardExporting,
@@ -3717,9 +3517,7 @@ const useResultContent = ({
           }, React.createElement(Icon, {
             name: isSelectedHtmlCardExporting ? 'Loader' : 'Download',
             className: `mr-2 h-3.5 w-3.5 ${isSelectedHtmlCardExporting ? 'animate-spin' : ''}`
-          }), " ", isSelectedHtmlCardExporting ? '导出中' : '导出 HTML 成品 PNG') : React.createElement("span", {
-            className: "visual-output-status"
-          }, "生成主视觉后可导出"))), selectedHtmlCardExportError && React.createElement("div", {
+          }), " ", isSelectedHtmlCardExporting ? '导出中' : '导出 HTML 成品 PNG'))), selectedHtmlCardExportError && React.createElement("div", {
             className: "mi-feedback mi-feedback-error visual-error visual-export-error",
             role: "alert"
           }, selectedHtmlCardExportError), React.createElement("div", {
@@ -3728,7 +3526,7 @@ const useResultContent = ({
             className: "mi-surface mi-surface-card visual-comparison-item"
           }, React.createElement("div", {
             className: "visual-comparison-label"
-          }, selectedHtmlCardReady ? 'HTML 成品' : 'HTML 排版预览'), React.createElement(HtmlCardPreview, null, React.createElement(HtmlCard, {
+          }, selectedHtmlCardReady ? 'HTML 成品' : 'HTML 白底降级'), React.createElement(HtmlCardPreview, null, React.createElement(HtmlCard, {
             card: selectedHtmlCard,
             imageUrl: selectedHtmlCardReady ? selectedHtmlImageResult.imageUrl : '',
             cardRef: node => {
@@ -3736,13 +3534,11 @@ const useResultContent = ({
             },
             styleLock: currentSession.packageData?.style_lock,
             focusY: selectedHtmlFocusY
-          }), !selectedHtmlCardReady && React.createElement("span", {
-            className: "html-card-placeholder-badge"
-          }, "等待主视觉")), React.createElement("div", {
+          })), React.createElement("div", {
             className: "visual-comparison-meta"
-          }, React.createElement("span", null, React.createElement("strong", null, "预览框 3:4"), " · ", isBuiltInDemo ? '内置示例占位图' : selectedHtmlCardReady ? 'HTML 成品' : '排版占位'), React.createElement("span", null, isBuiltInDemo ? '本地演示素材' : selectedHtmlCardReady ? '导出 1242×1656' : '待生成主视觉')), selectedHtmlImageResult?.status !== 'success' && React.createElement("p", {
+          }, React.createElement("span", null, React.createElement("strong", null, "预览框 3:4"), " · ", isBuiltInDemo ? '内置示例占位图' : selectedHtmlCardReady ? 'HTML 成品' : '白底降级'), React.createElement("span", null, isBuiltInDemo ? '本地演示素材' : selectedHtmlCardReady ? '导出 1242×1656' : '白底可导出')), selectedHtmlImageResult?.status !== 'success' && React.createElement("p", {
             className: `visual-comparison-hint ${selectedHtmlLegacyResult?.status === 'success' ? 'is-stale' : ''}`
-          }, selectedHtmlLegacyResult?.status === 'success' ? '旧版主视觉不再用于 HTML 成品卡，请重新生成无字主视觉。' : '当前使用视觉占位，生成无字主视觉后会自动替换。')), React.createElement("div", {
+          }, selectedHtmlLegacyResult?.status === 'success' ? '旧版主视觉不再用于 HTML 成品卡，当前使用白底降级。' : '未生成主视觉，当前使用白底降级，仍可直接导出 HTML PNG。')), React.createElement("div", {
             className: "mi-surface mi-surface-card visual-comparison-item"
           }, React.createElement("div", {
             className: "visual-comparison-label"
@@ -3762,19 +3558,14 @@ const useResultContent = ({
             className: "mi-empty-state mi-empty-state-inline visual-comparison-empty"
           }, React.createElement(Icon, {
             name: fullImageResult?.status === 'loading' ? 'LoaderCircle' : 'LayoutTemplate',
-            className: `h-5 w-5 ${fullImageResult?.status === 'loading' ? 'animate-spin' : ''}`
+            className: `visual-empty-state-icon ${fullImageResult?.status === 'loading' ? 'animate-spin' : ''}`
           }), React.createElement("span", {
             className: "mi-empty-state-hint"
           }, fullImageResult?.status === 'loading' ? 'AI 整图生成中' : fullImageResult?.status === 'success' ? 'AI 整图已隐藏' : '尚未生成 AI 整图'))), React.createElement("div", {
             className: "visual-comparison-meta"
           }, React.createElement("span", null, React.createElement("strong", null, "预览框 3:4"), " · ", isBuiltInDemo ? '内置示例占位图' : 'AI 整图'), React.createElement("span", null, "固定对比槽位")))))))));
         }
-        const fullCleanText = content.replace(/```[^\n]*\n?/g, '').replace(/```/g, '').trim();
-        return React.createElement("div", {
-          className: "mi-surface mi-surface-panel mi-surface-raised stage-content-panel p-8"
-        }, React.createElement(FormattedContent, {
-          text: fullCleanText
-        }));
+        return null;
       })() : React.createElement("div", {
         className: "mi-surface mi-surface-panel mi-surface-raised stage-content-panel p-8 md:p-10"
       }, React.createElement(FormattedContent, {
@@ -3814,7 +3605,6 @@ function App() {
     model: '',
     apiKey: '',
     promptVersion: DEFAULT_PROMPT_VERSION,
-    processingPreferences: createDefaultProcessingPreferences(),
     imageApiUrl: 'https://api.aixoras.com/v1/images/generations',
     imageModel: 'gpt-image-2',
     imageApiKey: '',
@@ -3865,14 +3655,6 @@ function App() {
   const [currentSession, setCurrentSession] = useState({
     rawText: '',
     packageData: null,
-    stages: {
-      1: '',
-      2: '',
-      3: '',
-      4: '',
-      5: '',
-      6: ''
-    },
     isHalted: false,
     stopReason: '',
     warning: ''
@@ -3890,23 +3672,18 @@ function App() {
   const resultScrollRef = useRef(null);
   const resultsStageNavRef = useRef(null);
   const parsedSession = useMemo(() => {
-    if (currentSession.packageData?.status === 'complete') {
-      const pages = currentSession.packageData.pages || [];
+    if (currentSession.packageData?.status !== 'complete') {
       return {
-        cardBlocks: [],
-        cardHeaders: [],
-        htmlCards: pages.map(packagePageToCard),
-        promptSections: pages.map(page => packagePageToPromptSection(page, currentSession.packageData.style_lock, pages))
+        htmlCards: [],
+        promptSections: []
       };
     }
-    const cardContent = currentSession.stages[4] || '';
+    const pages = currentSession.packageData.pages || [];
     return {
-      cardBlocks: cardContent.split(/\*\*.*?卡片.*?\*\*/g).filter(block => block.trim() !== ''),
-      cardHeaders: cardContent.match(/\*\*.*?卡片.*?\*\*/g) || [],
-      htmlCards: parseCardPackage(cardContent),
-      promptSections: parsePromptSections(currentSession.stages[5] || '')
+      htmlCards: pages.map(packagePageToCard),
+      promptSections: pages.map(page => packagePageToPromptSection(page, currentSession.packageData.style_lock, pages))
     };
-  }, [currentSession.packageData, currentSession.stages[4], currentSession.stages[5]]);
+  }, [currentSession.packageData]);
   const updateConfigTool = (key, nextState) => {
     setConfigTools(prev => ({
       ...prev,
@@ -4005,11 +3782,11 @@ function App() {
       const nextResults = {};
       storedImages.forEach(item => {
         const imageUrl = URL.createObjectURL(item.blob);
-        nextResults[`${item.mode || 'visual'}:${item.cardTitle}`] = {
+        nextResults[`${item.mode || 'visual-only'}:${item.cardTitle}`] = {
           status: 'success',
           imageUrl,
           error: '',
-          mode: item.mode || 'visual',
+          mode: item.mode || 'visual-only',
           focusY: item.focusY
         };
       });
@@ -4056,42 +3833,24 @@ function App() {
           localStorage.removeItem(HISTORY_INDEX_KEY);
         }
       }
-      const legacyValue = localStorage.getItem(LEGACY_HISTORY_KEY);
-      if (!legacyValue) {
-        try {
-          const existingDemo = await loadSessionRecord(DEMO_SESSION_ID).catch(() => null);
-          if (existingDemo?.isDemo) {
-            const demoIndex = [toHistoryIndex(existingDemo)];
-            if (!isActive || localStorage.getItem(HISTORY_INDEX_KEY)) return;
+      try {
+        const existingDemo = await loadSessionRecord(DEMO_SESSION_ID).catch(() => null);
+        if (existingDemo?.isDemo) {
+          const demoIndex = [toHistoryIndex(existingDemo)];
+          if (!isActive || localStorage.getItem(HISTORY_INDEX_KEY)) return;
+          setHistory(demoIndex);
+          localStorage.setItem(HISTORY_INDEX_KEY, JSON.stringify(demoIndex));
+        } else if (shouldSeedDemo() && !(await hasAnySessionRecords())) {
+          const demoRecord = await seedDemoHistory();
+          if (isActive && !localStorage.getItem(HISTORY_INDEX_KEY)) {
+            const demoIndex = [toHistoryIndex(demoRecord)];
             setHistory(demoIndex);
             localStorage.setItem(HISTORY_INDEX_KEY, JSON.stringify(demoIndex));
-          } else if (shouldSeedDemo() && !(await hasAnySessionRecords())) {
-            const demoRecord = await seedDemoHistory();
-            if (isActive && !localStorage.getItem(HISTORY_INDEX_KEY)) {
-              const demoIndex = [toHistoryIndex(demoRecord)];
-              setHistory(demoIndex);
-              localStorage.setItem(HISTORY_INDEX_KEY, JSON.stringify(demoIndex));
-            }
           }
-        } catch (error) {
-          if (isActive) setToast({
-            message: `示例记录初始化失败: ${error.message}`,
-            type: 'error',
-            duration: 5000
-          });
         }
-        return;
-      }
-      try {
-        const migratedHistory = await migrateLegacyHistory(JSON.parse(legacyValue));
-        if (!isActive) return;
-        if (localStorage.getItem(HISTORY_INDEX_KEY)) return;
-        localStorage.setItem(HISTORY_INDEX_KEY, JSON.stringify(migratedHistory));
-        localStorage.removeItem(LEGACY_HISTORY_KEY);
-        setHistory(migratedHistory);
       } catch (error) {
         if (isActive) setToast({
-          message: `历史记录迁移失败: ${error.message}`,
+          message: `示例记录初始化失败: ${error.message}`,
           type: 'error',
           duration: 5000
         });
@@ -4115,11 +3874,8 @@ function App() {
       if (parsedConfig) {
         const savedImageRatioVersion = Number(parsedConfig.imageRatioVersion || 0);
         delete parsedConfig.systemPrompt;
+        delete parsedConfig.processingPreferences;
         parsedConfig.promptVersion = DEFAULT_PROMPT_VERSION;
-        parsedConfig.processingPreferences = {
-          ...createDefaultProcessingPreferences(),
-          ...(parsedConfig.processingPreferences || {})
-        };
         parsedConfig.imageApiUrl = parsedConfig.imageApiUrl || 'https://api.aixoras.com/v1/images/generations';
         parsedConfig.imageModel = parsedConfig.imageModel || 'gpt-image-2';
         parsedConfig.imageApiKey = parsedConfig.imageApiKey || '';
@@ -4150,12 +3906,10 @@ function App() {
     const nextConfig = {
       ...apiConfig,
       promptVersion: DEFAULT_PROMPT_VERSION,
-      processingPreferences: {
-        ...createDefaultProcessingPreferences(),
-        ...(apiConfig.processingPreferences || {})
-      },
       imageRatioVersion: IMAGE_RATIO_CONFIG_VERSION
     };
+    delete nextConfig.systemPrompt;
+    delete nextConfig.processingPreferences;
     localStorage.setItem('agent_api_config', JSON.stringify(nextConfig));
     setApiConfig(nextConfig);
     setToast({
@@ -4185,29 +3939,13 @@ function App() {
       message: '正在读取模型列表...'
     });
     try {
-      const modelsEndpoint = deriveModelsEndpoint(endpoint);
-      const response = await runWithRequestControl(signal => fetchApiRequest(modelsEndpoint, 'models', {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${apiKey}`
-        },
-        signal
-      }), {
-        timeoutMs: 30000,
-        signal: requestController.signal,
-        timeoutMessage: '读取模型列表超过 30 秒，请检查接口地址或稍后重试。'
+      const modelIds = await loadRemoteModels({
+        apiUrl: endpoint,
+        apiKey,
+        kind: isImage ? 'image' : 'text',
+        signal: requestController.signal
       });
-      if (!response.ok) throw new Error(`(HTTP ${response.status}) ${await readApiErrorMessage(response)}`);
-      const rawModels = await response.text();
-      let data;
-      try {
-        data = JSON.parse(rawModels);
-      } catch {
-        throw new Error(`接口返回了非 JSON 内容：${rawModels.replace(/\s+/g, ' ').trim().slice(0, 200) || '空响应'}`);
-      }
       if (requestController.signal.aborted || configRequestControllersRef.current.get(stateKey) !== requestController) return;
-      const modelIds = extractModelIds(data);
-      if (modelIds.length === 0) throw new Error('接口未返回可用模型');
       setModels(modelIds);
       updateConfigTool(stateKey, {
         status: 'success',
@@ -4254,40 +3992,17 @@ function App() {
       status: 'loading',
       message: '正在发送最小测试请求...'
     });
-    const startedAt = Date.now();
     try {
-      const messages = [{
-        role: 'system',
-        content: '这是连接测试。'
-      }, {
-        role: 'user',
-        content: '只回复 OK'
-      }];
-      const processingResponse = await runWithRequestControl(async signal => {
-        const response = await fetchTextRequest(endpoint, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${apiKey}`
-          },
-          body: JSON.stringify(buildProcessingRequestBody(endpoint, model, messages, 64, true)),
-          signal
-        });
-        if (!response.ok) throw new Error(`(HTTP ${response.status}) ${await readApiErrorMessage(response)}`);
-        return readProcessingResponse(response);
-      }, {
-        timeoutMs: TEXT_TEST_TIMEOUT_MS,
-        signal: requestController.signal,
-        timeoutMessage: '接口测试超过 30 秒，请检查接口地址、模型或服务状态。'
+      const connectionResult = await testTextServiceConnection({
+        apiUrl: endpoint,
+        apiKey,
+        model,
+        signal: requestController.signal
       });
       if (requestController.signal.aborted || configRequestControllersRef.current.get('textTest') !== requestController) return;
-      const responseText = processingResponse.text.trim();
-      if (!responseText) throw new Error('接口成功响应，但没有可解析文本');
-      const elapsedMs = Date.now() - startedAt;
-      const preview = responseText.replace(/\s+/g, ' ').slice(0, 48);
       updateConfigTool('textTest', {
         status: 'success',
-        message: `连接成功，耗时 ${elapsedMs} ms，返回：${preview}`
+        message: `连接成功，耗时 ${connectionResult.elapsedMs} ms，返回：${connectionResult.preview}`
       });
     } catch (error) {
       if (requestController.signal.aborted) return;
@@ -4301,7 +4016,7 @@ function App() {
       }
     }
   };
-  const handleGenerateImage = async (cardTitle, prompt, mode = 'visual') => {
+  const handleGenerateImage = async (cardTitle, prompt, mode = 'visual-only') => {
     if (currentSession.isDemo) {
       setToast({
         message: '内置示例仅用于查看流程，不调用图片 API。请输入自己的文章开始加工。',
@@ -4333,19 +4048,7 @@ function App() {
     let generationCompletedAt = 0;
     let requestPhase = 'request';
     let timedOutPhase = '';
-    let phaseTimeout = setTimeout(() => {
-      timedOutPhase = 'request';
-      requestController.abort();
-    }, IMAGE_REQUEST_TIMEOUT_MS);
-    const restartTimeoutForPhase = (phase, timeoutMs) => {
-      clearTimeout(phaseTimeout);
-      phaseTimeout = setTimeout(() => {
-        timedOutPhase = phase;
-        requestController.abort();
-      }, timeoutMs);
-    };
     const imageEndpoint = resolveApiEndpoint(apiConfig.imageApiUrl, 'image');
-    const imageTransport = getRequestTransport(imageEndpoint, 'image');
     const previousFocusY = imageResults[resultKey]?.focusY;
     setImageResults(prev => ({
       ...prev,
@@ -4370,41 +4073,28 @@ function App() {
       failureReason: ''
     });
     try {
-      const response = await fetch(imageTransport.url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${apiConfig.imageApiKey.trim()}`,
-          ...imageTransport.headers
-        },
-        body: JSON.stringify(buildImageRequestBody(imageModel, prompt, requestedSize)),
-        signal: requestController.signal
+      const imageRequestResult = await requestImageAsset({
+        apiUrl: apiConfig.imageApiUrl,
+        apiKey: apiConfig.imageApiKey,
+        model: imageModel,
+        prompt,
+        size: apiConfig.imageSize,
+        controller: requestController,
+        onImageResponse: ({
+          remoteUrl,
+          dataUrl
+        }) => saveLastImageDiagnostic({
+          actualFormat: dataUrl ? 'Base64' : 'URL',
+          imageHost: dataUrl ? 'API 响应' : getDiagnosticImageHost(remoteUrl),
+          storageStatus: '保存中'
+        })
       });
       const {
-        remoteUrl,
+        imageBlob,
         dataUrl
-      } = await readImageResponse(response);
-      generationCompletedAt = Date.now();
-      requestPhase = 'download';
-      restartTimeoutForPhase('download', IMAGE_DOWNLOAD_TIMEOUT_MS);
-      saveLastImageDiagnostic({
-        actualFormat: dataUrl ? 'Base64' : 'URL',
-        imageHost: dataUrl ? 'API 响应' : getDiagnosticImageHost(remoteUrl),
-        storageStatus: '保存中'
-      });
-      let imageBlob;
-      if (dataUrl) {
-        imageBlob = dataUrlToBlob(dataUrl);
-      } else {
-        const downloadTransport = getImageDownloadTransport(remoteUrl);
-        const imageResponse = await fetch(downloadTransport.url, {
-          headers: downloadTransport.headers,
-          signal: requestController.signal
-        });
-        if (!imageResponse.ok) throw new Error(`图片下载失败 HTTP ${imageResponse.status}`);
-        imageBlob = await imageResponse.blob();
-      }
-      requestPhase = 'storage';
+      } = imageRequestResult;
+      generationCompletedAt = imageRequestResult.requestMeta.generationCompletedAt;
+      requestPhase = imageRequestResult.requestMeta.requestPhase;
       await saveImageBlob(sessionId, cardTitle, imageBlob, mode, previousFocusY);
       saveLastImageDiagnostic({
         storageBackend: 'IndexedDB',
@@ -4455,16 +4145,13 @@ function App() {
         type: 'success'
       });
     } catch (error) {
-      const isUserCancelled = requestController.signal.aborted && !timedOutPhase;
-      let failureError = error;
-      if (timedOutPhase === 'request') {
-        failureError = new Error(`图片生成超过 ${Math.round(IMAGE_REQUEST_TIMEOUT_MS / 1000)} 秒，已停止等待。上游可能已出图并计费，请先核对账单再重试。`);
-      } else if (timedOutPhase === 'download') {
-        failureError = new Error(`图片下载超过 ${Math.round(IMAGE_DOWNLOAD_TIMEOUT_MS / 1000)} 秒，已停止等待。本次生成已计费，请重试下载或换用返回 b64_json 的接口。`);
-      } else if (isUserCancelled) {
-        failureError = new Error('已取消生图。若上游已受理，本次仍可能计费。');
-      }
-      const mayBeBilled = Boolean(generationCompletedAt) || requestPhase !== 'request' || timedOutPhase === 'request' || isUserCancelled;
+      const failureError = error;
+      const serviceMeta = failureError.imageServiceMeta || {};
+      generationCompletedAt = serviceMeta.generationCompletedAt || generationCompletedAt;
+      requestPhase = serviceMeta.requestPhase || requestPhase;
+      timedOutPhase = serviceMeta.timedOutPhase || timedOutPhase;
+      const isUserCancelled = Boolean(serviceMeta.isUserCancelled) || requestController.signal.aborted && !timedOutPhase;
+      const mayBeBilled = serviceMeta.mayBeBilled ?? (Boolean(generationCompletedAt) || requestPhase !== 'request' || timedOutPhase === 'request' || isUserCancelled);
       recordImageUsage({
         sessionId,
         cardTitle,
@@ -4497,7 +4184,6 @@ function App() {
         duration: 8000
       });
     } finally {
-      clearTimeout(phaseTimeout);
       if (imageAbortControllersRef.current.get(resultKey)?.controller === requestController) {
         imageAbortControllersRef.current.delete(resultKey);
       }
@@ -4540,14 +4226,6 @@ function App() {
   };
   const exportHtmlCard = async card => {
     if (htmlExportInFlightRef.current) return;
-    const visualResult = imageResults[`visual-only:${card.imageKey}`];
-    if (visualResult?.status !== 'success') {
-      setToast({
-        message: '请先生成无字主视觉',
-        type: 'error'
-      });
-      return;
-    }
     const sourceNode = htmlCardRefs.current[card.id];
     if (!sourceNode) {
       const errorMessage = formatHtmlExportError(new Error('导出区域未就绪，请刷新页面后重试'), 'clone');
@@ -4650,14 +4328,6 @@ function App() {
         setCurrentSession({
           rawText: '',
           packageData: null,
-          stages: {
-            1: '',
-            2: '',
-            3: '',
-            4: '',
-            5: '',
-            6: ''
-          },
           isHalted: false,
           stopReason: '',
           warning: ''
@@ -4711,35 +4381,6 @@ function App() {
       demoLoadInFlightRef.current = false;
     }
   };
-  const requestProcessingText = (messages, externalSignal) => runWithRequestControl(async signal => {
-    let fullResponseText = '';
-    let finishReason = '';
-    const endpoint = resolveApiEndpoint(apiConfig.apiUrl, 'text');
-    const response = await fetchTextRequest(endpoint, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiConfig.apiKey.trim()}`
-      },
-      body: JSON.stringify(buildProcessingRequestBody(endpoint, apiConfig.model.trim(), messages, PROCESSING_MAX_OUTPUT_TOKENS, true)),
-      signal
-    });
-    if (!response.ok) {
-      throw new Error(`(HTTP ${response.status}) ${await readApiErrorMessage(response)}`);
-    }
-    const processingResponse = await readProcessingResponse(response);
-    fullResponseText = processingResponse.text;
-    finishReason = processingResponse.finishReason;
-    if (!fullResponseText.trim()) throw new Error('大模型未返回任何有效内容，请检查接口配置或稍后重试。');
-    return {
-      text: fullResponseText,
-      finishReason
-    };
-  }, {
-    timeoutMs: TEXT_REQUEST_TIMEOUT_MS,
-    signal: externalSignal,
-    timeoutMessage: '内容生成超过 300 秒，已自动停止。请先测试接口，或换用响应更快的文本模型。'
-  });
   const handleStopProcessing = () => {
     if (!processingAbortRef.current || processingAbortRef.current.signal.aborted) return;
     processingAbortRef.current.abort();
@@ -4784,14 +4425,6 @@ function App() {
     setCurrentSession({
       rawText: '',
       packageData: null,
-      stages: {
-        1: '',
-        2: '',
-        3: '',
-        4: '',
-        5: '',
-        6: ''
-      },
       isHalted: false,
       stopReason: '',
       warning: ''
@@ -4802,8 +4435,14 @@ function App() {
     processingAbortRef.current = processingController;
     let shouldShowResults = false;
     try {
-      const initialMessages = buildInitialProcessingMessages(textToProcess, DEFAULT_SYSTEM_PROMPT, apiConfig.processingPreferences);
-      const processingResult = await requestProcessingText(initialMessages, processingController.signal);
+      const initialMessages = buildInitialProcessingMessages(textToProcess, DEFAULT_SYSTEM_PROMPT);
+      const processingResult = await requestTextProcessing({
+        apiUrl: apiConfig.apiUrl,
+        apiKey: apiConfig.apiKey,
+        model: apiConfig.model,
+        messages: initialMessages,
+        signal: processingController.signal
+      });
       setProcessingUiPhase('validating');
       await new Promise(resolve => setTimeout(resolve, 0));
       const fullResponseText = processingResult.text;
@@ -4818,14 +4457,6 @@ function App() {
       const sessionData = {
         rawText: fullResponseText,
         packageData: assessment.packageData,
-        stages: {
-          1: '',
-          2: '',
-          3: '',
-          4: '',
-          5: '',
-          6: ''
-        },
         isHalted,
         stopReason,
         warning,
@@ -4932,17 +4563,10 @@ function App() {
         setActiveStageTab('step3');
         return;
       }
-      let highest = 1;
-      for (let i = 6; i >= 1; i--) {
-        if (restoredSessionData.stages[i]?.trim()) {
-          highest = i;
-          break;
-        }
-      }
-      setInternalStage(highest);
+      setInternalStage(1);
       setShowResults(true);
       replaceImageResults({});
-      if (highest >= 5) setActiveStageTab('step3');else if (highest >= 3) setActiveStageTab('step2');else setActiveStageTab('step1');
+      setActiveStageTab('step1');
     } else {
       setToast({
         message: '该历史记录不存在或已被清理',

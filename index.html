@@ -16,7 +16,7 @@
   <script src="vendor/react-dom.js?v=35f4f974f4b2"></script>
 
   <!-- 构建时只保留页面实际使用的 Lucide 图标 -->
-  <script src="vendor/lucide-moreimg.js?v=33a2ed1643f9"></script>
+  <script src="vendor/lucide-moreimg.js?v=c6f8f522f801"></script>
 
   <style>
     /* 页面滚动由工作区内部容器承担，避免回弹时露出 body 顶部缝隙。 */
@@ -42,13 +42,25 @@
       transition: background-color 0.3s ease;
     }
     .custom-scrollbar::-webkit-scrollbar-thumb:hover { background-color: rgba(148, 163, 184, 0.7); }
+    @keyframes processingActionSweep {
+      0%, 100% { background-position: 150% 0; }
+      50% { background-position: -50% 0; }
+    }
     .processing-action-button { border: 1px solid transparent; color: #fff; box-shadow: 0 5px 14px rgba(79,70,229,.18); }
     .processing-action-button.is-ready,
     .processing-action-button.is-needs-config { background: var(--mi-accent); }
     .processing-action-button.is-ready:hover,
     .processing-action-button.is-needs-config:hover { background: #4338ca; }
-    .processing-action-button.is-running { background: #dc2626; border-color: #ef4444; }
-    .processing-action-button.is-running:hover { background: #b91c1c; }
+    .processing-action-button.is-running {
+      background-color: #4338ca;
+      background-image: linear-gradient(112deg, transparent 28%, rgba(255,255,255,.16) 44%, rgba(255,255,255,.36) 50%, rgba(255,255,255,.16) 56%, transparent 72%);
+      background-position: 150% 0;
+      background-size: 240% 100%;
+      border-color: #6366f1;
+      box-shadow: 0 5px 14px rgba(79,70,229,.24);
+      animation: processingActionSweep 2.4s ease-in-out infinite;
+    }
+    .processing-action-button.is-running:hover { background-color: #3730a3; border-color: #4f46e5; }
     .processing-action-hint { margin: 8px 2px 0; color: var(--mi-text-helper); font-size: 11px; line-height: 1.55; }
     .compact-composer-toggle { width: 100%; gap: 7px; margin-top: 12px; border-color: rgba(99,102,241,.22); background: rgba(255,255,255,.82); color: #4338ca; font-size: 12px; font-weight: 750; }
     .hide-scrollbar::-webkit-scrollbar { display: none; }
@@ -68,6 +80,7 @@
         animation: none !important;
       }
       .processing-progress-indicator,
+      .processing-action-button.is-running,
       .animate-spin,
       .animate-pulse-slow,
       .animate-fade-in,
@@ -77,6 +90,7 @@
         animation: none !important;
       }
       .processing-progress-indicator { left: 30%; }
+      .processing-action-button.is-running { background-position: 50% 0; animation: none; }
     }
 
     .brand-attribution {
@@ -134,6 +148,9 @@
     .mi-empty-state-icon > svg { width: 20px; height: 20px; }
     .mi-empty-state-icon-large > svg { width: 24px; height: 24px; }
     .mi-empty-state-hint { margin-top: 12px; font-size: 11px; font-weight: 700; }
+    .visual-result-slot-empty,
+    .visual-comparison-empty { border: 0; background: #eef2f7; color: #64748b; }
+    .visual-empty-state-icon { width: 24px; height: 24px; flex: 0 0 auto; color: #64748b; }
     .mi-feedback { display: flex; align-items: flex-start; gap: 8px; border: 1px solid transparent; border-radius: 10px; padding: 10px 12px; font-size: 11px; line-height: 1.6; }
     /* 反馈条内的前导图标：轻微下移对齐首行文字基线。 */
     .mi-feedback > svg { margin-top: 2px; }
@@ -251,7 +268,6 @@
     .html-card-preview-frame { position: relative; width: 400px; aspect-ratio: 3 / 4; max-width: 100%; margin: 0 auto; overflow: hidden; border: 0; border-radius: 12px; background: #eef2f7; box-shadow: 0 10px 28px rgba(15, 23, 42, 0.1); }
     .visual-comparison-preview-frame { border: 1px solid rgba(203,213,225,.72); }
     .html-card-preview-frame::after { position: absolute; inset: 0; z-index: 1; border: 1px solid rgba(203,213,225,.72); border-radius: inherit; pointer-events: none; content: ""; }
-    .html-card-placeholder-badge { position: absolute; right: 12px; bottom: 12px; z-index: 2; border: 1px solid rgba(148,163,184,.38); border-radius: 8px; padding: 6px 9px; background: rgba(255,255,255,.88); box-shadow: 0 4px 14px rgba(15,23,42,.08); color: #64748b; font-size: 10px; font-weight: 800; line-height: 1; }
     .visual-comparison-image { display: block; width: 100%; height: 100%; object-fit: cover; }
     .visual-comparison-meta { display: flex; justify-content: space-between; gap: 8px; margin-top: 8px; color: #64748b; font-size: 10px; line-height: 1.45; }
     .visual-comparison-meta strong { color: #475569; font-weight: 750; }
@@ -310,9 +326,10 @@
     .history-item-actions {
       position: absolute !important;
       right: 8px;
-      bottom: 8px;
+      top: 50%;
+      bottom: auto;
       z-index: 2;
-      transform: none !important;
+      transform: translateY(-50%) !important;
       border: 1px solid rgba(226,232,240,.86);
       border-radius: 10px;
       padding: 3px;
@@ -386,11 +403,7 @@
     .config-secret-input { padding-right: 52px; }
     .config-secret-toggle { position: absolute; top: 50%; right: 8px; color: #64748b; transform: translateY(-50%); }
     .config-secret-toggle:hover { background: rgba(238,242,255,.72); color: #4f46e5; }
-    .config-checkbox { display: flex; min-height: var(--mi-control-field); align-items: center; gap: 10px; padding: 0 14px; font-size: 13px; font-weight: 700; }
-    .config-checkbox:focus-within { border-color: var(--mi-focus-ring); box-shadow: var(--mi-focus-shadow); }
-    .config-checkbox input { width: 16px; height: 16px; accent-color: #4f46e5; }
     .config-preference-note { gap: 10px; line-height: 1.65; }
-    .config-preference-textarea { min-height: 108px; resize: vertical; padding: 14px 16px; font-family: inherit; font-size: 13px; line-height: 1.65; }
     .config-select-shell { position: relative; width: 100%; }
     .config-select { appearance: none; -webkit-appearance: none; cursor: pointer; padding-right: 44px; }
     .config-select-icon { position: absolute; right: 16px; top: 50%; width: 16px; height: 16px; transform: translateY(-50%); pointer-events: none; color: #64748b; }
@@ -557,6 +570,6 @@
 </head>
 <body class="antialiased text-slate-800 bg-slate-50">
   <div id="root"></div>
-  <script src="app.js?v=34fa22bee9f7" defer></script>
+  <script src="app.js?v=9e26fdb0b915" defer></script>
 </body>
 </html>

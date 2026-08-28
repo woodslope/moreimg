@@ -4,3 +4,16 @@ __pycache__/
 
 # 本地 agent 记忆目录，不属于项目源码
 .workbuddy/
+
+# GitHub 发布分支只保留可直接运行的构建产物；源码、测试与设计资料留在本地维护。
+build.mjs
+src.html
+src/
+docs/
+fixtures/
+screenshots/
+scripts/
+tests/
+vendor/babel.js
+vendor/lucide.js
+vendor/DEPENDENCIES.md
