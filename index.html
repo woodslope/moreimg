@@ -217,9 +217,6 @@
     .processing-notice-title { color: inherit; font-size: 13px; font-weight: 800; line-height: 1.45; }
     .processing-notice-status { color: inherit; font-size: 11px; font-weight: 700; line-height: 1.5; white-space: nowrap; opacity: .84; }
     .processing-notice-message { margin: 3px 0 0; color: inherit; font-size: 12px; line-height: 1.65; }
-    .visual-panel-notice { align-items: center; margin: 12px 18px 0; border: 1px solid rgba(99,102,241,.24); border-radius: 8px; padding: 8px 12px; background: rgba(238,242,255,.58); color: #4338ca; }
-    /* 该变体整体居中对齐，取消基线微调避免图标偏下。 */
-    .visual-panel-notice > svg { margin-top: 0; }
     .visual-workspace-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(280px, 340px); align-items: stretch; }
     .visual-results-column { display: flex; min-width: 0; flex-direction: column; padding: 22px; }
     .visual-prompt-column { display: flex; min-width: 0; flex-direction: column; align-content: start; gap: 0; border-left: 1px solid var(--mi-border); padding: 14px 20px 22px; }
@@ -265,7 +262,7 @@
     .visual-comparison-item { display: flex; flex-direction: column; padding: 12px; }
     .visual-comparison-label { margin-bottom: 10px; color: #475569; font-size: 12px; font-weight: 800; }
     .visual-comparison-preview-frame,
-    .html-card-preview-frame { position: relative; width: 400px; aspect-ratio: 3 / 4; max-width: 100%; margin: 0 auto; overflow: hidden; border: 0; border-radius: 12px; background: #eef2f7; box-shadow: 0 10px 28px rgba(15, 23, 42, 0.1); }
+    .html-card-preview-frame { position: relative; width: 400px; aspect-ratio: 3 / 4; max-width: 100%; margin: 0 auto; overflow: hidden; border: 0; border-radius: 12px; background: #eef2f7; box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08); }
     .visual-comparison-preview-frame { border: 1px solid rgba(203,213,225,.72); }
     .html-card-preview-frame::after { position: absolute; inset: 0; z-index: 1; border: 1px solid rgba(203,213,225,.72); border-radius: inherit; pointer-events: none; content: ""; }
     .visual-comparison-image { display: block; width: 100%; height: 100%; object-fit: cover; }
@@ -570,6 +567,6 @@
 </head>
 <body class="antialiased text-slate-800 bg-slate-50">
   <div id="root"></div>
-  <script src="app.js?v=9e26fdb0b915" defer></script>
+  <script src="app.js?v=53af28ce3dcd" defer></script>
 </body>
 </html>

@@ -3259,7 +3259,6 @@ const useResultContent = ({
           const selectedHtmlCardReady = selectedHtmlImageResult?.status === 'success';
           const selectedHtmlFocusY = selectedHtmlCard ? selectedHtmlImageResult?.focusY ?? getDefaultCardFocus(selectedHtmlCard) : 50;
           const isSelectedHtmlCardExporting = Boolean(selectedHtmlCard && htmlExportState.cardId === selectedHtmlCard.id && htmlExportState.status === 'pending');
-          const selectedHtmlCardExportError = selectedHtmlCard && htmlExportState.cardId === selectedHtmlCard.id && htmlExportState.status === 'error' ? htmlExportState.error : '';
           const visualOnlyPrompt = cleanPromptText;
           const fullImagePrompt = matchingCard ? buildFullImagePrompt(cleanPromptText, matchingCard) : '';
           return React.createElement("div", {
@@ -3311,11 +3310,6 @@ const useResultContent = ({
             name: fullImageResult?.status === 'loading' ? 'LoaderCircle' : 'LayoutTemplate',
             className: `mr-2 h-4 w-4 ${fullImageResult?.status === 'loading' ? 'animate-spin' : ''}`
           }), fullImageResult?.status === 'loading' ? '生成中' : fullImageResult ? '重生成整图' : '生成 AI 整图'))), React.createElement("div", {
-            className: "mi-feedback mi-feedback-info visual-notice visual-panel-notice"
-          }, React.createElement(Icon, {
-            name: "Info",
-            className: "h-3.5 w-3.5 shrink-0"
-          }), React.createElement("span", null, isBuiltInDemo ? '内置示例仅用于查看流程；图片为本地占位图，不调用图片 API。' : 'HTML 成品卡用于准确中文交付；AI 整图用于视觉候选，生成后仍需核对文字。')), React.createElement("div", {
             className: "visual-workspace-grid"
           }, React.createElement("div", {
             className: "visual-results-column"
@@ -3330,13 +3324,7 @@ const useResultContent = ({
           }, React.createElement(Icon, {
             name: "CircleAlert",
             className: "visual-result-notice-icon"
-          }), React.createElement("span", null, "旧版主视觉不能用于 HTML 成品卡，请重新生成主视觉。")), imageResult?.status === 'error' && React.createElement("div", {
-            className: "mi-feedback mi-feedback-error visual-error",
-            role: "alert"
-          }, "图片生成失败：", imageResult.error), fullImageResult?.status === 'error' && React.createElement("div", {
-            className: "mi-feedback mi-feedback-error visual-error",
-            role: "alert"
-          }, "AI 整图生成失败：", fullImageResult.error), React.createElement("div", {
+          }), React.createElement("span", null, "旧版主视觉不能用于 HTML 成品卡，请重新生成主视觉。")), React.createElement("div", {
             className: "visual-result-grid"
           }, imageResult?.status === 'success' ? React.createElement("div", {
             className: "mi-surface mi-surface-card visual-result-item"
@@ -3517,10 +3505,7 @@ const useResultContent = ({
           }, React.createElement(Icon, {
             name: isSelectedHtmlCardExporting ? 'Loader' : 'Download',
             className: `mr-2 h-3.5 w-3.5 ${isSelectedHtmlCardExporting ? 'animate-spin' : ''}`
-          }), " ", isSelectedHtmlCardExporting ? '导出中' : '导出 HTML 成品 PNG'))), selectedHtmlCardExportError && React.createElement("div", {
-            className: "mi-feedback mi-feedback-error visual-error visual-export-error",
-            role: "alert"
-          }, selectedHtmlCardExportError), React.createElement("div", {
+          }), " ", isSelectedHtmlCardExporting ? '导出中' : '导出 HTML 成品 PNG'))), React.createElement("div", {
             className: "visual-current-output-body"
           }, React.createElement("div", {
             className: "mi-surface mi-surface-card visual-comparison-item"
