@@ -104,6 +104,9 @@ assert.match(
   helpers.formatProcessingError(new Error('(HTTP 429) quota exceeded')),
   /^引擎连接失败：/
 );
+const responseContentError = new Error('模型只返回了思考过程，没有返回可解析的 MoreImg JSON。');
+responseContentError.code = 'response_content';
+assert.equal(helpers.formatProcessingError(responseContentError), responseContentError.message);
 
 const truncated = helpers.applyProcessingFinishReason(helpers.assessProcessingResult(shallowButPackaged), 'length');
 assert.equal(truncated.canContinue, false);

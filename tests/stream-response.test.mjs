@@ -51,6 +51,30 @@ const jsonResult = await readProcessingResponse(new Response(JSON.stringify({
 assert.deepEqual(jsonResult, { text: '普通 JSON 返回', finishReason: 'stop' });
 
 await assert.rejects(
+  readProcessingResponse(createStreamResponse([
+    'data: {"choices":[{"delta":{"reasoning_content":"思考过程"},"finish_reason":null}]}\n\n',
+    'data: {"choices":[{"delta":{},"finish_reason":"length"}]}\n\n',
+    'data: [DONE]\n\n'
+  ])),
+  /仅返回思考过程.*Token 上限/
+);
+
+await assert.rejects(
+  readProcessingResponse(new Response(JSON.stringify({
+    choices: [{ message: { reasoning_content: '思考过程' }, finish_reason: 'stop' }]
+  }), { headers: { 'Content-Type': 'application/json' } })),
+  /只返回了思考过程/
+);
+
+const reasoningThenContent = await readProcessingResponse(createStreamResponse([
+  'data: {"choices":[{"delta":{"reasoning_content":"思考过程"},"finish_reason":null}]}\n\n',
+  'data: {"choices":[{"delta":{"content":"最终 JSON"},"finish_reason":null}]}\n\n',
+  'data: {"choices":[{"delta":{},"finish_reason":"stop"}]}\n\n',
+  'data: [DONE]\n\n'
+]));
+assert.deepEqual(reasoningThenContent, { text: '最终 JSON', finishReason: 'stop' });
+
+await assert.rejects(
   readProcessingResponse(createStreamResponse([': keep-alive\n\ndata: [DONE]\n\n'])),
   /未返回任何有效内容/
 );

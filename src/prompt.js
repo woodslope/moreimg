@@ -91,4 +91,4 @@ image_prompt
 - avoid 只写本页特有误读风险，全局禁用项放入 style_lock.negative。
 - 所有图片禁止文字、字母、数字、Logo、水印、伪文字、UI标签和随机符号。
 
-输出前在内部检查：完整正文没有摘要化；封面、正文、封底齐全；page_id 与 order 连续；每页三个对象完整绑定；主关系符合原文概念层级；全套只有一个 Style Lock；没有新增原文外事实。不要输出检查过程。`;
+输出前在内部检查：完整正文没有摘要化；封面、正文、封底齐全；page_id 与 order 连续；每个 pages 元素都必须包含 card、semantic、image_prompt；每个 card.title 都必须是非空字符串（包括最后一页）；style_lock.negative 必须是至少包含一项的字符串数组；所有规定为数组的字段必须逐项检查类型；主关系符合原文概念层级；全套只有一个 Style Lock；没有新增原文外事实。不要输出检查过程。`;

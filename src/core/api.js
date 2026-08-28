@@ -276,6 +276,20 @@
         .join('');
     };
 
+    const extractProcessingReasoningText = (data = {}) => {
+      const choice = data.choices?.[0] || {};
+      const reasoning = choice.delta?.reasoning_content
+        ?? choice.message?.reasoning_content
+        ?? data.reasoning_content;
+      return typeof reasoning === 'string' ? reasoning : '';
+    };
+
+    const createProcessingResponseError = (message, code = 'response_content') => {
+      const error = new Error(message);
+      error.code = code;
+      return error;
+    };
+
     const extractProcessingFinishReason = (data = {}) => {
       const chatReason = data.choices?.[0]?.finish_reason;
       if (chatReason) return chatReason;
@@ -299,15 +313,27 @@
       const contentType = String(response.headers?.get?.('content-type') || '').toLowerCase();
       if (!contentType.includes('text/event-stream')) {
         const responseText = await response.text();
+        let data;
         try {
-          const data = JSON.parse(responseText);
-          return {
-            text: extractProcessingResponseText(data),
-            finishReason: extractProcessingFinishReason(data)
-          };
+          data = JSON.parse(responseText);
         } catch {
           return { text: responseText, finishReason: '' };
         }
+        const text = extractProcessingResponseText(data);
+        const finishReason = extractProcessingFinishReason(data);
+        const reasoningText = extractProcessingReasoningText(data);
+        if (!text.trim() && reasoningText.trim()) {
+          const isTruncated = ['length', 'max_tokens', 'max_output_tokens'].includes(String(finishReason).toLowerCase());
+          throw createProcessingResponseError(
+            isTruncated
+              ? '模型仅返回思考过程，并在生成可解析 JSON 前达到 Token 上限。请改用非思考模型或减少输入后再试。'
+              : '模型只返回了思考过程，没有返回可解析的 MoreImg JSON。请改用非思考模型或检查中转站响应格式。'
+          );
+        }
+        return {
+          text,
+          finishReason
+        };
       }
 
       if (!response.body || typeof response.body.getReader !== 'function') {
@@ -318,6 +344,7 @@
       const decoder = new TextDecoder('utf-8');
       let streamBuffer = '';
       let fullResponseText = '';
+      let reasoningResponseText = '';
       let finishReason = '';
       let streamCompleted = false;
       let malformedEvent = false;
@@ -334,6 +361,7 @@
         try {
           const data = JSON.parse(payload);
           fullResponseText += extractProcessingStreamDelta(data);
+          reasoningResponseText += extractProcessingReasoningText(data);
           const eventFinishReason = extractProcessingFinishReason(data);
           finishReason = eventFinishReason || finishReason;
           if (eventFinishReason || ['response.completed', 'response.incomplete', 'response.failed'].includes(data.type)) {
@@ -362,6 +390,14 @@
         throw new Error('流式响应包含无法解析的事件，已停止使用不完整内容。上游可能已计费，请先核对用量再重试。');
       }
       if (!fullResponseText.trim()) {
+        if (reasoningResponseText.trim()) {
+          const isTruncated = ['length', 'max_tokens', 'max_output_tokens'].includes(String(finishReason).toLowerCase());
+          throw createProcessingResponseError(
+            isTruncated
+              ? '模型仅返回思考过程，并在生成可解析 JSON 前达到 Token 上限。请改用非思考模型或减少输入后再试。'
+              : '模型只返回了思考过程，没有返回可解析的 MoreImg JSON。请改用非思考模型或检查中转站响应格式。'
+          );
+        }
         throw new Error('大模型未返回任何有效内容，请检查接口配置或稍后重试。');
       }
       return { text: fullResponseText, finishReason };

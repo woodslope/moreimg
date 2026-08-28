@@ -206,6 +206,7 @@
 
     const formatProcessingError = (error) => {
       const message = String(error?.message || error || '未知错误').trim();
+      if (error?.code === 'response_content') return message;
       if (/\bHTTP 524\b/.test(message)) {
         return '上游模型服务响应超时（HTTP 524），请稍后重试或换用响应更快的文本模型。';
       }

@@ -4,6 +4,7 @@
     const MOREIMG_MEDIA = new Set(['3d_model', 'geometric_silhouette', 'hand_drawn_line', 'isometric_icon', 'flat_vector', 'wireframe_perspective']);
     const MOREIMG_SURFACES = new Set(['light', 'dark']);
     const MOREIMG_OVERLAYS = new Set(['none', 'soft_dark', 'soft_light']);
+    const DEFAULT_STYLE_NEGATIVE = Object.freeze(['文字', '字母', '数字', 'Logo', '水印', '伪文字']);
 
     const createDefaultProcessingPreferences = () => ({
       refinement: 'standard',
@@ -42,9 +43,99 @@
       return true;
     };
 
-    const validateMoreImgPackage = (packageData, originalText = '') => {
-      const errors = [];
+    const clonePackageData = (value) => {
+      if (!value || typeof value !== 'object') return value;
+      try {
+        return JSON.parse(JSON.stringify(value));
+      } catch {
+        return value;
+      }
+    };
+
+    const normalizeStringList = (value) => {
+      if (Array.isArray(value)) return value;
+      if (typeof value !== 'string') return value;
+      const source = value.trim();
+      if (!source) return [];
+      try {
+        const parsed = JSON.parse(source);
+        if (Array.isArray(parsed)) return parsed;
+      } catch {}
+      return source
+        .split(/[\r\n、，,；;|]+/)
+        .map(item => item.trim())
+        .filter(Boolean);
+    };
+
+    const cleanFallbackTitle = (value) => String(value || '')
+      .replace(/[`*_#[\]【】]/g, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+    // 不同模型经常把“字符串数组”压成单个字符串，或漏掉某一页标题。
+    // 这里只处理可确定、不改变语义的转换；无法推断的对象仍交给严格校验报错。
+    const normalizeMoreImgPackage = (input) => {
+      const packageData = clonePackageData(input);
       const warnings = [];
+      if (!packageData || typeof packageData !== 'object' || Array.isArray(packageData)) return { packageData, warnings };
+
+      const normalizeList = (object, key, path, fallback = undefined) => {
+        if (!object || typeof object !== 'object' || Array.isArray(object)) return;
+        const original = object[key];
+        if ((original === undefined || original === null || (typeof original === 'string' && !original.trim())) && fallback !== undefined) {
+          object[key] = [...fallback];
+          warnings.push(`${path} 缺失，已使用默认数组`);
+          return;
+        }
+        const normalized = normalizeStringList(original);
+        if (normalized !== original) {
+          object[key] = normalized;
+          warnings.push(`${path} 已从字符串修正为数组`);
+        }
+      };
+
+      normalizeList(packageData.analysis, 'independent_units', 'analysis.independent_units');
+      normalizeList(packageData.article, 'paragraphs', 'article.paragraphs');
+
+      const styleLock = packageData.style_lock;
+      normalizeList(styleLock, 'negative', 'style_lock.negative', DEFAULT_STYLE_NEGATIVE);
+      normalizeList(styleLock?.visual_dna, 'recurring_elements', 'style_lock.visual_dna.recurring_elements',
+        styleLock?.visual_dna?.recurring_subject ? [styleLock.visual_dna.recurring_subject] : undefined);
+
+      if (Array.isArray(packageData.pages)) {
+        packageData.pages.forEach((page, index) => {
+          if (!page || typeof page !== 'object' || Array.isArray(page)) return;
+          normalizeList(page.card, 'points', `pages[${index}].card.points`, []);
+          normalizeList(page.semantic, 'supporting_concepts', `pages[${index}].semantic.supporting_concepts`, []);
+          normalizeList(page.semantic, 'excluded_concepts', `pages[${index}].semantic.excluded_concepts`, []);
+          normalizeList(page.semantic, 'avoid_misread', `pages[${index}].semantic.avoid_misread`, []);
+          normalizeList(page.image_prompt, 'avoid', `pages[${index}].image_prompt.avoid`, []);
+
+          if (page.card && typeof page.card === 'object' && !Array.isArray(page.card)
+            && (typeof page.card.title !== 'string' || !page.card.title.trim())) {
+            const fallback = [
+              page.card.subtitle,
+              page.card.summary,
+              page.semantic?.primary_claim,
+              page.semantic?.primary_concept,
+              page.page_id === 'cover' ? '封面' : page.page_id === 'closing' ? '封底' : `正文${index}`
+            ].map(cleanFallbackTitle).find(Boolean);
+            if (fallback) {
+              page.card.title = fallback;
+              warnings.push(`pages[${index}].card.title 缺失，已从同页语义字段补齐`);
+            }
+          }
+        });
+      }
+
+      return { packageData, warnings };
+    };
+
+    const validateMoreImgPackage = (packageData, originalText = '') => {
+      const normalization = normalizeMoreImgPackage(packageData);
+      packageData = normalization.packageData;
+      const errors = [];
+      const warnings = [...normalization.warnings];
       if (!requireObject(packageData, '根对象', errors)) return { packageData, isComplete: false, canContinue: false, isRejected: false, reason: errors[0], warning: '', errors, warnings };
       if (packageData.schema_version !== MOREIMG_SCHEMA_VERSION) errors.push(`schema_version 必须是 ${MOREIMG_SCHEMA_VERSION}`);
       if (!['complete', 'rejected'].includes(packageData.status)) errors.push('status 必须是 complete 或 rejected');

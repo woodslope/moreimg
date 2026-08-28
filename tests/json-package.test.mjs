@@ -209,6 +209,16 @@ assert.equal(fencedPackage.packageData.schema_version, 'moreimg-1.0');
 const wrappedPackage = helpers.parseMoreImgPackage(`结果如下：${JSON.stringify(validPackage)}\n以上。`, originalText);
 assert.equal(wrappedPackage.packageData.schema_version, 'moreimg-1.0');
 
+const modelVariantPackage = createValidPackage();
+modelVariantPackage.style_lock.negative = '文字、Logo、水印';
+modelVariantPackage.pages[1].card.title = '';
+modelVariantPackage.pages[1].card.subtitle = '由语义字段补齐标题';
+const normalizedVariant = helpers.parseMoreImgPackage(JSON.stringify(modelVariantPackage), originalText);
+assert.equal(normalizedVariant.canContinue, true, '可无损修正的模型格式偏差不应阻断结果');
+assert.deepEqual(normalizedVariant.packageData.style_lock.negative, ['文字', 'Logo', '水印']);
+assert.equal(normalizedVariant.packageData.pages[1].card.title, '由语义字段补齐标题');
+assert.match(normalizedVariant.warning, /style_lock\.negative|card\.title/);
+
 const visualPrompt = helpers.buildPageImagePrompt(validPackage.style_lock, validPackage.pages[0]);
 assert.match(visualPrompt, /深蓝与暖橙配色/);
 assert.match(visualPrompt, /设计师站在改变方向的潮流前/);

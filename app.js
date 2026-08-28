@@ -668,7 +668,7 @@ image_prompt
 - avoid 只写本页特有误读风险，全局禁用项放入 style_lock.negative。
 - 所有图片禁止文字、字母、数字、Logo、水印、伪文字、UI标签和随机符号。
 
-输出前在内部检查：完整正文没有摘要化；封面、正文、封底齐全；page_id 与 order 连续；每页三个对象完整绑定；主关系符合原文概念层级；全套只有一个 Style Lock；没有新增原文外事实。不要输出检查过程。`;
+输出前在内部检查：完整正文没有摘要化；封面、正文、封底齐全；page_id 与 order 连续；每个 pages 元素都必须包含 card、semantic、image_prompt；每个 card.title 都必须是非空字符串（包括最后一页）；style_lock.negative 必须是至少包含一项的字符串数组；所有规定为数组的字段必须逐项检查类型；主关系符合原文概念层级；全套只有一个 Style Lock；没有新增原文外事实。不要输出检查过程。`;
 const Icon = React.memo(({
   name,
   className = "",
@@ -1007,6 +1007,7 @@ const applyProcessingFinishReason = (assessment, finishReason = '') => {
 };
 const formatProcessingError = error => {
   const message = String(error?.message || error || '未知错误').trim();
+  if (error?.code === 'response_content') return message;
   if (/\bHTTP 524\b/.test(message)) {
     return '上游模型服务响应超时（HTTP 524），请稍后重试或换用响应更快的文本模型。';
   }
@@ -1024,6 +1025,7 @@ const MOREIMG_MODES = new Set(['standard', 'short', 'single_point']);
 const MOREIMG_MEDIA = new Set(['3d_model', 'geometric_silhouette', 'hand_drawn_line', 'isometric_icon', 'flat_vector', 'wireframe_perspective']);
 const MOREIMG_SURFACES = new Set(['light', 'dark']);
 const MOREIMG_OVERLAYS = new Set(['none', 'soft_dark', 'soft_light']);
+const DEFAULT_STYLE_NEGATIVE = Object.freeze(['文字', '字母', '数字', 'Logo', '水印', '伪文字']);
 const createDefaultProcessingPreferences = () => ({
   refinement: 'standard',
   pageCount: 'auto',
@@ -1066,9 +1068,79 @@ const requireStringArray = (value, path, errors, options = {}) => {
   }));
   return true;
 };
-const validateMoreImgPackage = (packageData, originalText = '') => {
-  const errors = [];
+const clonePackageData = value => {
+  if (!value || typeof value !== 'object') return value;
+  try {
+    return JSON.parse(JSON.stringify(value));
+  } catch {
+    return value;
+  }
+};
+const normalizeStringList = value => {
+  if (Array.isArray(value)) return value;
+  if (typeof value !== 'string') return value;
+  const source = value.trim();
+  if (!source) return [];
+  try {
+    const parsed = JSON.parse(source);
+    if (Array.isArray(parsed)) return parsed;
+  } catch {}
+  return source.split(/[\r\n、，,；;|]+/).map(item => item.trim()).filter(Boolean);
+};
+const cleanFallbackTitle = value => String(value || '').replace(/[`*_#[\]【】]/g, '').replace(/\s+/g, ' ').trim();
+const normalizeMoreImgPackage = input => {
+  const packageData = clonePackageData(input);
   const warnings = [];
+  if (!packageData || typeof packageData !== 'object' || Array.isArray(packageData)) return {
+    packageData,
+    warnings
+  };
+  const normalizeList = (object, key, path, fallback = undefined) => {
+    if (!object || typeof object !== 'object' || Array.isArray(object)) return;
+    const original = object[key];
+    if ((original === undefined || original === null || typeof original === 'string' && !original.trim()) && fallback !== undefined) {
+      object[key] = [...fallback];
+      warnings.push(`${path} 缺失，已使用默认数组`);
+      return;
+    }
+    const normalized = normalizeStringList(original);
+    if (normalized !== original) {
+      object[key] = normalized;
+      warnings.push(`${path} 已从字符串修正为数组`);
+    }
+  };
+  normalizeList(packageData.analysis, 'independent_units', 'analysis.independent_units');
+  normalizeList(packageData.article, 'paragraphs', 'article.paragraphs');
+  const styleLock = packageData.style_lock;
+  normalizeList(styleLock, 'negative', 'style_lock.negative', DEFAULT_STYLE_NEGATIVE);
+  normalizeList(styleLock?.visual_dna, 'recurring_elements', 'style_lock.visual_dna.recurring_elements', styleLock?.visual_dna?.recurring_subject ? [styleLock.visual_dna.recurring_subject] : undefined);
+  if (Array.isArray(packageData.pages)) {
+    packageData.pages.forEach((page, index) => {
+      if (!page || typeof page !== 'object' || Array.isArray(page)) return;
+      normalizeList(page.card, 'points', `pages[${index}].card.points`, []);
+      normalizeList(page.semantic, 'supporting_concepts', `pages[${index}].semantic.supporting_concepts`, []);
+      normalizeList(page.semantic, 'excluded_concepts', `pages[${index}].semantic.excluded_concepts`, []);
+      normalizeList(page.semantic, 'avoid_misread', `pages[${index}].semantic.avoid_misread`, []);
+      normalizeList(page.image_prompt, 'avoid', `pages[${index}].image_prompt.avoid`, []);
+      if (page.card && typeof page.card === 'object' && !Array.isArray(page.card) && (typeof page.card.title !== 'string' || !page.card.title.trim())) {
+        const fallback = [page.card.subtitle, page.card.summary, page.semantic?.primary_claim, page.semantic?.primary_concept, page.page_id === 'cover' ? '封面' : page.page_id === 'closing' ? '封底' : `正文${index}`].map(cleanFallbackTitle).find(Boolean);
+        if (fallback) {
+          page.card.title = fallback;
+          warnings.push(`pages[${index}].card.title 缺失，已从同页语义字段补齐`);
+        }
+      }
+    });
+  }
+  return {
+    packageData,
+    warnings
+  };
+};
+const validateMoreImgPackage = (packageData, originalText = '') => {
+  const normalization = normalizeMoreImgPackage(packageData);
+  packageData = normalization.packageData;
+  const errors = [];
+  const warnings = [...normalization.warnings];
   if (!requireObject(packageData, '根对象', errors)) return {
     packageData,
     isComplete: false,
@@ -1552,6 +1624,16 @@ const extractProcessingResponseText = (data = {}) => {
   const output = data.output || data.response?.output || [];
   return output.flatMap(item => item?.content || []).map(content => content?.text?.value || content?.text || '').filter(Boolean).join('');
 };
+const extractProcessingReasoningText = (data = {}) => {
+  const choice = data.choices?.[0] || {};
+  const reasoning = choice.delta?.reasoning_content ?? choice.message?.reasoning_content ?? data.reasoning_content;
+  return typeof reasoning === 'string' ? reasoning : '';
+};
+const createProcessingResponseError = (message, code = 'response_content') => {
+  const error = new Error(message);
+  error.code = code;
+  return error;
+};
 const extractProcessingFinishReason = (data = {}) => {
   const chatReason = data.choices?.[0]?.finish_reason;
   if (chatReason) return chatReason;
@@ -1573,18 +1655,26 @@ const readProcessingResponse = async response => {
   const contentType = String(response.headers?.get?.('content-type') || '').toLowerCase();
   if (!contentType.includes('text/event-stream')) {
     const responseText = await response.text();
+    let data;
     try {
-      const data = JSON.parse(responseText);
-      return {
-        text: extractProcessingResponseText(data),
-        finishReason: extractProcessingFinishReason(data)
-      };
+      data = JSON.parse(responseText);
     } catch {
       return {
         text: responseText,
         finishReason: ''
       };
     }
+    const text = extractProcessingResponseText(data);
+    const finishReason = extractProcessingFinishReason(data);
+    const reasoningText = extractProcessingReasoningText(data);
+    if (!text.trim() && reasoningText.trim()) {
+      const isTruncated = ['length', 'max_tokens', 'max_output_tokens'].includes(String(finishReason).toLowerCase());
+      throw createProcessingResponseError(isTruncated ? '模型仅返回思考过程，并在生成可解析 JSON 前达到 Token 上限。请改用非思考模型或减少输入后再试。' : '模型只返回了思考过程，没有返回可解析的 MoreImg JSON。请改用非思考模型或检查中转站响应格式。');
+    }
+    return {
+      text,
+      finishReason
+    };
   }
   if (!response.body || typeof response.body.getReader !== 'function') {
     throw new Error('接口返回了不可读取的流，请检查接口或更换文本模型。');
@@ -1593,6 +1683,7 @@ const readProcessingResponse = async response => {
   const decoder = new TextDecoder('utf-8');
   let streamBuffer = '';
   let fullResponseText = '';
+  let reasoningResponseText = '';
   let finishReason = '';
   let streamCompleted = false;
   let malformedEvent = false;
@@ -1608,6 +1699,7 @@ const readProcessingResponse = async response => {
     try {
       const data = JSON.parse(payload);
       fullResponseText += extractProcessingStreamDelta(data);
+      reasoningResponseText += extractProcessingReasoningText(data);
       const eventFinishReason = extractProcessingFinishReason(data);
       finishReason = eventFinishReason || finishReason;
       if (eventFinishReason || ['response.completed', 'response.incomplete', 'response.failed'].includes(data.type)) {
@@ -1638,6 +1730,10 @@ const readProcessingResponse = async response => {
     throw new Error('流式响应包含无法解析的事件，已停止使用不完整内容。上游可能已计费，请先核对用量再重试。');
   }
   if (!fullResponseText.trim()) {
+    if (reasoningResponseText.trim()) {
+      const isTruncated = ['length', 'max_tokens', 'max_output_tokens'].includes(String(finishReason).toLowerCase());
+      throw createProcessingResponseError(isTruncated ? '模型仅返回思考过程，并在生成可解析 JSON 前达到 Token 上限。请改用非思考模型或减少输入后再试。' : '模型只返回了思考过程，没有返回可解析的 MoreImg JSON。请改用非思考模型或检查中转站响应格式。');
+    }
     throw new Error('大模型未返回任何有效内容，请检查接口配置或稍后重试。');
   }
   return {

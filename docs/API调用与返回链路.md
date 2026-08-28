@@ -66,8 +66,8 @@ GitHub Pages
 5. 通过 `fetchTextRequest` 发出一次请求，鉴权为 `Authorization: Bearer <API Key>`。
 6. 非 2xx 响应由 `readApiErrorMessage` 读取 JSON、代理 `detail` 或 HTML 原文，保留状态码。
 7. `readProcessingResponse` 根据 `Content-Type` 读取 SSE；供应商即使错误地返回普通 JSON，也会按 JSON 解析。
-8. SSE 拼接 Chat 的 `delta.content` 或 Responses 的 `response.output_text.delta`，必须收到 `[DONE]` 或完成事件。
-9. 完整文本交给 `parseMoreImgPackage`，再做 `moreimg-1.0` 字段、页码、正文保留率和视觉字段校验。
+8. SSE 拼接 Chat 的 `delta.content` 或 Responses 的 `response.output_text.delta`，必须收到 `[DONE]` 或完成事件。Chat 的 `reasoning_content` 只用于判断“思考模型是否耗尽 Token/没有给出最终答案”，不会混入 MoreImg JSON；如果只有思考内容，页面会明确提示改用非思考模型或减少输入。
+9. 完整文本交给 `parseMoreImgPackage`。进入严格校验前会做一次有限的响应归一化：把供应商把字符串数组压成字符串的情况拆回数组；缺失全局 `style_lock.negative` 时补入固定的图片禁用项；单页标题为空时优先从同页副标题、总结或语义主张补齐。归一化只处理可无损确定的字段，其他错误仍会阻断。
 
 模型如果返回代码块或前后说明文字，解析器会在单一完整 JSON 对象可确定时提取它；如果 JSON 截断、存在无法解析的 SSE 事件或结构校验失败，则停止使用不完整内容，不追加第二次请求。
 
@@ -94,7 +94,7 @@ GitHub Pages 下，URL 图片二次下载仍受图片 CDN CORS、签名有效期
 | HTTP 502 | 代理无法完成通信 | 看 `detail`；不要自动重试，先核对上游是否有提交 |
 | HTTP 504/524 | 代理或上游等待超时 | 长文本/图片可能已计费，先对账再决定是否重新发起 |
 | 流中断、缺 `[DONE]` | 网关掐断或上游断流 | 使用已收到的错误信息，不使用不完整 JSON |
-| 文本返回成功但结构错误 | 生成格式不符合 `moreimg-1.0` | 检查原始返回是否被代码块/说明包裹、是否截断 |
+| 文本返回成功但结构错误 | 生成格式不符合 `moreimg-1.0` | 先看归一化后的字段；可确定的字符串数组和空标题会自动修正，其余错误仍会阻断 |
 | 图片返回 URL 后失败 | 二次下载的 CORS、过期或 403 | 优先改为 `b64_json` 或增加图片代理 |
 | 图片已生成但刷新后没有 | 下载或 IndexedDB 保存阶段失败 | 查看“最近一次生图诊断”和生图请求记录 |
 
