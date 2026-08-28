@@ -533,7 +533,10 @@ try {
     );
   }
   assert.deepEqual(processedInputLengths, lengthCases.map(testCase => testCase.length));
-  assert.deepEqual(processingStreamFlags, lengthCases.map(() => false), '核心加工应与接口测试统一使用非流式响应');
+  // 核心加工必须请求流式：一次要生成上万 token，非流式期间连接完全静默，
+  // 中转站前置的 nginx / Cloudflare 会在读超时掐断——模型已计费，页面收不到结果。
+  // 假接口对 5000 字用例回 SSE、其余回普通 JSON，两条读取路径都要在真实浏览器里走通。
+  assert.deepEqual(processingStreamFlags, lengthCases.map(() => true), '核心加工应请求流式响应以避免网关读超时');
   await sleep(550);
   const keyboardFocusEvidence = await evaluate(`(() => {
     const inspect = element => {

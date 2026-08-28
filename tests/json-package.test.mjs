@@ -204,10 +204,10 @@ const invalidClosing = helpers.validateMoreImgPackage(missingClosing, originalTe
 assert.equal(invalidClosing.isComplete, false);
 assert.match(invalidClosing.reason, /closing|封底/);
 
-assert.throws(
-  () => helpers.parseMoreImgPackage('```json\n{}\n```', originalText),
-  /合法 JSON/
-);
+const fencedPackage = helpers.parseMoreImgPackage(`\n模型说明：以下是结果。\n\n\`\`\`json\n${JSON.stringify(validPackage)}\n\`\`\`\n`, originalText);
+assert.equal(fencedPackage.packageData.schema_version, 'moreimg-1.0');
+const wrappedPackage = helpers.parseMoreImgPackage(`结果如下：${JSON.stringify(validPackage)}\n以上。`, originalText);
+assert.equal(wrappedPackage.packageData.schema_version, 'moreimg-1.0');
 
 const visualPrompt = helpers.buildPageImagePrompt(validPackage.style_lock, validPackage.pages[0]);
 assert.match(visualPrompt, /深蓝与暖橙配色/);

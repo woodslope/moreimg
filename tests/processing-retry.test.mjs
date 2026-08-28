@@ -82,6 +82,29 @@ assert.equal(
   '上游模型服务响应超时（HTTP 524），请稍后重试或换用响应更快的文本模型。'
 );
 
+// “中转站后台有提交，但收不到返回结果”对应的两种代理故障：
+// 502/504 都发生在请求已离开浏览器之后，提示必须指向对账，而不是简单的“连接失败”。
+const proxyTimeoutMessage = helpers.formatProcessingError(
+  new Error('(HTTP 504) Upstream request timed out（timed out）')
+);
+assert.match(proxyTimeoutMessage, /HTTP 504/);
+assert.match(proxyTimeoutMessage, /可能已受理/);
+assert.match(proxyTimeoutMessage, /核对用量/);
+assert.match(proxyTimeoutMessage, /timed out/, '必须保留代理 detail 里的真实原因');
+
+const proxyFailureMessage = helpers.formatProcessingError(
+  new Error('(HTTP 502) Upstream request failed（[Errno 61] Connection refused）')
+);
+assert.match(proxyFailureMessage, /HTTP 502/);
+assert.match(proxyFailureMessage, /核对用量/);
+assert.match(proxyFailureMessage, /Connection refused/, '必须保留代理 detail 里的真实原因');
+
+// 业务错误仍走原来的通用文案，不能被代理提示覆盖。
+assert.match(
+  helpers.formatProcessingError(new Error('(HTTP 429) quota exceeded')),
+  /^引擎连接失败：/
+);
+
 const truncated = helpers.applyProcessingFinishReason(helpers.assessProcessingResult(shallowButPackaged), 'length');
 assert.equal(truncated.canContinue, false);
 assert.match(truncated.reason, /输出达到 12000 Token 上限/);

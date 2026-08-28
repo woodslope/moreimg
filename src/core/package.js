@@ -158,16 +158,57 @@
       };
     };
 
+    const findBalancedJsonObjects = (source) => {
+      const candidates = [];
+      for (let start = 0; start < source.length; start += 1) {
+        if (source[start] !== '{') continue;
+        let depth = 0;
+        let inString = false;
+        let escaped = false;
+        for (let index = start; index < source.length; index += 1) {
+          const character = source[index];
+          if (inString) {
+            if (escaped) escaped = false;
+            else if (character === '\\') escaped = true;
+            else if (character === '"') inString = false;
+            continue;
+          }
+          if (character === '"') {
+            inString = true;
+          } else if (character === '{') {
+            depth += 1;
+          } else if (character === '}') {
+            depth -= 1;
+            if (depth === 0) {
+              candidates.push(source.slice(start, index + 1));
+              break;
+            }
+          }
+        }
+      }
+      return candidates;
+    };
+
     const parseMoreImgPackage = (rawText, originalText = '') => {
       const source = String(rawText || '').trim();
-      if (!source || source.startsWith('```') || source.endsWith('```')) throw new Error('接口必须返回合法 JSON，不能包含 Markdown 代码块或解释文字');
-      let packageData;
-      try {
-        packageData = JSON.parse(source);
-      } catch (error) {
-        throw new Error(`接口未返回合法 JSON：${error.message}`);
+      if (!source) throw new Error('接口必须返回合法 JSON');
+
+      const fencedSource = source.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i)?.[1]?.trim() || '';
+      const candidates = [...new Set([
+        ...(fencedSource ? [fencedSource] : []),
+        source,
+        ...findBalancedJsonObjects(fencedSource || source)
+      ])];
+      let lastError = null;
+      for (const candidate of candidates) {
+        try {
+          const packageData = JSON.parse(candidate);
+          return validateMoreImgPackage(packageData, originalText);
+        } catch (error) {
+          lastError = error;
+        }
       }
-      return validateMoreImgPackage(packageData, originalText);
+      throw new Error(`接口未返回合法 JSON：${lastError?.message || '找不到完整 JSON 对象'}`);
     };
 
     const buildPageImagePrompt = (styleLock, page) => {

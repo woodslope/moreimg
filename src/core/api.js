@@ -120,6 +120,22 @@
 
     const isResponsesApiEndpoint = (apiUrl = '') => /\/responses(?:[/?#]|$)/i.test(String(apiUrl).trim());
 
+    // 本机代理用 {message, detail} 回报传输层故障（502/504），中转站用 {error:{message}}
+    // 回报业务错误。只读 message 会把 detail 里真正的原因（连接被拒、超时主机）丢掉，
+    // 让“中转站有提交但没返回”和“根本没连上”在界面上长得一模一样。
+    const readApiErrorMessage = async (response) => {
+      const rawText = await response.text().catch(() => '');
+      let data = null;
+      try {
+        data = JSON.parse(rawText);
+      } catch {}
+      const message = data?.error?.message || data?.message || '';
+      const detail = String(data?.detail || '').trim();
+      const fallback = rawText.replace(/\s+/g, ' ').trim().slice(0, 200);
+      const summary = message || fallback || response.statusText || '无响应内容';
+      return detail && detail !== summary ? `${summary}（${detail}）` : summary;
+    };
+
     const resolveApiEndpoint = (apiUrl = '', kind = 'text') => {
       const rawUrl = String(apiUrl || '').trim();
       if (!rawUrl) return '';
@@ -150,8 +166,9 @@
       try {
         const target = new URL(endpoint, pageLocation.origin);
         if (target.origin === pageLocation.origin) return { url: endpoint, headers: {} };
+        const proxyPath = kind === 'image' ? 'image' : kind === 'models' ? 'models' : 'text';
         return {
-          url: `/proxy/${kind === 'image' ? 'image' : 'text'}`,
+          url: `/proxy/${proxyPath}`,
           headers: { 'X-MoreImg-Upstream': target.toString() }
         };
       } catch {
@@ -159,8 +176,8 @@
       }
     };
 
-    const fetchTextRequest = async (endpoint, options = {}, pageLocation = window.location, fetchImpl = fetch) => {
-      const transport = getRequestTransport(endpoint, 'text', pageLocation);
+    const fetchApiRequest = async (endpoint, kind = 'text', options = {}, pageLocation = window.location, fetchImpl = fetch) => {
+      const transport = getRequestTransport(endpoint, kind, pageLocation);
       if (transport.blockedLocalService) {
         throw new Error('当前是线上页面，不能使用本机代理地址。请在设置中改为可跨域访问的 HTTPS 接口。');
       }
@@ -172,6 +189,10 @@
 
       return send(transport.url, transport.headers);
     };
+
+    const fetchTextRequest = (endpoint, options = {}, pageLocation = window.location, fetchImpl = fetch) => (
+      fetchApiRequest(endpoint, 'text', options, pageLocation, fetchImpl)
+    );
 
     // 图片 CDN 通常不带 CORS 头，浏览器直连会在“已计费”之后失败。
     // 本地服务模式下改走同源代理下载；纯静态部署时只能直连，失败即回退到人工另存。
@@ -267,6 +288,9 @@
     const extractProcessingStreamDelta = (data = {}) => {
       const chatDelta = data.choices?.[0]?.delta?.content;
       if (typeof chatDelta === 'string') return chatDelta;
+      if (Array.isArray(chatDelta)) {
+        return chatDelta.map(item => item?.text?.value || item?.text || '').join('');
+      }
       if (data.type === 'response.output_text.delta' && typeof data.delta === 'string') return data.delta;
       return '';
     };
@@ -296,6 +320,7 @@
       let fullResponseText = '';
       let finishReason = '';
       let streamCompleted = false;
+      let malformedEvent = false;
 
       const consumeLine = (rawLine) => {
         const line = String(rawLine || '').trim();
@@ -314,7 +339,9 @@
           if (eventFinishReason || ['response.completed', 'response.incomplete', 'response.failed'].includes(data.type)) {
             streamCompleted = true;
           }
-        } catch {}
+        } catch {
+          malformedEvent = true;
+        }
       };
 
       while (true) {
@@ -328,7 +355,11 @@
       consumeLine(streamBuffer);
 
       if (!streamCompleted) {
-        throw new Error('流式响应提前结束，未收到完成标记，请稍后重试或检查上游服务。');
+        // 分片中断说明网关在模型已经开始产出后掐断了连接：上游通常已经算完并计费。
+        throw new Error('流式响应在收到完成标记前中断，可能被中转站网关掐断。上游可能已计费，请先核对用量再重试。');
+      }
+      if (malformedEvent) {
+        throw new Error('流式响应包含无法解析的事件，已停止使用不完整内容。上游可能已计费，请先核对用量再重试。');
       }
       if (!fullResponseText.trim()) {
         throw new Error('大模型未返回任何有效内容，请检查接口配置或稍后重试。');

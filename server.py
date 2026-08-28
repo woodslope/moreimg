@@ -1,3 +1,4 @@
+import errno
 import gzip
 import io
 import json
@@ -21,6 +22,7 @@ UPSTREAMS = {
 PROXY_SUFFIXES = {
     "/proxy/text": ("/chat/completions", "/responses"),
     "/proxy/image": ("/images/generations",),
+    "/proxy/models": ("/models",),
 }
 
 # 图片 CDN 多数不带 CORS 头，浏览器直连会在“上游已出图并计费”之后失败。
@@ -55,6 +57,19 @@ def detect_upstream_proxy():
 UPSTREAM_PROXY = detect_upstream_proxy()
 DIRECT_OPENER = build_opener(ProxyHandler({}))
 PROXY_OPENER = build_opener(ProxyHandler({"http": UPSTREAM_PROXY, "https": UPSTREAM_PROXY})) if UPSTREAM_PROXY else DIRECT_OPENER
+
+# 只有“连接本机代理本身就失败”才说明请求根本没送出去，这时直连重试是安全的。
+# 超时和连接中断都可能发生在上游已经受理之后：重试会重复提交、重复计费。
+PRE_SUBMIT_ERRNOS = frozenset({errno.ECONNREFUSED, errno.EHOSTUNREACH, errno.ENETUNREACH, errno.EADDRNOTAVAIL})
+
+
+def is_pre_submit_failure(error):
+    reason = getattr(error, "reason", error)
+    if isinstance(reason, socket.gaierror):
+        return True
+    if isinstance(reason, (TimeoutError, socket.timeout)):
+        return False
+    return isinstance(reason, OSError) and reason.errno in PRE_SUBMIT_ERRNOS
 
 COMPRESSIBLE_SUFFIXES = {".css", ".html", ".js", ".json", ".svg", ".txt"}
 
@@ -148,11 +163,8 @@ class MoreImgHandler(SimpleHTTPRequestHandler):
             response = self.open_upstream(request)
         except HTTPError as error:
             response = error
-        except (TimeoutError, socket.timeout):
-            self.send_json_error(504, "Upstream request timed out")
-            return
-        except URLError as error:
-            self.send_json_error(502, "Upstream request failed", str(error.reason))
+        except (TimeoutError, socket.timeout, URLError) as error:
+            self.send_upstream_failure(error, "Upstream request timed out", "Upstream request failed")
             return
 
         self.stream_upstream(response, "application/json")
@@ -176,14 +188,20 @@ class MoreImgHandler(SimpleHTTPRequestHandler):
             response = self.open_upstream(Request(upstream, method="GET"))
         except HTTPError as error:
             response = error
-        except (TimeoutError, socket.timeout):
-            self.send_json_error(504, "Image download timed out")
-            return
-        except URLError as error:
-            self.send_json_error(502, "Image download failed", str(error.reason))
+        except (TimeoutError, socket.timeout, URLError) as error:
+            self.send_upstream_failure(error, "Image download timed out", "Image download failed")
             return
 
         self.stream_upstream(response, "application/octet-stream")
+
+    def send_upstream_failure(self, error, timeout_message, failure_message):
+        # URLError 常把真实超时包在 reason 里；不解包就会把 504 误报成 502，
+        # 前端也就无法区分“上游可能已受理并计费”和“根本没连上”。
+        reason = getattr(error, "reason", error)
+        if isinstance(error, (TimeoutError, socket.timeout)) or isinstance(reason, (TimeoutError, socket.timeout)):
+            self.send_json_error(504, timeout_message, str(reason))
+            return
+        self.send_json_error(502, failure_message, str(reason))
 
     def stream_upstream(self, response, default_content_type):
         with response:
@@ -201,16 +219,32 @@ class MoreImgHandler(SimpleHTTPRequestHandler):
                 pass
 
     def open_upstream(self, request):
+        # ProxyHandler 会就地把 Request 的 host 改写成代理地址，重试必须基于原始参数
+        # 重建请求，否则“直连回退”会去连代理端口本身，真实上游状态码全部退化成 502。
+        upstream_url = request.full_url
+        upstream_data = request.data
+        upstream_headers = dict(request.header_items())
+        upstream_method = request.get_method()
+
+        def rebuild():
+            return Request(upstream_url, data=upstream_data, headers=upstream_headers, method=upstream_method)
+
         # 测试夹具和本机目标必须直连，避免把回环请求错误地送入代理。
-        hostname = (urlparse(request.full_url).hostname or "").lower()
-        opener = DIRECT_OPENER if hostname in {"127.0.0.1", "localhost", "::1"} else PROXY_OPENER
+        hostname = (urlparse(upstream_url).hostname or "").lower()
+        if hostname in {"127.0.0.1", "localhost", "::1"} or PROXY_OPENER is DIRECT_OPENER:
+            return DIRECT_OPENER.open(request, timeout=PROXY_TIMEOUT_SECONDS)
+
         try:
-            return opener.open(request, timeout=PROXY_TIMEOUT_SECONDS)
-        except (URLError, TimeoutError, socket.timeout):
-            # 代理端口失效时保留直连回退，错误仍由上层按 502/504 返回。
-            if opener is not DIRECT_OPENER:
-                return DIRECT_OPENER.open(request, timeout=PROXY_TIMEOUT_SECONDS)
+            return PROXY_OPENER.open(rebuild(), timeout=PROXY_TIMEOUT_SECONDS)
+        except HTTPError:
+            # 上游已经受理并给出了状态码：重试只会重复提交、重复计费，
+            # 还会把真实状态码和上游提示替换成 502。必须原样上抛。
             raise
+        except (URLError, TimeoutError, socket.timeout) as error:
+            if not is_pre_submit_failure(error):
+                raise
+            # 只有“请求还没送到上游”的连接故障才回退直连。
+            return DIRECT_OPENER.open(rebuild(), timeout=PROXY_TIMEOUT_SECONDS)
 
     def send_json_error(self, status, message, detail=""):
         payload = json.dumps({"message": message, "detail": detail}, ensure_ascii=False).encode()

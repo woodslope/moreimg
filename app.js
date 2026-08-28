@@ -1010,6 +1010,12 @@ const formatProcessingError = error => {
   if (/\bHTTP 524\b/.test(message)) {
     return '上游模型服务响应超时（HTTP 524），请稍后重试或换用响应更快的文本模型。';
   }
+  if (/\bHTTP 504\b/.test(message)) {
+    return `本机代理等待上游响应超时（HTTP 504）。中转站后台可能已受理本次请求，请先核对用量再重试。${message.replace(/^\(HTTP 504\)\s*/, '详情：')}`;
+  }
+  if (/\bHTTP 502\b/.test(message)) {
+    return `本机代理无法与上游完成通信（HTTP 502）。若中转站后台已有提交记录，说明响应在回传途中中断，请先核对用量再重试。${message.replace(/^\(HTTP 502\)\s*/, '详情：')}`;
+  }
   return `引擎连接失败：${message}`;
 };
 const MOREIMG_SCHEMA_VERSION = 'moreimg-1.0';
@@ -1193,16 +1199,49 @@ const validateMoreImgPackage = (packageData, originalText = '') => {
     warnings
   };
 };
+const findBalancedJsonObjects = source => {
+  const candidates = [];
+  for (let start = 0; start < source.length; start += 1) {
+    if (source[start] !== '{') continue;
+    let depth = 0;
+    let inString = false;
+    let escaped = false;
+    for (let index = start; index < source.length; index += 1) {
+      const character = source[index];
+      if (inString) {
+        if (escaped) escaped = false;else if (character === '\\') escaped = true;else if (character === '"') inString = false;
+        continue;
+      }
+      if (character === '"') {
+        inString = true;
+      } else if (character === '{') {
+        depth += 1;
+      } else if (character === '}') {
+        depth -= 1;
+        if (depth === 0) {
+          candidates.push(source.slice(start, index + 1));
+          break;
+        }
+      }
+    }
+  }
+  return candidates;
+};
 const parseMoreImgPackage = (rawText, originalText = '') => {
   const source = String(rawText || '').trim();
-  if (!source || source.startsWith('```') || source.endsWith('```')) throw new Error('接口必须返回合法 JSON，不能包含 Markdown 代码块或解释文字');
-  let packageData;
-  try {
-    packageData = JSON.parse(source);
-  } catch (error) {
-    throw new Error(`接口未返回合法 JSON：${error.message}`);
+  if (!source) throw new Error('接口必须返回合法 JSON');
+  const fencedSource = source.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i)?.[1]?.trim() || '';
+  const candidates = [...new Set([...(fencedSource ? [fencedSource] : []), source, ...findBalancedJsonObjects(fencedSource || source)])];
+  let lastError = null;
+  for (const candidate of candidates) {
+    try {
+      const packageData = JSON.parse(candidate);
+      return validateMoreImgPackage(packageData, originalText);
+    } catch (error) {
+      lastError = error;
+    }
   }
-  return validateMoreImgPackage(packageData, originalText);
+  throw new Error(`接口未返回合法 JSON：${lastError?.message || '找不到完整 JSON 对象'}`);
 };
 const buildPageImagePrompt = (styleLock, page) => {
   if (!styleLock || !page?.image_prompt) return '';
@@ -1347,6 +1386,18 @@ const readImageResponse = async response => {
   };
 };
 const isResponsesApiEndpoint = (apiUrl = '') => /\/responses(?:[/?#]|$)/i.test(String(apiUrl).trim());
+const readApiErrorMessage = async response => {
+  const rawText = await response.text().catch(() => '');
+  let data = null;
+  try {
+    data = JSON.parse(rawText);
+  } catch {}
+  const message = data?.error?.message || data?.message || '';
+  const detail = String(data?.detail || '').trim();
+  const fallback = rawText.replace(/\s+/g, ' ').trim().slice(0, 200);
+  const summary = message || fallback || response.statusText || '无响应内容';
+  return detail && detail !== summary ? `${summary}（${detail}）` : summary;
+};
 const resolveApiEndpoint = (apiUrl = '', kind = 'text') => {
   const rawUrl = String(apiUrl || '').trim();
   if (!rawUrl) return '';
@@ -1386,8 +1437,9 @@ const getRequestTransport = (endpoint, kind, pageLocation = window.location) => 
       url: endpoint,
       headers: {}
     };
+    const proxyPath = kind === 'image' ? 'image' : kind === 'models' ? 'models' : 'text';
     return {
-      url: `/proxy/${kind === 'image' ? 'image' : 'text'}`,
+      url: `/proxy/${proxyPath}`,
       headers: {
         'X-MoreImg-Upstream': target.toString()
       }
@@ -1399,8 +1451,8 @@ const getRequestTransport = (endpoint, kind, pageLocation = window.location) => 
     };
   }
 };
-const fetchTextRequest = async (endpoint, options = {}, pageLocation = window.location, fetchImpl = fetch) => {
-  const transport = getRequestTransport(endpoint, 'text', pageLocation);
+const fetchApiRequest = async (endpoint, kind = 'text', options = {}, pageLocation = window.location, fetchImpl = fetch) => {
+  const transport = getRequestTransport(endpoint, kind, pageLocation);
   if (transport.blockedLocalService) {
     throw new Error('当前是线上页面，不能使用本机代理地址。请在设置中改为可跨域访问的 HTTPS 接口。');
   }
@@ -1413,6 +1465,7 @@ const fetchTextRequest = async (endpoint, options = {}, pageLocation = window.lo
   });
   return send(transport.url, transport.headers);
 };
+const fetchTextRequest = (endpoint, options = {}, pageLocation = window.location, fetchImpl = fetch) => fetchApiRequest(endpoint, 'text', options, pageLocation, fetchImpl);
 const getImageDownloadTransport = (imageUrl, pageLocation = window.location) => {
   const isLocalService = pageLocation?.protocol === 'http:' && ['127.0.0.1', 'localhost'].includes(pageLocation?.hostname);
   if (!isLocalService) return {
@@ -1510,6 +1563,9 @@ const extractProcessingFinishReason = (data = {}) => {
 const extractProcessingStreamDelta = (data = {}) => {
   const chatDelta = data.choices?.[0]?.delta?.content;
   if (typeof chatDelta === 'string') return chatDelta;
+  if (Array.isArray(chatDelta)) {
+    return chatDelta.map(item => item?.text?.value || item?.text || '').join('');
+  }
   if (data.type === 'response.output_text.delta' && typeof data.delta === 'string') return data.delta;
   return '';
 };
@@ -1539,6 +1595,7 @@ const readProcessingResponse = async response => {
   let fullResponseText = '';
   let finishReason = '';
   let streamCompleted = false;
+  let malformedEvent = false;
   const consumeLine = rawLine => {
     const line = String(rawLine || '').trim();
     if (!line.startsWith('data:')) return;
@@ -1556,7 +1613,9 @@ const readProcessingResponse = async response => {
       if (eventFinishReason || ['response.completed', 'response.incomplete', 'response.failed'].includes(data.type)) {
         streamCompleted = true;
       }
-    } catch {}
+    } catch {
+      malformedEvent = true;
+    }
   };
   while (true) {
     const {
@@ -1573,7 +1632,10 @@ const readProcessingResponse = async response => {
   }
   consumeLine(streamBuffer);
   if (!streamCompleted) {
-    throw new Error('流式响应提前结束，未收到完成标记，请稍后重试或检查上游服务。');
+    throw new Error('流式响应在收到完成标记前中断，可能被中转站网关掐断。上游可能已计费，请先核对用量再重试。');
+  }
+  if (malformedEvent) {
+    throw new Error('流式响应包含无法解析的事件，已停止使用不完整内容。上游可能已计费，请先核对用量再重试。');
   }
   if (!fullResponseText.trim()) {
     throw new Error('大模型未返回任何有效内容，请检查接口配置或稍后重试。');
@@ -4028,7 +4090,7 @@ function App() {
     });
     try {
       const modelsEndpoint = deriveModelsEndpoint(endpoint);
-      const response = await runWithRequestControl(signal => fetch(modelsEndpoint, {
+      const response = await runWithRequestControl(signal => fetchApiRequest(modelsEndpoint, 'models', {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${apiKey}`
@@ -4039,8 +4101,14 @@ function App() {
         signal: requestController.signal,
         timeoutMessage: '读取模型列表超过 30 秒，请检查接口地址或稍后重试。'
       });
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(data?.error?.message || data?.message || `HTTP ${response.status}`);
+      if (!response.ok) throw new Error(`(HTTP ${response.status}) ${await readApiErrorMessage(response)}`);
+      const rawModels = await response.text();
+      let data;
+      try {
+        data = JSON.parse(rawModels);
+      } catch {
+        throw new Error(`接口返回了非 JSON 内容：${rawModels.replace(/\s+/g, ' ').trim().slice(0, 200) || '空响应'}`);
+      }
       if (requestController.signal.aborted || configRequestControllersRef.current.get(stateKey) !== requestController) return;
       const modelIds = extractModelIds(data);
       if (modelIds.length === 0) throw new Error('接口未返回可用模型');
@@ -4099,26 +4167,25 @@ function App() {
         role: 'user',
         content: '只回复 OK'
       }];
-      const data = await runWithRequestControl(async signal => {
+      const processingResponse = await runWithRequestControl(async signal => {
         const response = await fetchTextRequest(endpoint, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${apiKey}`
           },
-          body: JSON.stringify(buildProcessingRequestBody(endpoint, model, messages, 64, false)),
+          body: JSON.stringify(buildProcessingRequestBody(endpoint, model, messages, 64, true)),
           signal
         });
-        const responseData = await response.json().catch(() => ({}));
-        if (!response.ok) throw new Error(responseData?.error?.message || responseData?.message || `HTTP ${response.status}`);
-        return responseData;
+        if (!response.ok) throw new Error(`(HTTP ${response.status}) ${await readApiErrorMessage(response)}`);
+        return readProcessingResponse(response);
       }, {
         timeoutMs: TEXT_TEST_TIMEOUT_MS,
         signal: requestController.signal,
         timeoutMessage: '接口测试超过 30 秒，请检查接口地址、模型或服务状态。'
       });
       if (requestController.signal.aborted || configRequestControllersRef.current.get('textTest') !== requestController) return;
-      const responseText = extractProcessingResponseText(data).trim();
+      const responseText = processingResponse.text.trim();
       if (!responseText) throw new Error('接口成功响应，但没有可解析文本');
       const elapsedMs = Date.now() - startedAt;
       const preview = responseText.replace(/\s+/g, ' ').slice(0, 48);
@@ -4558,17 +4625,11 @@ function App() {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${apiConfig.apiKey.trim()}`
       },
-      body: JSON.stringify(buildProcessingRequestBody(endpoint, apiConfig.model.trim(), messages, PROCESSING_MAX_OUTPUT_TOKENS, false)),
+      body: JSON.stringify(buildProcessingRequestBody(endpoint, apiConfig.model.trim(), messages, PROCESSING_MAX_OUTPUT_TOKENS, true)),
       signal
     });
     if (!response.ok) {
-      const responseText = await response.text();
-      let errorMsg = response.statusText;
-      try {
-        const errorData = JSON.parse(responseText);
-        if (errorData.error?.message) errorMsg = errorData.error.message;else if (errorData.message) errorMsg = errorData.message;
-      } catch (e) {}
-      throw new Error(`(HTTP ${response.status}) ${errorMsg}`);
+      throw new Error(`(HTTP ${response.status}) ${await readApiErrorMessage(response)}`);
     }
     const processingResponse = await readProcessingResponse(response);
     fullResponseText = processingResponse.text;

@@ -38,7 +38,7 @@ assert.match(source, /const processingAbortRef = useRef\(null\)/);
 assert.match(source, /processingAbortRef\.current\.abort\(\)/);
 assert.match(source, /停止运算/);
 assert.match(source, /blockedLocalService/);
-assert.match(source, /buildProcessingRequestBody\(endpoint, apiConfig\.model\.trim\(\), messages, PROCESSING_MAX_OUTPUT_TOKENS, false\)/);
+assert.match(source, /buildProcessingRequestBody\(endpoint, apiConfig\.model\.trim\(\), messages, PROCESSING_MAX_OUTPUT_TOKENS, true\)/, '核心加工必须请求流式，否则静默期会被中转站网关读超时掐断');
 assert.match(source, /const readProcessingResponse = async \(response\)/);
 assert.match(source, /response\.body\.getReader\(\)/);
 assert.match(source, /await readProcessingResponse\(response\)/);

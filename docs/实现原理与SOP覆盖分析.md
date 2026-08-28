@@ -32,11 +32,11 @@ flowchart LR
 | 构建脚本 | `build.mjs` | 聚合 `src/` 生成 `src.html`，再用本地 Babel 生成 `app.js` 与运行用 `index.html`。 |
 | 运行产物 | `src.html`、`index.html`、`app.js` | 兼容测试审计的聚合源码，以及浏览器实际加载的页面与编译后逻辑；均不直接编辑。 |
 | 样式与依赖 | `styles.css`、`vendor/` | 本地 React、ReactDOM、Lucide、Babel 等，避免运行时依赖公开 CDN。 |
-| 本地服务 | `server.py` | 提供静态文件，并可将同源 `/v1/chat/completions` 转发到 Monond 接口，以规避浏览器跨域限制。 |
+| 本地服务 | `server.py` | 提供静态文件，并可将同源文本、图片、模型列表和图片资源请求转发到上游，以规避浏览器跨域限制。 |
 
 源码修改应落在 `src/` 对应模块，之后执行 `node build.mjs` 更新 `src.html`、`index.html` 与 `app.js`。
 
-在本地页面中，外部 HTTPS 文本请求统一经 `python3 server.py` 提供的同源 `/proxy/text` 转发，避免 CORS 失败后重复调用；服务会自动使用本机常见代理端口（也可用 `MOREIMG_UPSTREAM_PROXY` 显式指定）。也可以把接口地址直接设置为 `http://127.0.0.1:4187/v1/chat/completions`，让请求固定进入本地代理并转发到代码中固定的 Monond 上游。
+在本地页面中，外部 HTTPS 的文本、图片和模型列表请求统一经 `python3 server.py` 提供的同源 `/proxy/text`、`/proxy/image`、`/proxy/models` 转发，图片 URL 本体经 `/proxy/image-asset` 取回，避免浏览器 CORS 失败后丢失已生成结果；服务会自动使用本机常见代理端口（也可用 `MOREIMG_UPSTREAM_PROXY` 显式指定）。也可以把接口地址直接设置为 `http://127.0.0.1:4187/v1/chat/completions`，让请求固定进入本地代理并转发到代码中固定的 Monond 上游。
 
 ## 三、“技能说明书覆盖流程”的具体机制
 
@@ -60,7 +60,7 @@ system: {设置中保存的系统指令}
 user: 请处理以下文章：\n\n{用户输入的原始长文}
 ```
 
-随后以 `model`、`temperature: 0.7`、`stream: false` 发往设置的 Chat Completions 地址。应用不会把阶段1到阶段6拆成六次独立模型调用；它要求模型在**一次回答**内按阶段顺序完成全部交付。
+随后以 `model`、`temperature: 0.7`、`stream: true` 发往设置的 Chat Completions 地址（流式只为保持连接活跃、避免中转站网关读超时；响应仍缓冲成整段后一次解析）。应用不会把阶段1到阶段6拆成六次独立模型调用；它要求模型在**一次回答**内按阶段顺序完成全部交付。
 
 优点是配置简单、上下文完整；代价是每一步不能由应用独立校验、重试或回滚，质量主要取决于系统指令、所选模型和模型是否遵守输出格式。
 
@@ -174,7 +174,7 @@ user: 请处理以下文章：\n\n{用户输入的原始长文}
 - `src/core/processing.js`：`parseStreamedText` 负责依据“阶段1—阶段6”切分模型文本。
 - `src/app.jsx`：`renderStageContent` 负责将阶段1/2、3/4、5分别渲染为报告、文章/卡片和提示词复制块。
 - `src/core/processing.js`：提示词解析函数负责从总览代码块或拆分版标题中提取可复制内容。
-- `server.py`：仅转发 `/v1/chat/completions` 到预设上游，不修改模型消息，也不实现事实核查。
+- `server.py`：转发文本、图片、模型列表和图片资源请求，不修改模型消息，也不实现事实核查。
 
 ## 九、验证建议
 

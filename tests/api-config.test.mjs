@@ -11,8 +11,10 @@ const helpers = Function(`${helperBlock}; return {
   deriveModelsEndpoint,
   extractProcessingResponseText,
   extractModelIds,
+  fetchApiRequest,
   fetchTextRequest,
   getRequestTransport,
+  readApiErrorMessage,
   resolveApiEndpoint
 };`)();
 
@@ -64,6 +66,17 @@ assert.deepEqual(
   ),
   { url: 'https://api.example.com/v1/images/generations', headers: {} }
 );
+assert.deepEqual(
+  helpers.getRequestTransport(
+    'https://api.example.com/v1/models',
+    'models',
+    { protocol: 'http:', hostname: '127.0.0.1', origin: 'http://127.0.0.1:4187' }
+  ),
+  {
+    url: '/proxy/models',
+    headers: { 'X-MoreImg-Upstream': 'https://api.example.com/v1/models' }
+  }
+);
 
 const proxyCalls = [];
 const proxyResponse = await helpers.fetchTextRequest(
@@ -78,12 +91,49 @@ const proxyResponse = await helpers.fetchTextRequest(
 assert.equal(proxyResponse.status, 200);
 assert.deepEqual(proxyCalls.map(call => call.url), ['/proxy/text']);
 assert.equal(proxyCalls[0].headers['X-MoreImg-Upstream'], 'https://api.example.com/v1/chat/completions');
+await helpers.fetchApiRequest(
+  'https://api.example.com/v1/models',
+  'models',
+  { method: 'GET' },
+  { protocol: 'http:', hostname: '127.0.0.1', origin: 'http://127.0.0.1:4187' },
+  async (url, options) => {
+    proxyCalls.push({ url, headers: options.headers });
+    return new Response('{}', { status: 200 });
+  }
+);
+assert.equal(proxyCalls.at(-1).url, '/proxy/models');
+assert.equal(proxyCalls.at(-1).headers['X-MoreImg-Upstream'], 'https://api.example.com/v1/models');
+
+// 本机代理用 {message, detail} 回报传输故障，中转站用 {error:{message}} 回报业务错误。
+// 只读 message 会把 detail 里真正的原因丢掉，两类故障在界面上会长得一模一样。
+const jsonError = (status, statusText, payload) => new Response(
+  typeof payload === 'string' ? payload : JSON.stringify(payload),
+  { status, statusText, headers: { 'Content-Type': 'application/json' } }
+);
+assert.equal(
+  await helpers.readApiErrorMessage(jsonError(502, 'Bad Gateway', {
+    message: 'Upstream request failed',
+    detail: '[Errno 61] Connection refused'
+  })),
+  'Upstream request failed（[Errno 61] Connection refused）'
+);
+assert.equal(
+  await helpers.readApiErrorMessage(jsonError(429, 'Too Many Requests', { error: { message: 'quota exceeded' } })),
+  'quota exceeded'
+);
+assert.equal(
+  await helpers.readApiErrorMessage(jsonError(520, '', '<html><body>  gateway   error </body></html>')),
+  '<html><body> gateway error </body></html>'
+);
+assert.equal(
+  await helpers.readApiErrorMessage(jsonError(500, 'Internal Server Error', '')),
+  'Internal Server Error'
+);
 
 assert.equal(
   helpers.deriveModelsEndpoint('https://api.example.com/v1/responses'),
   'https://api.example.com/v1/models'
-);
-assert.equal(
+);assert.equal(
   helpers.deriveModelsEndpoint('https://api.example.com/openai/v1/chat/completions?group=1'),
   'https://api.example.com/openai/v1/models'
 );
@@ -129,9 +179,9 @@ const connectionTestBody = helpers.buildProcessingRequestBody(
   'deepseek-chat',
   testMessages,
   64,
-  false
+  true
 );
-assert.equal(connectionTestBody.stream, false);
+assert.equal(connectionTestBody.stream, true);
 
 assert.equal(
   helpers.extractProcessingResponseText({ choices: [{ message: { content: '阶段1\n内容' } }] }),

@@ -340,7 +340,7 @@
         updateConfigTool(stateKey, { status: 'loading', message: '正在读取模型列表...' });
         try {
           const modelsEndpoint = deriveModelsEndpoint(endpoint);
-          const response = await runWithRequestControl(signal => fetch(modelsEndpoint, {
+          const response = await runWithRequestControl(signal => fetchApiRequest(modelsEndpoint, 'models', {
             method: 'GET',
             headers: { 'Authorization': `Bearer ${apiKey}` },
             signal
@@ -349,8 +349,14 @@
             signal: requestController.signal,
             timeoutMessage: '读取模型列表超过 30 秒，请检查接口地址或稍后重试。'
           });
-          const data = await response.json().catch(() => ({}));
-          if (!response.ok) throw new Error(data?.error?.message || data?.message || `HTTP ${response.status}`);
+          if (!response.ok) throw new Error(`(HTTP ${response.status}) ${await readApiErrorMessage(response)}`);
+          const rawModels = await response.text();
+          let data;
+          try {
+            data = JSON.parse(rawModels);
+          } catch {
+            throw new Error(`接口返回了非 JSON 内容：${rawModels.replace(/\s+/g, ' ').trim().slice(0, 200) || '空响应'}`);
+          }
           if (requestController.signal.aborted || configRequestControllersRef.current.get(stateKey) !== requestController) return;
           const modelIds = extractModelIds(data);
           if (modelIds.length === 0) throw new Error('接口未返回可用模型');
@@ -395,26 +401,25 @@
             { role: 'system', content: '这是连接测试。' },
             { role: 'user', content: '只回复 OK' }
           ];
-          const data = await runWithRequestControl(async signal => {
+          const processingResponse = await runWithRequestControl(async signal => {
             const response = await fetchTextRequest(endpoint, {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
                 'Authorization': `Bearer ${apiKey}`
               },
-              body: JSON.stringify(buildProcessingRequestBody(endpoint, model, messages, 64, false)),
+              body: JSON.stringify(buildProcessingRequestBody(endpoint, model, messages, 64, true)),
               signal
             });
-            const responseData = await response.json().catch(() => ({}));
-            if (!response.ok) throw new Error(responseData?.error?.message || responseData?.message || `HTTP ${response.status}`);
-            return responseData;
+            if (!response.ok) throw new Error(`(HTTP ${response.status}) ${await readApiErrorMessage(response)}`);
+            return readProcessingResponse(response);
           }, {
             timeoutMs: TEXT_TEST_TIMEOUT_MS,
             signal: requestController.signal,
             timeoutMessage: '接口测试超过 30 秒，请检查接口地址、模型或服务状态。'
           });
           if (requestController.signal.aborted || configRequestControllersRef.current.get('textTest') !== requestController) return;
-          const responseText = extractProcessingResponseText(data).trim();
+          const responseText = processingResponse.text.trim();
           if (!responseText) throw new Error('接口成功响应，但没有可解析文本');
           const elapsedMs = Date.now() - startedAt;
           const preview = responseText.replace(/\s+/g, ' ').slice(0, 48);
@@ -748,25 +753,23 @@
         let fullResponseText = '';
         let finishReason = '';
         const endpoint = resolveApiEndpoint(apiConfig.apiUrl, 'text');
+        // 必须用流式请求：一次加工要生成上万 token，非流式期间连接完全静默，
+        // 中转站前置的 nginx / Cloudflare 会在读超时（常见 60 秒）掐断连接——
+        // 模型其实已经算完并计费，页面却什么都收不到。持续流出的分片能不断重置
+        // 网关读超时。响应仍由 readProcessingResponse 缓冲成整段后一次解析，
+        // 既不恢复"逐片重渲染"的性能问题，也保留普通 JSON 回退。
         const response = await fetchTextRequest(endpoint, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${apiConfig.apiKey.trim()}`
           },
-          body: JSON.stringify(buildProcessingRequestBody(endpoint, apiConfig.model.trim(), messages, PROCESSING_MAX_OUTPUT_TOKENS, false)),
+          body: JSON.stringify(buildProcessingRequestBody(endpoint, apiConfig.model.trim(), messages, PROCESSING_MAX_OUTPUT_TOKENS, true)),
           signal
         });
 
         if (!response.ok) {
-          const responseText = await response.text();
-          let errorMsg = response.statusText;
-          try {
-            const errorData = JSON.parse(responseText);
-            if (errorData.error?.message) errorMsg = errorData.error.message;
-            else if (errorData.message) errorMsg = errorData.message;
-          } catch (e) {}
-          throw new Error(`(HTTP ${response.status}) ${errorMsg}`);
+          throw new Error(`(HTTP ${response.status}) ${await readApiErrorMessage(response)}`);
         }
 
         const processingResponse = await readProcessingResponse(response);

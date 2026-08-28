@@ -28,6 +28,13 @@ const chatResult = await readProcessingResponse(chatResponse);
 assert.equal(chatResult.text, '{"schema_version":"moreimg-1.0"}');
 assert.equal(chatResult.finishReason, 'stop');
 
+const arrayDeltaResult = await readProcessingResponse(createStreamResponse([
+  'data: {"choices":[{"delta":{"content":[{"type":"text","text":"数组"},{"type":"text","text":"片段"}]},"finish_reason":null}]}\n\n',
+  'data: {"choices":[{"delta":{},"finish_reason":"stop"}]}\n\n',
+  'data: [DONE]\n\n'
+]));
+assert.equal(arrayDeltaResult.text, '数组片段');
+
 const responsesApiResult = await readProcessingResponse(createStreamResponse([
   ': keep-alive\n\n',
   'event: response.output_text.delta\ndata: {"type":"response.output_',
@@ -51,7 +58,16 @@ await assert.rejects(
   readProcessingResponse(createStreamResponse([
     'data: {"choices":[{"delta":{"content":"半截 JSON"},"finish_reason":null}]}\n\n'
   ])),
-  /流式响应提前结束/
+  /中断/
+);
+await assert.rejects(
+  readProcessingResponse(createStreamResponse([
+    'data: {not-json}\n\n',
+    'data: {"choices":[{"delta":{"content":"完整内容"},"finish_reason":null}]}\n\n',
+    'data: {"choices":[{"delta":{},"finish_reason":"stop"}]}\n\n',
+    'data: [DONE]\n\n'
+  ])),
+  /无法解析的事件/
 );
 
 assert.doesNotMatch(responseBlock, /setCurrentSession|setInternalStage|parseMoreImgPackage/);
