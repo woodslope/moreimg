@@ -135,6 +135,20 @@ assert.equal(parsed.packageData.schema_version, 'moreimg-1.0');
 assert.equal(parsed.packageData.pages.at(-1).page_id, 'closing');
 assert.equal(parsed.isComplete, true);
 
+const longPointPackage = createValidPackage();
+longPointPackage.pages[1].card.points = ['这是一条超过二十五个字符但仍然有完整语义的卡片要点内容'];
+const longPointResult = helpers.validateMoreImgPackage(longPointPackage, originalText);
+assert.equal(longPointResult.isComplete, true, '要点长度不应影响完整结果');
+assert.equal(longPointResult.canContinue, true, '要点超出建议长度不应阻断策划结果');
+assert.equal(longPointResult.warning, '');
+
+const longSummaryPackage = createValidPackage();
+longSummaryPackage.pages[1].card.summary = '这是一条超过二十个字符但仍然有完整语义的卡片总结内容';
+const longSummaryResult = helpers.validateMoreImgPackage(longSummaryPackage, originalText);
+assert.equal(longSummaryResult.isComplete, true, '总结长度不应影响完整结果');
+assert.equal(longSummaryResult.canContinue, true, '总结超出建议长度不应阻断策划结果');
+assert.equal(longSummaryResult.warning, '');
+
 const createSourceText = length => '文'.repeat(length);
 for (const length of [20, 599]) {
   const sourceText = createSourceText(length);

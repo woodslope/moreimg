@@ -128,8 +128,8 @@
           if (requireObject(page.card, `${path}.card`, errors)) {
             requireString(page.card.title, `${path}.card.title`, errors);
             requireString(page.card.subtitle, `${path}.card.subtitle`, errors, { allowEmpty: true });
-            requireStringArray(page.card.points, `${path}.card.points`, errors, { max: 5, itemMaxLength: 25 });
-            requireString(page.card.summary, `${path}.card.summary`, errors, { allowEmpty: true, maxLength: 20 });
+            requireStringArray(page.card.points, `${path}.card.points`, errors, { max: 5 });
+            requireString(page.card.summary, `${path}.card.summary`, errors, { allowEmpty: true });
           }
           if (requireObject(page.semantic, `${path}.semantic`, errors)) {
             ['page_goal', 'primary_claim', 'primary_concept', 'primary_relation'].forEach(field => requireString(page.semantic[field], `${path}.semantic.${field}`, errors));

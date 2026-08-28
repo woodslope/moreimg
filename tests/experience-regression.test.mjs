@@ -151,7 +151,7 @@ assert.match(source, /<Icon name="CircleAlert" className="visual-result-notice-i
 assert.match(source, /\.visual-result-notice \{[^}]*align-self: flex-start[^}]*width: fit-content[^}]*max-width: 100%[^}]*margin-top: 14px[^}]*padding: 10px 12px[^}]*line-height: 1\.55/, '视觉结果警告应拥有内容宽度、内边距和上间距');
 assert.match(source, /\.visual-result-notice \+ \.visual-result-grid \{[^}]*margin-top: 14px/, '视觉结果警告与结果网格应保持明确下间距');
 assert.match(source, /className="mi-feedback mi-feedback-error visual-error/, '视觉错误应消费共享错误反馈');
-assert.match(source, /className="mi-feedback mi-feedback-warning processing-notice"/, '流程警告应消费共享警告反馈');
+assert.doesNotMatch(source, /结果需要复核/, '可继续使用的 AI 结果不应显示复核提示');
 assert.match(source, /className="mi-feedback mi-feedback-error processing-notice processing-notice-error"/, '流程错误应消费共享错误反馈');
 assert.doesNotMatch(source, /\.config-status-loading|\.config-status-success|\.config-status-error|\.config-upgrade-notice/, '反馈业务类不得保留平行语义颜色或无消费者旧样式');
 

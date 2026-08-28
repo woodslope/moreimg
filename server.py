@@ -9,7 +9,8 @@ from functools import lru_cache, partial
 from pathlib import Path
 from urllib.error import HTTPError, URLError
 from urllib.parse import parse_qs, urlparse
-from urllib.request import Request, urlopen
+from urllib.request import Request
+from urllib.request import build_opener, ProxyHandler
 
 
 UPSTREAMS = {
@@ -29,6 +30,31 @@ IMAGE_ASSET_PROXY_PATH = "/proxy/image-asset"
 # 必须大于前端的 IMAGE_REQUEST_TIMEOUT_MS（600 秒）：
 # 两侧数值相同时谁先超时不确定，同一种故障会随机报成 504 或前端超时。
 PROXY_TIMEOUT_SECONDS = 660
+
+
+def detect_upstream_proxy():
+    """优先使用显式配置，否则探测常见的本机 HTTP 代理端口。"""
+    configured = (
+        os.environ.get("MOREIMG_UPSTREAM_PROXY")
+        or os.environ.get("HTTPS_PROXY")
+        or os.environ.get("https_proxy")
+        or os.environ.get("HTTP_PROXY")
+        or os.environ.get("http_proxy")
+    )
+    if configured:
+        return configured
+    for port in (7897, 7890, 7891, 8080):
+        try:
+            with socket.create_connection(("127.0.0.1", port), timeout=0.15):
+                return f"http://127.0.0.1:{port}"
+        except OSError:
+            continue
+    return ""
+
+
+UPSTREAM_PROXY = detect_upstream_proxy()
+DIRECT_OPENER = build_opener(ProxyHandler({}))
+PROXY_OPENER = build_opener(ProxyHandler({"http": UPSTREAM_PROXY, "https": UPSTREAM_PROXY})) if UPSTREAM_PROXY else DIRECT_OPENER
 
 COMPRESSIBLE_SUFFIXES = {".css", ".html", ".js", ".json", ".svg", ".txt"}
 
@@ -119,7 +145,7 @@ class MoreImgHandler(SimpleHTTPRequestHandler):
 
         request = Request(upstream, data=body, headers=headers, method="POST")
         try:
-            response = urlopen(request, timeout=PROXY_TIMEOUT_SECONDS)
+            response = self.open_upstream(request)
         except HTTPError as error:
             response = error
         except (TimeoutError, socket.timeout):
@@ -147,7 +173,7 @@ class MoreImgHandler(SimpleHTTPRequestHandler):
 
         # 只转发图片本体，不携带 Authorization：签名信息已经在 URL 里。
         try:
-            response = urlopen(Request(upstream, method="GET"), timeout=PROXY_TIMEOUT_SECONDS)
+            response = self.open_upstream(Request(upstream, method="GET"))
         except HTTPError as error:
             response = error
         except (TimeoutError, socket.timeout):
@@ -173,6 +199,18 @@ class MoreImgHandler(SimpleHTTPRequestHandler):
                     self.wfile.flush()
             except (BrokenPipeError, ConnectionResetError):
                 pass
+
+    def open_upstream(self, request):
+        # 测试夹具和本机目标必须直连，避免把回环请求错误地送入代理。
+        hostname = (urlparse(request.full_url).hostname or "").lower()
+        opener = DIRECT_OPENER if hostname in {"127.0.0.1", "localhost", "::1"} else PROXY_OPENER
+        try:
+            return opener.open(request, timeout=PROXY_TIMEOUT_SECONDS)
+        except (URLError, TimeoutError, socket.timeout):
+            # 代理端口失效时保留直连回退，错误仍由上层按 502/504 返回。
+            if opener is not DIRECT_OPENER:
+                return DIRECT_OPENER.open(request, timeout=PROXY_TIMEOUT_SECONDS)
+            raise
 
     def send_json_error(self, status, message, detail=""):
         payload = json.dumps({"message": message, "detail": detail}, ensure_ascii=False).encode()

@@ -638,7 +638,7 @@ pages
 card
 - 每页必须包含 title、subtitle、points、summary；不使用的字符串输出空字符串，不使用的 points 输出空数组。
 - 封面 points 必须为空；title 是核心标题，默认优先保留原文标题或原文明确的核心命名，不得擅自改写成新的问题句、营销句或另一主题名；subtitle 是短副标题，summary 是标语或记忆句，三者不得机械重复。
-- 正文 title 建议4-14个汉字；standard 模式通常保留3-5条有效信息，short 和 single_point 模式通常保留2-4条，每条不超过25个汉字；summary 最多一句且不超过20个汉字。
+- 正文 title 建议4-14个汉字；standard 模式通常保留3-5条有效信息，short 和 single_point 模式通常保留2-4条，每条建议控制在25个汉字以内；summary 最多一句且建议控制在20个汉字以内。字数仅是写作建议，不作为结果是否可用的判断条件。
 - 不得为了适配字数限制删除关键判断、必要论据、因果关系或行动条件。单页容纳不下时，优先拆分到相邻正文页，并保持文章论证顺序；信息不足时不得凑数或重复改写同一观点。
 - 封底自然收束全文。原文有行动建议时可以提炼；原文没有时使用核心结论或中性收束，禁止新增任务、互动问题、关注引导和营销号召。
 - 所有入图文字必须可回溯到原文或精修正文。
@@ -1162,12 +1162,10 @@ const validateMoreImgPackage = (packageData, originalText = '') => {
           allowEmpty: true
         });
         requireStringArray(page.card.points, `${path}.card.points`, errors, {
-          max: 5,
-          itemMaxLength: 25
+          max: 5
         });
         requireString(page.card.summary, `${path}.card.summary`, errors, {
-          allowEmpty: true,
-          maxLength: 20
+          allowEmpty: true
         });
       }
       if (requireObject(page.semantic, `${path}.semantic`, errors)) {
@@ -1254,6 +1252,7 @@ const IMAGE_RATIO_SIZES = Object.freeze({
   '21:9': '1344x576'
 });
 const DEFAULT_IMAGE_RATIO = '3:4';
+const IMAGE_RATIO_CONFIG_VERSION = 1;
 const DEFAULT_IMAGE_SIZE = IMAGE_RATIO_SIZES[DEFAULT_IMAGE_RATIO];
 const GPT_IMAGE_2_RATIOS = Object.freeze(Object.keys(IMAGE_RATIO_SIZES));
 const isGptImageModel = (model = '') => /^gpt-image/i.test(String(model || '').trim());
@@ -1399,6 +1398,20 @@ const getRequestTransport = (endpoint, kind, pageLocation = window.location) => 
       headers: {}
     };
   }
+};
+const fetchTextRequest = async (endpoint, options = {}, pageLocation = window.location, fetchImpl = fetch) => {
+  const transport = getRequestTransport(endpoint, 'text', pageLocation);
+  if (transport.blockedLocalService) {
+    throw new Error('当前是线上页面，不能使用本机代理地址。请在设置中改为可跨域访问的 HTTPS 接口。');
+  }
+  const send = (url, extraHeaders = {}) => fetchImpl(url, {
+    ...options,
+    headers: {
+      ...(options.headers || {}),
+      ...extraHeaders
+    }
+  });
+  return send(transport.url, transport.headers);
 };
 const getImageDownloadTransport = (imageUrl, pageLocation = window.location) => {
   const isLocalService = pageLocation?.protocol === 'http:' && ['127.0.0.1', 'localhost'].includes(pageLocation?.hostname);
@@ -3633,26 +3646,7 @@ const useResultContent = ({
       className: "processing-notice-status"
     }, "需要重试")), React.createElement("p", {
       className: "processing-notice-message"
-    }, currentSession.stopReason || '缺少必要阶段，请检查模型输出限制后重试。'))), !currentSession.isHalted && currentSession.warning && React.createElement("div", {
-      className: "mi-feedback mi-feedback-warning processing-notice",
-      role: "status",
-      "aria-live": "polite"
-    }, React.createElement("div", {
-      className: "processing-notice-icon"
-    }, React.createElement(Icon, {
-      name: "CircleAlert",
-      className: "h-4 w-4"
-    })), React.createElement("div", {
-      className: "processing-notice-copy"
-    }, React.createElement("div", {
-      className: "processing-notice-header"
-    }, React.createElement("div", {
-      className: "processing-notice-title"
-    }, "内容深度待复核"), React.createElement("div", {
-      className: "processing-notice-status"
-    }, "结果可继续使用")), React.createElement("p", {
-      className: "processing-notice-message"
-    }, currentSession.warning))), renderStageContent());
+    }, currentSession.stopReason || '缺少必要阶段，请检查模型输出限制后重试。'))), renderStageContent());
   }, [showResults, currentSession, activeStageTab, activeVisualPage, imageResults, hiddenFullImages, apiConfig, htmlExportState]);
   return resultContent;
 };
@@ -3666,7 +3660,8 @@ function App() {
     imageApiUrl: 'https://api.aixoras.com/v1/images/generations',
     imageModel: 'gpt-image-2',
     imageApiKey: '',
-    imageSize: DEFAULT_IMAGE_RATIO
+    imageSize: DEFAULT_IMAGE_RATIO,
+    imageRatioVersion: IMAGE_RATIO_CONFIG_VERSION
   });
   const [isConfigOpen, setIsConfigOpen] = useState(() => !hasSavedApiConfig());
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
@@ -3960,6 +3955,7 @@ function App() {
         });
       }
       if (parsedConfig) {
+        const savedImageRatioVersion = Number(parsedConfig.imageRatioVersion || 0);
         delete parsedConfig.systemPrompt;
         parsedConfig.promptVersion = DEFAULT_PROMPT_VERSION;
         parsedConfig.processingPreferences = {
@@ -3969,7 +3965,9 @@ function App() {
         parsedConfig.imageApiUrl = parsedConfig.imageApiUrl || 'https://api.aixoras.com/v1/images/generations';
         parsedConfig.imageModel = parsedConfig.imageModel || 'gpt-image-2';
         parsedConfig.imageApiKey = parsedConfig.imageApiKey || '';
-        parsedConfig.imageSize = normalizeImageRatio(parsedConfig.imageSize);
+        const legacyImageSize = String(parsedConfig.imageSize || '').trim().toLowerCase();
+        parsedConfig.imageSize = savedImageRatioVersion < IMAGE_RATIO_CONFIG_VERSION && (legacyImageSize === '1024x1536' || legacyImageSize === '2:3') ? DEFAULT_IMAGE_RATIO : normalizeImageRatio(parsedConfig.imageSize);
+        parsedConfig.imageRatioVersion = IMAGE_RATIO_CONFIG_VERSION;
         localStorage.setItem('agent_api_config', JSON.stringify(parsedConfig));
         setApiConfig(parsedConfig);
         if (parsedConfig.apiKey?.trim()) {
@@ -3997,7 +3995,8 @@ function App() {
       processingPreferences: {
         ...createDefaultProcessingPreferences(),
         ...(apiConfig.processingPreferences || {})
-      }
+      },
+      imageRatioVersion: IMAGE_RATIO_CONFIG_VERSION
     };
     localStorage.setItem('agent_api_config', JSON.stringify(nextConfig));
     setApiConfig(nextConfig);
@@ -4093,7 +4092,6 @@ function App() {
     });
     const startedAt = Date.now();
     try {
-      const transport = getRequestTransport(endpoint, 'text');
       const messages = [{
         role: 'system',
         content: '这是连接测试。'
@@ -4102,12 +4100,11 @@ function App() {
         content: '只回复 OK'
       }];
       const data = await runWithRequestControl(async signal => {
-        const response = await fetch(transport.url, {
+        const response = await fetchTextRequest(endpoint, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${apiKey}`,
-            ...transport.headers
+            'Authorization': `Bearer ${apiKey}`
           },
           body: JSON.stringify(buildProcessingRequestBody(endpoint, model, messages, 64, false)),
           signal
@@ -4555,18 +4552,13 @@ function App() {
     let fullResponseText = '';
     let finishReason = '';
     const endpoint = resolveApiEndpoint(apiConfig.apiUrl, 'text');
-    const transport = getRequestTransport(endpoint, 'text');
-    if (transport.blockedLocalService) {
-      throw new Error('当前是线上页面，不能使用本机代理地址。请在设置中改为可跨域访问的 HTTPS 接口。');
-    }
-    const response = await fetch(transport.url, {
+    const response = await fetchTextRequest(endpoint, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiConfig.apiKey.trim()}`,
-        ...transport.headers
+        'Authorization': `Bearer ${apiConfig.apiKey.trim()}`
       },
-      body: JSON.stringify(buildProcessingRequestBody(endpoint, apiConfig.model.trim(), messages, PROCESSING_MAX_OUTPUT_TOKENS, true)),
+      body: JSON.stringify(buildProcessingRequestBody(endpoint, apiConfig.model.trim(), messages, PROCESSING_MAX_OUTPUT_TOKENS, false)),
       signal
     });
     if (!response.ok) {
@@ -4758,14 +4750,25 @@ function App() {
     }
     if (requestToken !== historyLoadTokenRef.current) return;
     if (item) {
+      const restoredSessionData = {
+        ...item.sessionData
+      };
+      if (restoredSessionData.packageData?.status === 'complete') {
+        const restoredAssessment = validateMoreImgPackage(restoredSessionData.packageData, item.originalInput || '');
+        if (restoredAssessment.canContinue) {
+          restoredSessionData.isHalted = false;
+          restoredSessionData.stopReason = '';
+          restoredSessionData.warning = restoredAssessment.warning || '';
+        }
+      }
       setActiveHistoryId(id);
       setIsComposerExpanded(false);
       setCurrentSession({
-        ...item.sessionData,
+        ...restoredSessionData,
         isDemo: Boolean(item.isDemo)
       });
       restoreSessionImages(id, requestToken);
-      if (item.sessionData.packageData?.status === 'complete') {
+      if (restoredSessionData.packageData?.status === 'complete') {
         setInternalStage(5);
         setShowResults(true);
         replaceImageResults({});
@@ -4774,7 +4777,7 @@ function App() {
       }
       let highest = 1;
       for (let i = 6; i >= 1; i--) {
-        if (item.sessionData.stages[i]?.trim()) {
+        if (restoredSessionData.stages[i]?.trim()) {
           highest = i;
           break;
         }

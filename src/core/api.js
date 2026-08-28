@@ -11,6 +11,7 @@
       '21:9': '1344x576'
     });
     const DEFAULT_IMAGE_RATIO = '3:4';
+    const IMAGE_RATIO_CONFIG_VERSION = 1;
     const DEFAULT_IMAGE_SIZE = IMAGE_RATIO_SIZES[DEFAULT_IMAGE_RATIO];
     const GPT_IMAGE_2_RATIOS = Object.freeze(Object.keys(IMAGE_RATIO_SIZES));
 
@@ -156,6 +157,20 @@
       } catch {
         return { url: endpoint, headers: {} };
       }
+    };
+
+    const fetchTextRequest = async (endpoint, options = {}, pageLocation = window.location, fetchImpl = fetch) => {
+      const transport = getRequestTransport(endpoint, 'text', pageLocation);
+      if (transport.blockedLocalService) {
+        throw new Error('当前是线上页面，不能使用本机代理地址。请在设置中改为可跨域访问的 HTTPS 接口。');
+      }
+
+      const send = (url, extraHeaders = {}) => fetchImpl(url, {
+        ...options,
+        headers: { ...(options.headers || {}), ...extraHeaders }
+      });
+
+      return send(transport.url, transport.headers);
     };
 
     // 图片 CDN 通常不带 CORS 头，浏览器直连会在“已计费”之后失败。

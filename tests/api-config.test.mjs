@@ -11,6 +11,7 @@ const helpers = Function(`${helperBlock}; return {
   deriveModelsEndpoint,
   extractProcessingResponseText,
   extractModelIds,
+  fetchTextRequest,
   getRequestTransport,
   resolveApiEndpoint
 };`)();
@@ -63,6 +64,20 @@ assert.deepEqual(
   ),
   { url: 'https://api.example.com/v1/images/generations', headers: {} }
 );
+
+const proxyCalls = [];
+const proxyResponse = await helpers.fetchTextRequest(
+  'https://api.example.com/v1/chat/completions',
+  { method: 'POST', headers: { Authorization: 'Bearer test' }, body: '{}' },
+  { protocol: 'http:', hostname: '127.0.0.1', origin: 'http://127.0.0.1:4187' },
+  async (url, options) => {
+    proxyCalls.push({ url, headers: options.headers });
+    return new Response('{}', { status: 200 });
+  }
+);
+assert.equal(proxyResponse.status, 200);
+assert.deepEqual(proxyCalls.map(call => call.url), ['/proxy/text']);
+assert.equal(proxyCalls[0].headers['X-MoreImg-Upstream'], 'https://api.example.com/v1/chat/completions');
 
 assert.equal(
   helpers.deriveModelsEndpoint('https://api.example.com/v1/responses'),

@@ -398,20 +398,6 @@ const resultContent = useMemo(() => {
           </div>
         </div>
       )}
-      {!currentSession.isHalted && currentSession.warning && (
-        <div className="mi-feedback mi-feedback-warning processing-notice" role="status" aria-live="polite">
-          <div className="processing-notice-icon">
-            <Icon name="CircleAlert" className="h-4 w-4" />
-          </div>
-          <div className="processing-notice-copy">
-            <div className="processing-notice-header">
-              <div className="processing-notice-title">内容深度待复核</div>
-              <div className="processing-notice-status">结果可继续使用</div>
-            </div>
-            <p className="processing-notice-message">{currentSession.warning}</p>
-          </div>
-        </div>
-      )}
       {renderStageContent()}
     </div>
   );

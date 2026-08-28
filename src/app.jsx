@@ -9,7 +9,8 @@
         imageApiUrl: 'https://api.aixoras.com/v1/images/generations',
         imageModel: 'gpt-image-2',
         imageApiKey: '',
-        imageSize: DEFAULT_IMAGE_RATIO
+        imageSize: DEFAULT_IMAGE_RATIO,
+        imageRatioVersion: IMAGE_RATIO_CONFIG_VERSION
       });
       const [isConfigOpen, setIsConfigOpen] = useState(() => !hasSavedApiConfig());
       const [isHistoryOpen, setIsHistoryOpen] = useState(false);
@@ -268,6 +269,7 @@
             setToast({ message: '本地配置已损坏，请重新填写接口设置', type: 'error', duration: 5000 });
           }
           if (parsedConfig) {
+            const savedImageRatioVersion = Number(parsedConfig.imageRatioVersion || 0);
             delete parsedConfig.systemPrompt;
             parsedConfig.promptVersion = DEFAULT_PROMPT_VERSION;
             parsedConfig.processingPreferences = {
@@ -277,8 +279,14 @@
             parsedConfig.imageApiUrl = parsedConfig.imageApiUrl || 'https://api.aixoras.com/v1/images/generations';
             parsedConfig.imageModel = parsedConfig.imageModel || 'gpt-image-2';
             parsedConfig.imageApiKey = parsedConfig.imageApiKey || '';
-            // 旧版曾把比例直接存成像素值；迁移为比例后，图片接口再按模型协议换算。
-            parsedConfig.imageSize = normalizeImageRatio(parsedConfig.imageSize);
+            // 旧版默认尺寸是 1024x1536；早期比例迁移也曾把它写成 2:3。
+            // 无迁移标记的配置按旧默认值处理；用户重新保存后可继续使用自己选择的比例。
+            const legacyImageSize = String(parsedConfig.imageSize || '').trim().toLowerCase();
+            parsedConfig.imageSize = savedImageRatioVersion < IMAGE_RATIO_CONFIG_VERSION
+              && (legacyImageSize === '1024x1536' || legacyImageSize === '2:3')
+              ? DEFAULT_IMAGE_RATIO
+              : normalizeImageRatio(parsedConfig.imageSize);
+            parsedConfig.imageRatioVersion = IMAGE_RATIO_CONFIG_VERSION;
             localStorage.setItem('agent_api_config', JSON.stringify(parsedConfig));
             setApiConfig(parsedConfig);
             if (parsedConfig.apiKey?.trim()) {
@@ -306,7 +314,8 @@
           processingPreferences: {
             ...createDefaultProcessingPreferences(),
             ...(apiConfig.processingPreferences || {})
-          }
+          },
+          imageRatioVersion: IMAGE_RATIO_CONFIG_VERSION
         };
         localStorage.setItem('agent_api_config', JSON.stringify(nextConfig));
         setApiConfig(nextConfig);
@@ -382,18 +391,16 @@
         updateConfigTool('textTest', { status: 'loading', message: '正在发送最小测试请求...' });
         const startedAt = Date.now();
         try {
-          const transport = getRequestTransport(endpoint, 'text');
           const messages = [
             { role: 'system', content: '这是连接测试。' },
             { role: 'user', content: '只回复 OK' }
           ];
           const data = await runWithRequestControl(async signal => {
-            const response = await fetch(transport.url, {
+            const response = await fetchTextRequest(endpoint, {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
-                'Authorization': `Bearer ${apiKey}`,
-                ...transport.headers
+                'Authorization': `Bearer ${apiKey}`
               },
               body: JSON.stringify(buildProcessingRequestBody(endpoint, model, messages, 64, false)),
               signal
@@ -741,18 +748,13 @@
         let fullResponseText = '';
         let finishReason = '';
         const endpoint = resolveApiEndpoint(apiConfig.apiUrl, 'text');
-        const transport = getRequestTransport(endpoint, 'text');
-        if (transport.blockedLocalService) {
-          throw new Error('当前是线上页面，不能使用本机代理地址。请在设置中改为可跨域访问的 HTTPS 接口。');
-        }
-        const response = await fetch(transport.url, {
+        const response = await fetchTextRequest(endpoint, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${apiConfig.apiKey.trim()}`,
-            ...transport.headers
+            'Authorization': `Bearer ${apiConfig.apiKey.trim()}`
           },
-          body: JSON.stringify(buildProcessingRequestBody(endpoint, apiConfig.model.trim(), messages, PROCESSING_MAX_OUTPUT_TOKENS, true)),
+          body: JSON.stringify(buildProcessingRequestBody(endpoint, apiConfig.model.trim(), messages, PROCESSING_MAX_OUTPUT_TOKENS, false)),
           signal
         });
 
@@ -901,11 +903,22 @@
         }
         if (requestToken !== historyLoadTokenRef.current) return;
         if (item) {
+          // 兼容旧版本：曾因卡片建议字数超限而暂停的完整 JSON，按当前规则重新评估。
+          // 只有结构性错误仍会保持暂停，避免历史记录被旧规则永久锁死。
+          const restoredSessionData = { ...item.sessionData };
+          if (restoredSessionData.packageData?.status === 'complete') {
+            const restoredAssessment = validateMoreImgPackage(restoredSessionData.packageData, item.originalInput || '');
+            if (restoredAssessment.canContinue) {
+              restoredSessionData.isHalted = false;
+              restoredSessionData.stopReason = '';
+              restoredSessionData.warning = restoredAssessment.warning || '';
+            }
+          }
           setActiveHistoryId(id);
           setIsComposerExpanded(false);
-          setCurrentSession({ ...item.sessionData, isDemo: Boolean(item.isDemo) });
+          setCurrentSession({ ...restoredSessionData, isDemo: Boolean(item.isDemo) });
           restoreSessionImages(id, requestToken);
-          if (item.sessionData.packageData?.status === 'complete') {
+          if (restoredSessionData.packageData?.status === 'complete') {
             setInternalStage(5);
             setShowResults(true);
             replaceImageResults({});
@@ -913,7 +926,7 @@
             return;
           }
           let highest = 1;
-          for (let i = 6; i >= 1; i--) { if (item.sessionData.stages[i]?.trim()) { highest = i; break; } }
+          for (let i = 6; i >= 1; i--) { if (restoredSessionData.stages[i]?.trim()) { highest = i; break; } }
           setInternalStage(highest);
           setShowResults(true);
           replaceImageResults({});

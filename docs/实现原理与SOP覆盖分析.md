@@ -36,7 +36,7 @@ flowchart LR
 
 源码修改应落在 `src/` 对应模块，之后执行 `node build.mjs` 更新 `src.html`、`index.html` 与 `app.js`。
 
-本地代理**不会自动接管请求**。默认接口地址是 DeepSeek 地址；只有在设置中将接口地址改为 `http://127.0.0.1:4187/v1/chat/completions`，并通过 `python3 server.py` 启动服务时，请求才会进入该代理，随后被转发到代码中固定的 Monond 上游。
+在本地页面中，外部 HTTPS 文本请求统一经 `python3 server.py` 提供的同源 `/proxy/text` 转发，避免 CORS 失败后重复调用；服务会自动使用本机常见代理端口（也可用 `MOREIMG_UPSTREAM_PROXY` 显式指定）。也可以把接口地址直接设置为 `http://127.0.0.1:4187/v1/chat/completions`，让请求固定进入本地代理并转发到代码中固定的 Monond 上游。
 
 ## 三、“技能说明书覆盖流程”的具体机制
 

@@ -504,7 +504,7 @@ try {
   const lengthCases = [
     { length: 20, modeLabel: '单点模式' },
     { length: 600, modeLabel: '标准模式' },
-    { length: 2000, modeLabel: '标准模式', warning: true },
+    { length: 2000, modeLabel: '标准模式' },
     { length: 5000, modeLabel: '标准模式' }
   ].map(testCase => {
     const prefix = `长度${testCase.length}字测试：`;
@@ -522,19 +522,9 @@ try {
     assert.equal(await evaluate(`document.body.innerText.includes('流程未完整完成')`), false);
     assert.equal(
       await evaluate(`document.body.innerText.includes('标准模式正文保留率低于 65%')`),
-      Boolean(testCase.warning),
-      `${testCase.length} 字警告状态应符合正文保留率`
+      false,
+      `${testCase.length} 字结果不应显示复核提示`
     );
-    if (testCase.warning) {
-      const warningFeedbackContract = await evaluate(`(() => {
-        const notice = document.querySelector('.processing-notice');
-        return notice ? { className: notice.className, role: notice.getAttribute('role'), borderLeftWidth: parseFloat(getComputedStyle(notice).borderLeftWidth) } : null;
-      })()`);
-      assert.ok(warningFeedbackContract, '正文保留率警告应渲染');
-      assert.equal(warningFeedbackContract.className.includes('mi-feedback-warning'), true, '流程警告应消费共享警告反馈');
-      assert.equal(warningFeedbackContract.role, 'status', '非阻断流程警告应暴露 status 语义');
-      assert.equal(warningFeedbackContract.borderLeftWidth, 1, '流程警告应保持四边统一细框');
-    }
     await evaluate(`[...document.querySelectorAll('button')].find(item=>item.textContent.includes('理解与核查')).click()`);
     assert.equal(
       await evaluate(`document.body.innerText.includes(${JSON.stringify(`加工模式：${testCase.modeLabel}`)})`),
@@ -543,7 +533,7 @@ try {
     );
   }
   assert.deepEqual(processedInputLengths, lengthCases.map(testCase => testCase.length));
-  assert.deepEqual(processingStreamFlags, lengthCases.map(() => true), '核心加工必须保持单次 stream=true 请求');
+  assert.deepEqual(processingStreamFlags, lengthCases.map(() => false), '核心加工应与接口测试统一使用非流式响应');
   await sleep(550);
   const keyboardFocusEvidence = await evaluate(`(() => {
     const inspect = element => {
