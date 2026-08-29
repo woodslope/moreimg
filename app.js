@@ -3437,7 +3437,8 @@ const useResultContent = ({
           }))), React.createElement("pre", {
             className: "visual-prompt-copy font-mono"
           }, React.createElement("code", null, cleanPromptText)))), React.createElement("details", {
-            className: "visual-disclosure"
+            className: "visual-disclosure",
+            open: true
           }, React.createElement("summary", null, React.createElement("span", null, "AI 整图实际请求"), React.createElement(Icon, {
             name: "ChevronDown",
             className: "visual-disclosure-icon"
