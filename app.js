@@ -2654,8 +2654,6 @@ const SettingsDialog = ({
     text: false,
     image: false
   });
-  const imageSizeWarning = getImageSizeWarning(apiConfig.imageSize, apiConfig.imageModel);
-  const imageRatioValue = imageSizeToRatio(apiConfig.imageSize) || apiConfig.imageSize;
   const usageSummary = summarizeImageUsageLog(imageUsageLog);
   const toggleKeyVisibility = key => setVisibleKeys(previous => ({
     ...previous,
@@ -2866,19 +2864,6 @@ const SettingsDialog = ({
     className: "config-field"
   }, React.createElement("label", {
     className: "config-label"
-  }, "图片比例"), React.createElement("input", {
-    type: "text",
-    value: imageRatioValue,
-    onChange: e => setApiConfig({
-      ...apiConfig,
-      imageSize: e.target.value
-    }),
-    placeholder: "3:4",
-    className: "mi-field config-input"
-  })), React.createElement("div", {
-    className: "config-field config-span-2"
-  }, React.createElement("label", {
-    className: "config-label"
   }, "图片 API Key"), React.createElement("div", {
     className: "config-secret-field"
   }, React.createElement("input", {
@@ -2899,12 +2884,7 @@ const SettingsDialog = ({
   }, React.createElement(Icon, {
     name: visibleKeys.image ? 'EyeOff' : 'Eye',
     className: "h-4 w-4"
-  }))))), imageSizeWarning && React.createElement("div", {
-    className: "mi-feedback mi-feedback-warning config-preference-note"
-  }, React.createElement(Icon, {
-    name: "TriangleAlert",
-    className: "h-4 w-4 shrink-0"
-  }), React.createElement("span", null, imageSizeWarning)), React.createElement(ConfigStatus, {
+  }))))), React.createElement(ConfigStatus, {
     state: configTools.imageModels
   })), React.createElement("section", {
     className: "config-section"
@@ -3858,15 +3838,13 @@ function App() {
         });
       }
       if (parsedConfig) {
-        const savedImageRatioVersion = Number(parsedConfig.imageRatioVersion || 0);
         delete parsedConfig.systemPrompt;
         delete parsedConfig.processingPreferences;
         parsedConfig.promptVersion = DEFAULT_PROMPT_VERSION;
         parsedConfig.imageApiUrl = parsedConfig.imageApiUrl || 'https://api.aixoras.com/v1/images/generations';
         parsedConfig.imageModel = parsedConfig.imageModel || 'gpt-image-2';
         parsedConfig.imageApiKey = parsedConfig.imageApiKey || '';
-        const legacyImageSize = String(parsedConfig.imageSize || '').trim().toLowerCase();
-        parsedConfig.imageSize = savedImageRatioVersion < IMAGE_RATIO_CONFIG_VERSION && (legacyImageSize === '1024x1536' || legacyImageSize === '2:3') ? DEFAULT_IMAGE_RATIO : normalizeImageRatio(parsedConfig.imageSize);
+        parsedConfig.imageSize = DEFAULT_IMAGE_RATIO;
         parsedConfig.imageRatioVersion = IMAGE_RATIO_CONFIG_VERSION;
         localStorage.setItem('agent_api_config', JSON.stringify(parsedConfig));
         setApiConfig(parsedConfig);
@@ -3892,6 +3870,7 @@ function App() {
     const nextConfig = {
       ...apiConfig,
       promptVersion: DEFAULT_PROMPT_VERSION,
+      imageSize: DEFAULT_IMAGE_RATIO,
       imageRatioVersion: IMAGE_RATIO_CONFIG_VERSION
     };
     delete nextConfig.systemPrompt;
@@ -4028,8 +4007,8 @@ function App() {
       sessionId
     });
     const imageModel = apiConfig.imageModel.trim();
-    const requestedSize = normalizeImageSize(apiConfig.imageSize, imageModel);
-    const requestedRatio = normalizeImageRatio(apiConfig.imageSize);
+    const requestedSize = normalizeImageSize(DEFAULT_IMAGE_RATIO, imageModel);
+    const requestedRatio = DEFAULT_IMAGE_RATIO;
     const startedAt = Date.now();
     let generationCompletedAt = 0;
     let requestPhase = 'request';
@@ -4064,7 +4043,7 @@ function App() {
         apiKey: apiConfig.imageApiKey,
         model: imageModel,
         prompt,
-        size: apiConfig.imageSize,
+        size: DEFAULT_IMAGE_RATIO,
         controller: requestController,
         onImageResponse: ({
           remoteUrl,
