@@ -8,17 +8,153 @@ const {
 const IMAGE_DB_NAME = 'moreimg_images';
 const IMAGE_STORE_NAME = 'generated_images';
 const SESSION_STORE_NAME = 'sessions';
-const MOREIMG_IMAGE_DIAGNOSTIC_KEY = 'moreimg_last_image_diagnostic';
-const MOREIMG_IMAGE_USAGE_LOG_KEY = 'moreimg_image_usage_log';
+const APP_STATE_STORE_NAME = 'app_state';
+const IMAGE_DB_VERSION = 3;
+const APP_STATE_CONFIG = 'api-config';
+const APP_STATE_DIAGNOSTIC = 'image-diagnostic';
+const APP_STATE_USAGE_LOG = 'image-usage-log';
+const APP_STATE_DEMO = 'demo-seeded';
+const LEGACY_CONFIG_KEY = 'agent_api_config';
+const LEGACY_DIAGNOSTIC_KEY = 'moreimg_last_image_diagnostic';
+const LEGACY_USAGE_LOG_KEY = 'moreimg_image_usage_log';
+const LEGACY_HISTORY_KEY = 'moreimg_history_index';
+const LEGACY_SESSION_KEY = 'agent_history';
+const LEGACY_DEMO_KEY = 'moreimg_demo_seeded';
 const IMAGE_USAGE_LOG_LIMIT = 100;
-const HISTORY_INDEX_KEY = 'moreimg_history_index';
 const HISTORY_LIMIT = 50;
-const loadLastImageDiagnostic = () => {
+const openImageDatabase = () => new Promise((resolve, reject) => {
+  const request = indexedDB.open(IMAGE_DB_NAME, IMAGE_DB_VERSION);
+  request.onupgradeneeded = () => {
+    const database = request.result;
+    let imageStore;
+    if (!database.objectStoreNames.contains(IMAGE_STORE_NAME)) {
+      imageStore = database.createObjectStore(IMAGE_STORE_NAME, {
+        keyPath: 'id'
+      });
+    } else {
+      imageStore = request.transaction.objectStore(IMAGE_STORE_NAME);
+    }
+    if (!imageStore.indexNames.contains('sessionId')) {
+      imageStore.createIndex('sessionId', 'sessionId', {
+        unique: false
+      });
+    }
+    let sessionStore;
+    if (!database.objectStoreNames.contains(SESSION_STORE_NAME)) {
+      sessionStore = database.createObjectStore(SESSION_STORE_NAME, {
+        keyPath: 'id'
+      });
+    } else {
+      sessionStore = request.transaction.objectStore(SESSION_STORE_NAME);
+    }
+    if (!sessionStore.indexNames.contains('createdAt')) {
+      sessionStore.createIndex('createdAt', 'createdAt', {
+        unique: false
+      });
+    }
+    if (!database.objectStoreNames.contains(APP_STATE_STORE_NAME)) {
+      database.createObjectStore(APP_STATE_STORE_NAME, {
+        keyPath: 'id'
+      });
+    }
+  };
+  request.onsuccess = () => resolve(request.result);
+  request.onerror = () => reject(request.error || new Error('IndexedDB 打开失败'));
+  request.onblocked = () => reject(new Error('IndexedDB 正被其他页面占用，请关闭旧页面后重试'));
+});
+const requestResult = (request, transaction) => new Promise((resolve, reject) => {
+  request.onsuccess = () => resolve(request.result);
+  request.onerror = () => reject(request.error || transaction?.error || new Error('IndexedDB 读取失败'));
+});
+const readAppState = async (id, fallback = null) => {
+  const database = await openImageDatabase();
   try {
-    const value = JSON.parse(localStorage.getItem(MOREIMG_IMAGE_DIAGNOSTIC_KEY) || 'null');
-    return value && typeof value === 'object' ? value : null;
-  } catch {
-    return null;
+    const transaction = database.transaction(APP_STATE_STORE_NAME, 'readonly');
+    const record = await requestResult(transaction.objectStore(APP_STATE_STORE_NAME).get(id), transaction);
+    return record?.value ?? fallback;
+  } finally {
+    database.close();
+  }
+};
+const writeAppState = async (id, value) => {
+  const database = await openImageDatabase();
+  try {
+    await new Promise((resolve, reject) => {
+      const transaction = database.transaction(APP_STATE_STORE_NAME, 'readwrite');
+      transaction.objectStore(APP_STATE_STORE_NAME).put({
+        id,
+        value,
+        updatedAt: Date.now()
+      });
+      transaction.oncomplete = resolve;
+      transaction.onerror = () => reject(transaction.error || new Error('IndexedDB 写入失败'));
+      transaction.onabort = () => reject(transaction.error || new Error('IndexedDB 写入已中止'));
+    });
+  } finally {
+    database.close();
+  }
+  return value;
+};
+const updateAppState = async (id, updater, fallback = null) => {
+  const database = await openImageDatabase();
+  try {
+    return await new Promise((resolve, reject) => {
+      const transaction = database.transaction(APP_STATE_STORE_NAME, 'readwrite');
+      const store = transaction.objectStore(APP_STATE_STORE_NAME);
+      let nextValue = fallback;
+      const request = store.get(id);
+      request.onsuccess = () => {
+        try {
+          nextValue = updater(request.result?.value ?? fallback);
+          store.put({
+            id,
+            value: nextValue,
+            updatedAt: Date.now()
+          });
+        } catch (error) {
+          transaction.abort();
+          reject(error);
+        }
+      };
+      request.onerror = () => reject(request.error || new Error('IndexedDB 读取失败'));
+      transaction.oncomplete = () => resolve(nextValue);
+      transaction.onerror = () => reject(transaction.error || new Error('IndexedDB 写入失败'));
+      transaction.onabort = () => reject(transaction.error || new Error('IndexedDB 写入已中止'));
+    });
+  } finally {
+    database.close();
+  }
+};
+const loadStoredApiConfig = () => readAppState(APP_STATE_CONFIG, null);
+const saveStoredApiConfig = config => writeAppState(APP_STATE_CONFIG, config);
+const loadLastImageDiagnostic = () => readAppState(APP_STATE_DIAGNOSTIC, null);
+const updateLastImageDiagnostic = async patch => {
+  const database = await openImageDatabase();
+  try {
+    return await new Promise((resolve, reject) => {
+      const transaction = database.transaction(APP_STATE_STORE_NAME, 'readwrite');
+      const store = transaction.objectStore(APP_STATE_STORE_NAME);
+      const request = store.get(APP_STATE_DIAGNOSTIC);
+      let nextValue = null;
+      request.onsuccess = () => {
+        nextValue = {
+          ...(request.result?.value || {}),
+          ...patch,
+          updatedAt: new Date().toISOString()
+        };
+        store.put({
+          id: APP_STATE_DIAGNOSTIC,
+          value: nextValue,
+          updatedAt: Date.now()
+        });
+      };
+      request.onerror = () => reject(request.error || new Error('IndexedDB 读取失败'));
+      transaction.oncomplete = () => resolve(nextValue);
+      transaction.onerror = () => reject(transaction.error || new Error('IndexedDB 写入失败'));
+      transaction.onabort = () => reject(transaction.error || new Error('IndexedDB 写入已中止'));
+    });
+  } finally {
+    database.close();
   }
 };
 const getDiagnosticEndpointPath = value => {
@@ -43,28 +179,21 @@ const getDiagnosticFailureReason = (error, phase = 'request') => {
   if (phase === 'storage') return 'IndexedDB 图片写入失败';
   return '生图请求失败';
 };
-const loadImageUsageLog = () => {
-  try {
-    const value = JSON.parse(localStorage.getItem(MOREIMG_IMAGE_USAGE_LOG_KEY) || '[]');
-    return Array.isArray(value) ? value.filter(item => item && typeof item === 'object') : [];
-  } catch {
-    return [];
-  }
+const loadImageUsageLog = async () => {
+  const value = await readAppState(APP_STATE_USAGE_LOG, []);
+  return Array.isArray(value) ? value.filter(item => item && typeof item === 'object').slice(0, IMAGE_USAGE_LOG_LIMIT) : [];
 };
-const appendImageUsageLog = entry => {
-  const nextLog = [{
-    ...entry,
-    at: new Date().toISOString()
-  }, ...loadImageUsageLog()].slice(0, IMAGE_USAGE_LOG_LIMIT);
-  try {
-    localStorage.setItem(MOREIMG_IMAGE_USAGE_LOG_KEY, JSON.stringify(nextLog));
-  } catch {}
-  return nextLog;
+const appendImageUsageLog = async entry => {
+  return updateAppState(APP_STATE_USAGE_LOG, value => {
+    const previousLog = Array.isArray(value) ? value.filter(item => item && typeof item === 'object') : [];
+    return [{
+      ...entry,
+      at: new Date().toISOString()
+    }, ...previousLog].slice(0, IMAGE_USAGE_LOG_LIMIT);
+  }, []);
 };
-const clearImageUsageLog = () => {
-  try {
-    localStorage.removeItem(MOREIMG_IMAGE_USAGE_LOG_KEY);
-  } catch {}
+const clearImageUsageLog = async () => {
+  await writeAppState(APP_STATE_USAGE_LOG, []);
   return [];
 };
 const formatImageUsageLogText = (log = []) => {
@@ -80,92 +209,68 @@ const summarizeImageUsageLog = (log = []) => {
     billedFailures: billedFailures.length
   };
 };
-const openImageDatabase = () => new Promise((resolve, reject) => {
-  const request = indexedDB.open(IMAGE_DB_NAME, 2);
-  request.onupgradeneeded = () => {
-    const database = request.result;
-    if (!database.objectStoreNames.contains(IMAGE_STORE_NAME)) {
-      const store = database.createObjectStore(IMAGE_STORE_NAME, {
-        keyPath: 'id'
-      });
-      store.createIndex('sessionId', 'sessionId', {
-        unique: false
-      });
-    }
-    if (!database.objectStoreNames.contains(SESSION_STORE_NAME)) {
-      database.createObjectStore(SESSION_STORE_NAME, {
-        keyPath: 'id'
-      });
-    }
-  };
-  request.onsuccess = () => resolve(request.result);
-  request.onerror = () => reject(request.error);
-});
 const saveImageBlob = async (sessionId, cardTitle, blob, mode = 'visual-only', focusY) => {
   const database = await openImageDatabase();
-  await new Promise((resolve, reject) => {
-    const transaction = database.transaction(IMAGE_STORE_NAME, 'readwrite');
-    transaction.objectStore(IMAGE_STORE_NAME).put({
-      id: `${sessionId}:${mode}:${cardTitle}`,
-      sessionId,
-      cardTitle,
-      mode,
-      blob,
-      focusY,
-      updatedAt: Date.now()
+  try {
+    return await new Promise((resolve, reject) => {
+      const transaction = database.transaction([SESSION_STORE_NAME, IMAGE_STORE_NAME], 'readwrite');
+      const sessionStore = transaction.objectStore(SESSION_STORE_NAME);
+      const imageStore = transaction.objectStore(IMAGE_STORE_NAME);
+      const sessionRequest = sessionStore.get(sessionId);
+      let saved = false;
+      sessionRequest.onsuccess = () => {
+        if (!sessionRequest.result) return;
+        imageStore.put({
+          id: `${sessionId}:${mode}:${cardTitle}`,
+          sessionId,
+          cardTitle,
+          mode,
+          blob,
+          focusY,
+          updatedAt: Date.now()
+        });
+        saved = true;
+      };
+      sessionRequest.onerror = () => reject(sessionRequest.error || new Error('IndexedDB 会话读取失败'));
+      transaction.onerror = () => reject(transaction.error || new Error('IndexedDB 图片写入失败'));
+      transaction.onabort = () => reject(transaction.error || new Error('IndexedDB 图片写入已中止'));
+      transaction.oncomplete = () => resolve(saved);
     });
-    transaction.oncomplete = resolve;
-    transaction.onerror = () => reject(transaction.error);
-  });
-  database.close();
+  } finally {
+    database.close();
+  }
 };
 const saveImageFocus = async (sessionId, cardTitle, mode, focusY) => {
   const database = await openImageDatabase();
-  await new Promise((resolve, reject) => {
-    const transaction = database.transaction(IMAGE_STORE_NAME, 'readwrite');
-    const store = transaction.objectStore(IMAGE_STORE_NAME);
-    const request = store.get(`${sessionId}:${mode}:${cardTitle}`);
-    request.onsuccess = () => {
-      if (request.result) store.put({
-        ...request.result,
-        focusY,
-        updatedAt: Date.now()
-      });
-    };
-    request.onerror = () => reject(request.error);
-    transaction.oncomplete = resolve;
-    transaction.onerror = () => reject(transaction.error);
-  });
-  database.close();
+  try {
+    await new Promise((resolve, reject) => {
+      const transaction = database.transaction(IMAGE_STORE_NAME, 'readwrite');
+      const store = transaction.objectStore(IMAGE_STORE_NAME);
+      const request = store.get(`${sessionId}:${mode}:${cardTitle}`);
+      request.onsuccess = () => {
+        if (request.result) store.put({
+          ...request.result,
+          focusY,
+          updatedAt: Date.now()
+        });
+      };
+      request.onerror = () => reject(request.error || new Error('IndexedDB 图片读取失败'));
+      transaction.oncomplete = resolve;
+      transaction.onerror = () => reject(transaction.error || new Error('IndexedDB 图片写入失败'));
+    });
+  } finally {
+    database.close();
+  }
 };
 const loadSessionImages = async sessionId => {
   if (!sessionId) return [];
   const database = await openImageDatabase();
-  const images = await new Promise((resolve, reject) => {
+  try {
     const transaction = database.transaction(IMAGE_STORE_NAME, 'readonly');
-    const request = transaction.objectStore(IMAGE_STORE_NAME).index('sessionId').getAll(sessionId);
-    request.onsuccess = () => resolve(request.result || []);
-    request.onerror = () => reject(request.error);
-  });
-  database.close();
-  return images;
-};
-const deleteSessionImages = async sessionId => {
-  const database = await openImageDatabase();
-  const images = await new Promise((resolve, reject) => {
-    const transaction = database.transaction(IMAGE_STORE_NAME, 'readonly');
-    const request = transaction.objectStore(IMAGE_STORE_NAME).index('sessionId').getAll(sessionId);
-    request.onsuccess = () => resolve(request.result || []);
-    request.onerror = () => reject(request.error);
-  });
-  await new Promise((resolve, reject) => {
-    const transaction = database.transaction(IMAGE_STORE_NAME, 'readwrite');
-    const store = transaction.objectStore(IMAGE_STORE_NAME);
-    images.forEach(item => store.delete(item.id));
-    transaction.oncomplete = resolve;
-    transaction.onerror = () => reject(transaction.error);
-  });
-  database.close();
+    return await requestResult(transaction.objectStore(IMAGE_STORE_NAME).index('sessionId').getAll(sessionId), transaction);
+  } finally {
+    database.close();
+  }
 };
 const toHistoryIndex = record => ({
   id: record.id,
@@ -175,68 +280,145 @@ const toHistoryIndex = record => ({
 });
 const saveSessionRecord = async record => {
   const database = await openImageDatabase();
-  await new Promise((resolve, reject) => {
-    const transaction = database.transaction(SESSION_STORE_NAME, 'readwrite');
-    transaction.objectStore(SESSION_STORE_NAME).put(record);
-    transaction.oncomplete = resolve;
-    transaction.onerror = () => reject(transaction.error);
-  });
-  database.close();
+  try {
+    await new Promise((resolve, reject) => {
+      const transaction = database.transaction(SESSION_STORE_NAME, 'readwrite');
+      transaction.objectStore(SESSION_STORE_NAME).put({
+        ...record,
+        createdAt: record.createdAt || Date.now()
+      });
+      transaction.oncomplete = resolve;
+      transaction.onerror = () => reject(transaction.error || new Error('IndexedDB 会话写入失败'));
+    });
+  } finally {
+    database.close();
+  }
 };
+const listSessionRecords = async (limit = Infinity) => {
+  const database = await openImageDatabase();
+  try {
+    const transaction = database.transaction(SESSION_STORE_NAME, 'readonly');
+    const records = await requestResult(transaction.objectStore(SESSION_STORE_NAME).getAll(), transaction);
+    return records.filter(record => record?.id && record.sessionData && typeof record.sessionData === 'object').sort((left, right) => (right.createdAt || 0) - (left.createdAt || 0)).slice(0, limit);
+  } finally {
+    database.close();
+  }
+};
+const listHistoryIndex = async (limit = HISTORY_LIMIT) => (await listSessionRecords(limit)).map(toHistoryIndex);
 const loadSessionRecord = async id => {
   const database = await openImageDatabase();
-  const record = await new Promise((resolve, reject) => {
+  try {
     const transaction = database.transaction(SESSION_STORE_NAME, 'readonly');
-    const request = transaction.objectStore(SESSION_STORE_NAME).get(id);
-    request.onsuccess = () => resolve(request.result || null);
-    request.onerror = () => reject(request.error);
-  });
-  database.close();
-  return record;
-};
-const filterExistingHistoryIndex = async historyIndex => {
-  const entries = Array.isArray(historyIndex) ? historyIndex.filter(item => item?.id) : [];
-  if (!entries.length) return [];
-  const database = await openImageDatabase();
-  const records = await new Promise((resolve, reject) => {
-    const transaction = database.transaction(SESSION_STORE_NAME, 'readonly');
-    const store = transaction.objectStore(SESSION_STORE_NAME);
-    const results = [];
-    let completed = 0;
-    entries.forEach((entry, index) => {
-      const request = store.get(entry.id);
-      request.onsuccess = () => {
-        results[index] = request.result || null;
-        completed += 1;
-        if (completed === entries.length) resolve(results);
-      };
-      request.onerror = () => reject(request.error);
-    });
-    transaction.onerror = () => reject(transaction.error);
-  });
-  database.close();
-  return entries.filter((_, index) => records[index]);
+    const record = await requestResult(transaction.objectStore(SESSION_STORE_NAME).get(id), transaction);
+    return record?.id && record.sessionData && typeof record.sessionData === 'object' ? record : null;
+  } finally {
+    database.close();
+  }
 };
 const hasAnySessionRecords = async () => {
   const database = await openImageDatabase();
-  const count = await new Promise((resolve, reject) => {
+  try {
     const transaction = database.transaction(SESSION_STORE_NAME, 'readonly');
-    const request = transaction.objectStore(SESSION_STORE_NAME).count();
-    request.onsuccess = () => resolve(request.result || 0);
-    request.onerror = () => reject(request.error);
-  });
-  database.close();
-  return count > 0;
+    const records = await requestResult(transaction.objectStore(SESSION_STORE_NAME).getAll(), transaction);
+    return records.some(record => record?.id && record.sessionData && typeof record.sessionData === 'object');
+  } finally {
+    database.close();
+  }
 };
-const deleteSessionRecord = async id => {
+const deleteSessionData = async id => {
   const database = await openImageDatabase();
-  await new Promise((resolve, reject) => {
-    const transaction = database.transaction(SESSION_STORE_NAME, 'readwrite');
-    transaction.objectStore(SESSION_STORE_NAME).delete(id);
-    transaction.oncomplete = resolve;
-    transaction.onerror = () => reject(transaction.error);
-  });
-  database.close();
+  try {
+    await new Promise((resolve, reject) => {
+      const transaction = database.transaction([SESSION_STORE_NAME, IMAGE_STORE_NAME], 'readwrite');
+      const imageStore = transaction.objectStore(IMAGE_STORE_NAME);
+      transaction.objectStore(SESSION_STORE_NAME).delete(id);
+      const cursorRequest = imageStore.index('sessionId').openKeyCursor(IDBKeyRange.only(id));
+      cursorRequest.onsuccess = () => {
+        const cursor = cursorRequest.result;
+        if (!cursor) return;
+        imageStore.delete(cursor.primaryKey);
+        cursor.continue();
+      };
+      cursorRequest.onerror = () => reject(cursorRequest.error || new Error('IndexedDB 图片索引读取失败'));
+      transaction.oncomplete = resolve;
+      transaction.onerror = () => reject(transaction.error || new Error('IndexedDB 会话删除失败'));
+      transaction.onabort = () => reject(transaction.error || new Error('IndexedDB 会话删除已中止'));
+    });
+  } finally {
+    database.close();
+  }
+};
+const deleteAppState = async id => {
+  const database = await openImageDatabase();
+  try {
+    await new Promise((resolve, reject) => {
+      const transaction = database.transaction(APP_STATE_STORE_NAME, 'readwrite');
+      transaction.objectStore(APP_STATE_STORE_NAME).delete(id);
+      transaction.oncomplete = resolve;
+      transaction.onerror = () => reject(transaction.error || new Error('IndexedDB 状态删除失败'));
+    });
+  } finally {
+    database.close();
+  }
+};
+const readLegacyStorage = key => {
+  try {
+    return localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+};
+const removeLegacyStorage = key => {
+  try {
+    localStorage.removeItem(key);
+  } catch {}
+};
+const parseLegacyValue = key => {
+  try {
+    const raw = readLegacyStorage(key);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+};
+const migrateLegacySessionRecords = async legacySessions => {
+  const sourceRecords = Array.isArray(legacySessions) ? legacySessions : legacySessions && typeof legacySessions === 'object' ? Object.values(legacySessions) : [];
+  const records = sourceRecords.filter(item => item?.id && item?.sessionData && typeof item.sessionData === 'object').slice(0, HISTORY_LIMIT);
+  let migratedCount = 0;
+  for (const [index, record] of records.entries()) {
+    try {
+      await saveSessionRecord({
+        ...record,
+        createdAt: Number(record.createdAt) || Date.parse(record.date || '') || Date.now() - index
+      });
+      migratedCount += 1;
+    } catch (error) {
+      console.warn('跳过损坏的旧历史记录', record.id, error);
+    }
+  }
+  return migratedCount;
+};
+const migrateLegacyLocalStorage = async () => {
+  const legacyConfig = parseLegacyValue(LEGACY_CONFIG_KEY);
+  const legacyDiagnostic = parseLegacyValue(LEGACY_DIAGNOSTIC_KEY);
+  const legacyUsageLog = parseLegacyValue(LEGACY_USAGE_LOG_KEY);
+  const legacyDemoSeeded = readLegacyStorage(LEGACY_DEMO_KEY);
+  const legacyHistory = parseLegacyValue(LEGACY_HISTORY_KEY);
+  const legacySessions = parseLegacyValue(LEGACY_SESSION_KEY);
+  const existingConfig = await loadStoredApiConfig();
+  const existingDiagnostic = await loadLastImageDiagnostic();
+  const existingUsageLog = await loadImageUsageLog();
+  if (!existingConfig && legacyConfig && typeof legacyConfig === 'object' && !Array.isArray(legacyConfig)) await saveStoredApiConfig(legacyConfig);
+  if (!existingDiagnostic && legacyDiagnostic && typeof legacyDiagnostic === 'object') await writeAppState(APP_STATE_DIAGNOSTIC, legacyDiagnostic);
+  if (!existingUsageLog.length && Array.isArray(legacyUsageLog)) await writeAppState(APP_STATE_USAGE_LOG, legacyUsageLog.slice(0, IMAGE_USAGE_LOG_LIMIT));
+  if (legacyDemoSeeded) await writeAppState(APP_STATE_DEMO, true);
+  await migrateLegacySessionRecords(legacySessions || legacyHistory);
+  [LEGACY_CONFIG_KEY, LEGACY_DIAGNOSTIC_KEY, LEGACY_USAGE_LOG_KEY, LEGACY_HISTORY_KEY, LEGACY_SESSION_KEY, LEGACY_DEMO_KEY].forEach(removeLegacyStorage);
+  return {
+    config: await loadStoredApiConfig(),
+    diagnostic: await loadLastImageDiagnostic(),
+    usageLog: await loadImageUsageLog()
+  };
 };
 const dataUrlToBlob = dataUrl => {
   const [header, encoded] = dataUrl.split(',');
@@ -249,7 +431,6 @@ const dataUrlToBlob = dataUrl => {
   });
 };
 const DEMO_SESSION_ID = 'demo-seed-001';
-const DEMO_SEEDED_KEY = 'moreimg_demo_seeded';
 const demoOriginalText = ['# AI 时代，速度提升不等于稳定交付', '', '很多团队把引入 AI 的第一目标定成“把出图时间缩短一半”。这个目标很容易量化，也容易在汇报里展示，但它未必能带来更好的交付。出图只是设计流程中的一个环节，真正消耗时间的往往是需求没有说清、判断标准不一致、版本之间缺少记录。工具把生产速度提高以后，这些问题不会消失，只会让错误版本更快地出现。', '', '设计工作不是图片数量竞赛。用户看到的是最终信息是否准确、层级是否清楚、操作是否顺畅，而不是团队一天生成了多少方案。如果一个页面同时出现三个主按钮，模型可以在几分钟内给出十种配色，但决定哪个按钮更重要的判断仍然要由人来完成。速度解决的是“做得快”，稳定解决的是“做得对”，两者不能互相替代。', '', '要让交付稳定，前提是需求、标准、记录与验收这四个环节提前对齐。需求说清楚要解决什么问题，标准说清楚什么算完成，记录说清楚每个版本改了什么、为什么改，验收说清楚谁在什么时候检查。四者缺一，速度越快，返工成本越高。', '', '验收应该前置而不是压到最后。越早把验收标准放进工作流，越能避免在最后一刻推翻整版。人的角色不是被工具替代，而是负责目标、约束与取舍：工具负责把想法快速变成候选，人负责判断哪些候选值得留下。', '', '所以，把目标从“更快”改成“又快又稳”，团队要做的不是停止引入 AI，而是把 AI 放进一个有边界的工作流里：明确目标、定好标准、记录取舍、前置验收。速度是杠杆，稳定才是结果。'].join('\n');
 const demoPackageData = {
   schema_version: 'moreimg-1.0',
@@ -546,19 +727,17 @@ const seedDemoHistory = async () => {
     for (const image of images) {
       await saveImageBlob(DEMO_SESSION_ID, image.title, image.blob, image.mode, 50);
     }
-    localStorage.setItem(DEMO_SEEDED_KEY, '1');
+    await writeAppState(APP_STATE_DEMO, true);
     return record;
   } catch (error) {
-    await deleteSessionRecord(DEMO_SESSION_ID).catch(() => {});
-    await deleteSessionImages(DEMO_SESSION_ID).catch(() => {});
-    localStorage.removeItem(DEMO_SEEDED_KEY);
+    await deleteSessionData(DEMO_SESSION_ID).catch(() => {});
+    await deleteAppState(APP_STATE_DEMO).catch(() => {});
     throw error;
   }
 };
-const shouldSeedDemo = () => !localStorage.getItem(DEMO_SEEDED_KEY);
+const shouldSeedDemo = async () => !(await readAppState(APP_STATE_DEMO, false));
 const loadDemoHistory = async () => {
-  await deleteSessionRecord(DEMO_SESSION_ID).catch(() => {});
-  await deleteSessionImages(DEMO_SESSION_ID).catch(() => {});
+  await deleteSessionData(DEMO_SESSION_ID).catch(() => {});
   return seedDemoHistory();
 };
 const DEFAULT_SYSTEM_PROMPT = String.raw`你是 MoreImg v6 内容加工与视觉规划 Agent。应用内置核心规则不可编辑。你的任务是：在一次响应中，把用户原文加工成应用可直接读取的 moreimg-1.0 JSON。
@@ -852,14 +1031,15 @@ const formatProcessingError = error => {
     return '上游模型服务响应超时（HTTP 524），请稍后重试或换用响应更快的文本模型。';
   }
   if (/\bHTTP 504\b/.test(message)) {
-    return `本机代理等待上游响应超时（HTTP 504）。中转站后台可能已受理本次请求，请先核对用量再重试。${message.replace(/^\(HTTP 504\)\s*/, '详情：')}`;
+    return `上游网关等待响应超时（HTTP 504）。上游服务可能已受理本次请求，请先核对用量再重试。${message.replace(/^\(HTTP 504\)\s*/, '详情：')}`;
   }
   if (/\bHTTP 502\b/.test(message)) {
-    return `本机代理无法与上游完成通信（HTTP 502）。若中转站后台已有提交记录，说明响应在回传途中中断，请先核对用量再重试。${message.replace(/^\(HTTP 502\)\s*/, '详情：')}`;
+    return `上游网关无法完成通信（HTTP 502）。若上游已有提交记录，说明响应在回传途中中断，请先核对用量再重试。${message.replace(/^\(HTTP 502\)\s*/, '详情：')}`;
   }
   return `引擎连接失败：${message}`;
 };
 const MOREIMG_SCHEMA_VERSION = 'moreimg-1.0';
+const MAX_PACKAGE_RESPONSE_CHARS = 8 * 1024 * 1024;
 const MOREIMG_PAGE_TYPES = new Set(['cover', 'process', 'timeline', 'relationship', 'comparison', 'checklist', 'framework', 'quote']);
 const MOREIMG_MODES = new Set(['standard', 'short', 'single_point']);
 const MOREIMG_MEDIA = new Set(['3d_model', 'geometric_silhouette', 'hand_drawn_line', 'isometric_icon', 'flat_vector', 'wireframe_perspective']);
@@ -1103,36 +1283,41 @@ const validateMoreImgPackage = (packageData, originalText = '') => {
   };
 };
 const findBalancedJsonObjects = source => {
-  const candidates = [];
-  for (let start = 0; start < source.length; start += 1) {
-    if (source[start] !== '{') continue;
-    let depth = 0;
-    let inString = false;
-    let escaped = false;
-    for (let index = start; index < source.length; index += 1) {
-      const character = source[index];
-      if (inString) {
-        if (escaped) escaped = false;else if (character === '\\') escaped = true;else if (character === '"') inString = false;
-        continue;
-      }
-      if (character === '"') {
-        inString = true;
-      } else if (character === '{') {
-        depth += 1;
-      } else if (character === '}') {
-        depth -= 1;
-        if (depth === 0) {
-          candidates.push(source.slice(start, index + 1));
-          break;
-        }
-      }
+  const topLevelRanges = [];
+  const nestedRanges = [];
+  const starts = [];
+  let inString = false;
+  let escaped = false;
+  for (let index = 0; index < source.length; index += 1) {
+    const character = source[index];
+    if (inString) {
+      if (escaped) escaped = false;else if (character === '\\') escaped = true;else if (character === '"') inString = false;
+      continue;
     }
+    if (character === '"') {
+      inString = true;
+    } else if (character === '{') {
+      starts.push(index);
+    } else if (character === '}' && starts.length > 0) {
+      const start = starts.pop();
+      const range = [start, index + 1];
+      if (starts.length === 0 && topLevelRanges.length < 20) topLevelRanges.push(range);else if (starts.length > 0 && nestedRanges.length < 20) nestedRanges.push(range);
+    }
+  }
+  const candidates = [];
+  let candidateChars = 0;
+  for (const [start, end] of [...topLevelRanges, ...nestedRanges]) {
+    const length = end - start;
+    if (candidates.length >= 20 || candidateChars + length > MAX_PACKAGE_RESPONSE_CHARS) break;
+    candidates.push(source.slice(start, end));
+    candidateChars += length;
   }
   return candidates;
 };
 const parseMoreImgPackage = (rawText, originalText = '') => {
   const source = String(rawText || '').trim();
   if (!source) throw new Error('接口必须返回合法 JSON');
+  if (source.length > MAX_PACKAGE_RESPONSE_CHARS) throw new Error(`文本接口响应过大（上限 ${MAX_PACKAGE_RESPONSE_CHARS} 字符）`);
   const fencedSource = source.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i)?.[1]?.trim() || '';
   const candidates = [...new Set([...(fencedSource ? [fencedSource] : []), source, ...findBalancedJsonObjects(fencedSource || source)])];
   let lastError = null;
@@ -1184,6 +1369,10 @@ const DEFAULT_IMAGE_RATIO = '3:4';
 const IMAGE_RATIO_CONFIG_VERSION = 1;
 const DEFAULT_IMAGE_SIZE = IMAGE_RATIO_SIZES[DEFAULT_IMAGE_RATIO];
 const GPT_IMAGE_2_RATIOS = Object.freeze(Object.keys(IMAGE_RATIO_SIZES));
+const MAX_JSON_RESPONSE_CHARS = 8 * 1024 * 1024;
+const MAX_IMAGE_RESPONSE_CHARS = 16 * 1024 * 1024;
+const MAX_MODELS_RESPONSE_CHARS = 4 * 1024 * 1024;
+const MAX_API_ERROR_RESPONSE_CHARS = 1 * 1024 * 1024;
 const isGptImageModel = (model = '') => /^gpt-image/i.test(String(model || '').trim());
 const isGptImage2Model = (model = '') => /^gpt-image-2(?:-|$)/i.test(String(model || '').trim());
 const normalizeRatioText = value => String(value || '').trim().replace(/：/g, ':').replace(/\s+/g, '').toLowerCase();
@@ -1254,7 +1443,12 @@ const buildImageRequestBody = (model, prompt, size) => isGptImage2Model(model) ?
   })
 };
 const readImageResponse = async response => {
+  const declaredLength = Number(response.headers?.get?.('content-length'));
+  if (Number.isFinite(declaredLength) && declaredLength > MAX_IMAGE_RESPONSE_CHARS) {
+    throw new Error(`图片接口响应过大（上限 ${MAX_IMAGE_RESPONSE_CHARS} 字符）`);
+  }
   const rawText = await response.text();
+  if (rawText.length > MAX_IMAGE_RESPONSE_CHARS) throw new Error(`图片接口响应过大（上限 ${MAX_IMAGE_RESPONSE_CHARS} 字符）`);
   let data = null;
   try {
     data = JSON.parse(rawText);
@@ -1278,7 +1472,8 @@ const readImageResponse = async response => {
 };
 const isResponsesApiEndpoint = (apiUrl = '') => /\/responses(?:[/?#]|$)/i.test(String(apiUrl).trim());
 const readApiErrorMessage = async response => {
-  const rawText = await response.text().catch(() => '');
+  const responseLimit = typeof MAX_API_ERROR_RESPONSE_CHARS === 'number' ? MAX_API_ERROR_RESPONSE_CHARS : 1 * 1024 * 1024;
+  const rawText = (await response.text().catch(() => '')).slice(0, responseLimit);
   let data = null;
   try {
     data = JSON.parse(rawText);
@@ -1307,85 +1502,82 @@ const resolveApiEndpoint = (apiUrl = '', kind = 'text') => {
   }
   return rawUrl;
 };
-const getRequestTransport = (endpoint, kind, pageLocation = window.location) => {
-  const isLocalService = pageLocation?.protocol === 'http:' && ['127.0.0.1', 'localhost'].includes(pageLocation?.hostname);
-  try {
-    const endpointUrl = new URL(endpoint, pageLocation.origin);
-    const isLoopbackEndpoint = ['127.0.0.1', 'localhost'].includes(endpointUrl.hostname);
-    if (!isLocalService && isLoopbackEndpoint) return {
-      url: endpoint,
-      headers: {},
-      blockedLocalService: true
-    };
-  } catch {}
-  if (!isLocalService) return {
-    url: endpoint,
-    headers: {}
+const isGithubPagesLocation = (pageLocation = {}) => {
+  const hostname = String(pageLocation.hostname || '').toLowerCase().replace(/\.$/, '');
+  return pageLocation.protocol === 'https:' && /(?:^|\.)github\.io$/.test(hostname);
+};
+const isLoopbackHostname = hostname => {
+  const value = String(hostname || '').toLowerCase().replace(/[\[\]]/g, '');
+  return value === 'localhost' || value === '::1' || value === '127.0.0.1' || /^127\./.test(value) || value.endsWith('.local');
+};
+const validateApiEndpoint = (apiUrl, kind = 'text', pageLocation = typeof window !== 'undefined' ? window.location : {}) => {
+  const rawUrl = String(apiUrl || '').trim();
+  const errors = [];
+  if (!rawUrl) return {
+    valid: false,
+    endpoint: '',
+    errors: ['接口地址不能为空']
   };
+  let parsed;
   try {
-    const target = new URL(endpoint, pageLocation.origin);
-    if (target.origin === pageLocation.origin) return {
-      url: endpoint,
-      headers: {}
-    };
-    const proxyPath = kind === 'image' ? 'image' : kind === 'models' ? 'models' : 'text';
-    return {
-      url: `/proxy/${proxyPath}`,
-      headers: {
-        'X-MoreImg-Upstream': target.toString()
-      }
-    };
+    parsed = new URL(rawUrl);
   } catch {
     return {
-      url: endpoint,
-      headers: {}
+      valid: false,
+      endpoint: '',
+      errors: ['接口地址必须是完整 URL']
     };
   }
-};
-const fetchApiRequest = async (endpoint, kind = 'text', options = {}, pageLocation = window.location, fetchImpl = fetch) => {
-  const transport = getRequestTransport(endpoint, kind, pageLocation);
-  if (transport.blockedLocalService) {
-    throw new Error('当前是线上页面，不能使用本机代理地址。请在设置中改为可跨域访问的 HTTPS 接口。');
+  if (!['http:', 'https:'].includes(parsed.protocol) || !parsed.hostname || parsed.username || parsed.password) {
+    errors.push('接口地址必须使用 HTTP/HTTPS 且不得包含账号密码');
   }
-  const send = (url, extraHeaders = {}) => fetchImpl(url, {
-    ...options,
-    headers: {
-      ...(options.headers || {}),
-      ...extraHeaders
+  const publicPage = isGithubPagesLocation(pageLocation) || pageLocation.protocol === 'https:';
+  if (publicPage && (parsed.protocol !== 'https:' || isLoopbackHostname(parsed.hostname))) {
+    errors.push('GitHub Pages 只能直连公网 HTTPS 接口');
+  }
+  const endpoint = resolveApiEndpoint(rawUrl, kind);
+  const endpointPath = (() => {
+    try {
+      return new URL(endpoint).pathname.replace(/\/+$/, '');
+    } catch {
+      return '';
     }
-  });
-  return send(transport.url, transport.headers);
-};
-const fetchTextRequest = (endpoint, options = {}, pageLocation = window.location, fetchImpl = fetch) => fetchApiRequest(endpoint, 'text', options, pageLocation, fetchImpl);
-const getImageDownloadTransport = (imageUrl, pageLocation = window.location) => {
-  const isLocalService = pageLocation?.protocol === 'http:' && ['127.0.0.1', 'localhost'].includes(pageLocation?.hostname);
-  if (!isLocalService) return {
-    url: imageUrl,
-    headers: {}
+  })();
+  const validPath = kind === 'image' ? /\/images\/generations$/i.test(endpointPath) : /\/(?:chat\/completions|responses)$/i.test(endpointPath);
+  if (!validPath) errors.push(`接口地址路径必须以 ${kind === 'image' ? '/images/generations' : '/chat/completions 或 /responses'} 结尾，或填写 /v1 基础地址`);
+  return {
+    valid: errors.length === 0,
+    endpoint,
+    errors
   };
-  try {
-    const target = new URL(imageUrl, pageLocation.origin);
-    if (target.origin === pageLocation.origin) return {
-      url: imageUrl,
-      headers: {}
-    };
-    if (!/^https?:$/.test(target.protocol)) return {
-      url: imageUrl,
-      headers: {}
-    };
-    return {
-      url: '/proxy/image-asset',
-      headers: {
-        'X-MoreImg-Upstream': target.toString()
-      }
-    };
-  } catch {
-    return {
-      url: imageUrl,
-      headers: {}
-    };
-  }
 };
+const validateApiConfig = (config = {}, pageLocation = typeof window !== 'undefined' ? window.location : {}, options = {}) => {
+  const errors = [];
+  const textFields = [config.apiUrl, config.model, config.apiKey].map(value => String(value || '').trim());
+  const imageFields = [config.imageApiUrl, config.imageModel, config.imageApiKey].map(value => String(value || '').trim());
+  const requireText = Boolean(options.requireText);
+  const requireImage = Boolean(options.requireImage);
+  const hasAnyText = textFields.some(Boolean);
+  const hasAnyImage = imageFields.some(Boolean);
+  if (requireText || hasAnyText) {
+    const result = validateApiEndpoint(config.apiUrl, 'text', pageLocation);
+    if (!result.valid) errors.push(...result.errors.map(message => `文本${message}`));
+    if (requireText && !textFields[1]) errors.push('文本模型不能为空');
+    if (requireText && !textFields[2]) errors.push('文本 API Key 不能为空');
+  }
+  if (requireImage || hasAnyImage) {
+    const result = validateApiEndpoint(config.imageApiUrl, 'image', pageLocation);
+    if (!result.valid) errors.push(...result.errors.map(message => `图片${message}`));
+    if (requireImage && !imageFields[1]) errors.push('图片模型不能为空');
+    if (requireImage && !imageFields[2]) errors.push('图片 API Key 不能为空');
+  }
+  return {
+    valid: errors.length === 0,
+    errors
+  };
+};
+const fetchApiRequest = async (endpoint, _kind = 'text', options = {}, _pageLocation = window.location, fetchImpl = fetch) => fetchImpl(endpoint, options);
+const fetchTextRequest = (endpoint, options = {}, pageLocation = window.location, fetchImpl = fetch) => fetchApiRequest(endpoint, 'text', options, pageLocation, fetchImpl);
 const deriveModelsEndpoint = (apiUrl = '') => {
   const normalizedUrl = String(apiUrl || '').trim();
   if (!normalizedUrl) return '';
@@ -1471,9 +1663,13 @@ const extractProcessingStreamDelta = (data = {}) => {
   return '';
 };
 const readProcessingResponse = async response => {
+  const responseLimit = typeof MAX_JSON_RESPONSE_CHARS === 'number' ? MAX_JSON_RESPONSE_CHARS : 8 * 1024 * 1024;
   const contentType = String(response.headers?.get?.('content-type') || '').toLowerCase();
   if (!contentType.includes('text/event-stream')) {
+    const declaredLength = Number(response.headers?.get?.('content-length'));
+    if (Number.isFinite(declaredLength) && declaredLength > responseLimit) throw new Error(`文本接口响应过大（上限 ${responseLimit} 字符）`);
     const responseText = await response.text();
+    if (responseText.length > responseLimit) throw new Error(`文本接口响应过大（上限 ${responseLimit} 字符）`);
     let data;
     try {
       data = JSON.parse(responseText);
@@ -1506,6 +1702,7 @@ const readProcessingResponse = async response => {
   let finishReason = '';
   let streamCompleted = false;
   let malformedEvent = false;
+  let responseChars = 0;
   const consumeLine = rawLine => {
     const line = String(rawLine || '').trim();
     if (!line.startsWith('data:')) return;
@@ -1517,14 +1714,19 @@ const readProcessingResponse = async response => {
     }
     try {
       const data = JSON.parse(payload);
-      fullResponseText += extractProcessingStreamDelta(data);
-      reasoningResponseText += extractProcessingReasoningText(data);
+      const delta = extractProcessingStreamDelta(data);
+      const reasoningDelta = extractProcessingReasoningText(data);
+      responseChars += delta.length + reasoningDelta.length;
+      if (responseChars > responseLimit) throw new Error(`文本接口响应过大（上限 ${responseLimit} 字符）`);
+      fullResponseText += delta;
+      reasoningResponseText += reasoningDelta;
       const eventFinishReason = extractProcessingFinishReason(data);
       finishReason = eventFinishReason || finishReason;
       if (eventFinishReason || ['response.completed', 'response.incomplete', 'response.failed'].includes(data.type)) {
         streamCompleted = true;
       }
-    } catch {
+    } catch (error) {
+      if (String(error?.message || '').startsWith('文本接口响应过大')) throw error;
       malformedEvent = true;
     }
   };
@@ -1536,6 +1738,7 @@ const readProcessingResponse = async response => {
     streamBuffer += decoder.decode(value || new Uint8Array(), {
       stream: !done
     });
+    if (streamBuffer.length + responseChars > responseLimit) throw new Error(`文本接口响应过大（上限 ${responseLimit} 字符）`);
     const lines = streamBuffer.split(/\r?\n/);
     streamBuffer = lines.pop() || '';
     lines.forEach(consumeLine);
@@ -1640,6 +1843,8 @@ const loadRemoteModels = async ({
   kind = 'text',
   signal
 }) => {
+  const endpointValidation = validateApiEndpoint(apiUrl, kind);
+  if (!endpointValidation.valid) throw new Error(endpointValidation.errors[0]);
   const endpoint = resolveApiEndpoint(apiUrl, kind);
   const modelsEndpoint = deriveModelsEndpoint(endpoint);
   const response = await runWithRequestControl(requestSignal => fetchApiRequest(modelsEndpoint, 'models', {
@@ -1654,7 +1859,10 @@ const loadRemoteModels = async ({
     timeoutMessage: '读取模型列表超过 30 秒，请检查接口地址或稍后重试。'
   });
   if (!response.ok) throw new Error(`(HTTP ${response.status}) ${await readApiErrorMessage(response)}`);
+  const declaredLength = Number(response.headers?.get?.('content-length'));
+  if (Number.isFinite(declaredLength) && declaredLength > MAX_MODELS_RESPONSE_CHARS) throw new Error(`模型列表响应过大（上限 ${MAX_MODELS_RESPONSE_CHARS} 字符）`);
   const rawModels = await response.text();
+  if (rawModels.length > MAX_MODELS_RESPONSE_CHARS) throw new Error(`模型列表响应过大（上限 ${MAX_MODELS_RESPONSE_CHARS} 字符）`);
   let data;
   try {
     data = JSON.parse(rawModels);
@@ -1675,6 +1883,8 @@ const requestTextProcessing = ({
   timeoutMs = TEXT_REQUEST_TIMEOUT_MS,
   timeoutMessage = '内容生成超过 300 秒，已自动停止。请先测试接口，或换用响应更快的文本模型。'
 }) => runWithRequestControl(async requestSignal => {
+  const endpointValidation = validateApiEndpoint(apiUrl, 'text');
+  if (!endpointValidation.valid) throw new Error(endpointValidation.errors[0]);
   const endpoint = resolveApiEndpoint(apiUrl, 'text');
   const response = await fetchTextRequest(endpoint, {
     method: 'POST',
@@ -1736,10 +1946,11 @@ const requestImageAsset = async ({
   onImageResponse = () => {}
 }) => {
   const imageModel = String(model || '').trim();
+  const endpointValidation = validateApiEndpoint(apiUrl, 'image');
+  if (!endpointValidation.valid) throw new Error(endpointValidation.errors[0]);
   const requestedSize = normalizeImageSize(size, imageModel);
   const requestedRatio = normalizeImageRatio(size);
   const imageEndpoint = resolveApiEndpoint(apiUrl, 'image');
-  const imageTransport = getRequestTransport(imageEndpoint, 'image');
   const requestController = controller || new AbortController();
   let generationCompletedAt = 0;
   let requestPhase = 'request';
@@ -1756,12 +1967,11 @@ const requestImageAsset = async ({
     }, timeoutMs);
   };
   try {
-    const response = await fetchImpl(imageTransport.url, {
+    const response = await fetchImpl(imageEndpoint, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${String(apiKey || '').trim()}`,
-        ...imageTransport.headers
+        'Authorization': `Bearer ${String(apiKey || '').trim()}`
       },
       body: JSON.stringify(buildImageRequestBody(imageModel, prompt, requestedSize)),
       signal: requestController.signal
@@ -1781,9 +1991,7 @@ const requestImageAsset = async ({
     if (dataUrl) {
       imageBlob = dataUrlToBlob(dataUrl);
     } else {
-      const downloadTransport = getImageDownloadTransport(remoteUrl);
-      const imageResponse = await fetchImpl(downloadTransport.url, {
-        headers: downloadTransport.headers,
+      const imageResponse = await fetchImpl(remoteUrl, {
         signal: requestController.signal
       });
       if (!imageResponse.ok) throw new Error(`图片下载失败 HTTP ${imageResponse.status}`);
@@ -2654,6 +2862,8 @@ const SettingsDialog = ({
     text: false,
     image: false
   });
+  const imageSizeWarning = getImageSizeWarning(apiConfig.imageSize, apiConfig.imageModel);
+  const imageRatioValue = imageSizeToRatio(apiConfig.imageSize) || apiConfig.imageSize;
   const usageSummary = summarizeImageUsageLog(imageUsageLog);
   const toggleKeyVisibility = key => setVisibleKeys(previous => ({
     ...previous,
@@ -2864,6 +3074,19 @@ const SettingsDialog = ({
     className: "config-field"
   }, React.createElement("label", {
     className: "config-label"
+  }, "图片比例"), React.createElement("input", {
+    type: "text",
+    value: imageRatioValue,
+    onChange: e => setApiConfig({
+      ...apiConfig,
+      imageSize: e.target.value
+    }),
+    placeholder: "3:4",
+    className: "mi-field config-input"
+  })), React.createElement("div", {
+    className: "config-field config-span-2"
+  }, React.createElement("label", {
+    className: "config-label"
   }, "图片 API Key"), React.createElement("div", {
     className: "config-secret-field"
   }, React.createElement("input", {
@@ -2884,7 +3107,12 @@ const SettingsDialog = ({
   }, React.createElement(Icon, {
     name: visibleKeys.image ? 'EyeOff' : 'Eye',
     className: "h-4 w-4"
-  }))))), React.createElement(ConfigStatus, {
+  }))))), imageSizeWarning && React.createElement("div", {
+    className: "mi-feedback mi-feedback-warning config-preference-note"
+  }, React.createElement(Icon, {
+    name: "TriangleAlert",
+    className: "h-4 w-4 shrink-0"
+  }), React.createElement("span", null, imageSizeWarning)), React.createElement(ConfigStatus, {
     state: configTools.imageModels
   })), React.createElement("section", {
     className: "config-section"
@@ -3080,16 +3308,6 @@ const isLegacyDefaultPrompt = (prompt, currentDefaultPrompt = DEFAULT_SYSTEM_PRO
   return hasDefaultStructure && knownDefaultFamily && previousDefaultMarkers.some(marker => normalized.includes(marker)) || hasDefaultStructure && knownDefaultFamily;
 };
 const shouldOfferDefaultPromptUpgrade = (config = {}) => Number(config.promptVersion || 0) < DEFAULT_PROMPT_VERSION && isLegacyDefaultPrompt(config.systemPrompt);
-const hasSavedApiConfig = () => {
-  try {
-    const savedConfig = localStorage.getItem('agent_api_config');
-    if (!savedConfig) return false;
-    const parsedConfig = JSON.parse(savedConfig);
-    return Boolean(parsedConfig.apiKey?.trim());
-  } catch {
-    return false;
-  }
-};
 let html2CanvasLoader = null;
 let exportFontStylesheetLoader = null;
 const loadExportFontStylesheet = () => {
@@ -3417,8 +3635,7 @@ const useResultContent = ({
           }))), React.createElement("pre", {
             className: "visual-prompt-copy font-mono"
           }, React.createElement("code", null, cleanPromptText)))), React.createElement("details", {
-            className: "visual-disclosure",
-            open: true
+            className: "visual-disclosure"
           }, React.createElement("summary", null, React.createElement("span", null, "AI 整图实际请求"), React.createElement(Icon, {
             name: "ChevronDown",
             className: "visual-disclosure-icon"
@@ -3577,7 +3794,7 @@ function App() {
     imageSize: DEFAULT_IMAGE_RATIO,
     imageRatioVersion: IMAGE_RATIO_CONFIG_VERSION
   });
-  const [isConfigOpen, setIsConfigOpen] = useState(() => !hasSavedApiConfig());
+  const [isConfigOpen, setIsConfigOpen] = useState(false);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [history, setHistory] = useState([]);
   const [activeHistoryId, setActiveHistoryId] = useState(null);
@@ -3592,8 +3809,8 @@ function App() {
   const [activeVisualPage, setActiveVisualPage] = useState('');
   const [toast, setToast] = useState(null);
   const [imageResults, setImageResults] = useState({});
-  const [lastImageDiagnostic, setLastImageDiagnostic] = useState(loadLastImageDiagnostic);
-  const [imageUsageLog, setImageUsageLog] = useState(loadImageUsageLog);
+  const [lastImageDiagnostic, setLastImageDiagnostic] = useState(null);
+  const [imageUsageLog, setImageUsageLog] = useState([]);
   const [htmlExportState, setHtmlExportState] = useState({
     cardId: '',
     status: 'idle',
@@ -3660,20 +3877,22 @@ function App() {
     }));
   };
   const saveLastImageDiagnostic = patch => {
-    setLastImageDiagnostic(previous => {
-      const next = {
-        ...(previous || {}),
-        ...patch,
-        updatedAt: new Date().toISOString()
-      };
-      localStorage.setItem(MOREIMG_IMAGE_DIAGNOSTIC_KEY, JSON.stringify(next));
-      return next;
-    });
+    setLastImageDiagnostic(previous => ({
+      ...(previous || {}),
+      ...patch,
+      updatedAt: new Date().toISOString()
+    }));
+    updateLastImageDiagnostic(patch).then(setLastImageDiagnostic).catch(error => console.error('图片诊断保存失败', error));
   };
   useEffect(() => {
     activeHistoryIdRef.current = activeHistoryId;
   }, [activeHistoryId]);
-  const recordImageUsage = entry => setImageUsageLog(appendImageUsageLog(entry));
+  const recordImageUsage = entry => {
+    appendImageUsageLog(entry).then(setImageUsageLog).catch(error => setToast({
+      message: `生图请求记录保存失败: ${error.message}`,
+      type: 'error'
+    }));
+  };
   useEffect(() => {
     if (!showResults || !resultScrollRef.current) return;
     resultScrollRef.current.scrollTop = 0;
@@ -3757,7 +3976,7 @@ function App() {
         };
       });
       replaceImageResults(nextResults);
-      if (loadLastImageDiagnostic()?.sessionId === sessionId) {
+      if (lastImageDiagnostic?.sessionId === sessionId) {
         saveLastImageDiagnostic({
           restoreStatus: storedImages.length ? '成功' : '失败',
           failureReason: storedImages.length ? '' : '未找到可恢复的本地图片'
@@ -3765,7 +3984,7 @@ function App() {
       }
     } catch (error) {
       if (requestToken !== historyLoadTokenRef.current) return;
-      if (loadLastImageDiagnostic()?.sessionId === sessionId) {
+      if (lastImageDiagnostic?.sessionId === sessionId) {
         saveLastImageDiagnostic({
           restoreStatus: '失败',
           failureReason: getDiagnosticFailureReason(error, 'restore')
@@ -3779,83 +3998,56 @@ function App() {
   };
   useEffect(() => {
     let isActive = true;
-    const loadHistory = async () => {
-      const savedHistory = localStorage.getItem(HISTORY_INDEX_KEY);
-      if (savedHistory) {
-        try {
-          const parsedHistory = JSON.parse(savedHistory);
-          if (!Array.isArray(parsedHistory)) throw new Error('历史索引格式无效');
-          const candidateHistory = parsedHistory.filter(item => item?.id && item?.title !== undefined).slice(0, HISTORY_LIMIT);
-          const reconciledHistory = await filterExistingHistoryIndex(candidateHistory);
-          if (isActive) {
-            if (localStorage.getItem(HISTORY_INDEX_KEY) !== savedHistory) return;
-            setHistory(reconciledHistory);
-            if (reconciledHistory.length !== candidateHistory.length) {
-              localStorage.setItem(HISTORY_INDEX_KEY, JSON.stringify(reconciledHistory));
-            }
-          }
-          return;
-        } catch {
-          localStorage.removeItem(HISTORY_INDEX_KEY);
-        }
-      }
+    const initializeStorage = async () => {
       try {
-        const existingDemo = await loadSessionRecord(DEMO_SESSION_ID).catch(() => null);
-        if (existingDemo?.isDemo) {
-          const demoIndex = [toHistoryIndex(existingDemo)];
-          if (!isActive || localStorage.getItem(HISTORY_INDEX_KEY)) return;
-          setHistory(demoIndex);
-          localStorage.setItem(HISTORY_INDEX_KEY, JSON.stringify(demoIndex));
-        } else if (shouldSeedDemo() && !(await hasAnySessionRecords())) {
-          const demoRecord = await seedDemoHistory();
-          if (isActive && !localStorage.getItem(HISTORY_INDEX_KEY)) {
-            const demoIndex = [toHistoryIndex(demoRecord)];
-            setHistory(demoIndex);
-            localStorage.setItem(HISTORY_INDEX_KEY, JSON.stringify(demoIndex));
-          }
+        const migrated = await migrateLegacyLocalStorage();
+        let storedConfig = migrated.config;
+        if (storedConfig && (typeof storedConfig !== 'object' || Array.isArray(storedConfig))) {
+          await deleteAppState(APP_STATE_CONFIG);
+          storedConfig = null;
         }
+        if (storedConfig) {
+          const savedImageRatioVersion = Number(storedConfig.imageRatioVersion || 0);
+          const normalizedConfig = {
+            ...storedConfig
+          };
+          delete normalizedConfig.systemPrompt;
+          delete normalizedConfig.processingPreferences;
+          normalizedConfig.promptVersion = DEFAULT_PROMPT_VERSION;
+          normalizedConfig.imageApiUrl = normalizedConfig.imageApiUrl || 'https://api.aixoras.com/v1/images/generations';
+          normalizedConfig.imageModel = normalizedConfig.imageModel || 'gpt-image-2';
+          normalizedConfig.imageApiKey = normalizedConfig.imageApiKey || '';
+          const legacyImageSize = String(normalizedConfig.imageSize || '').trim().toLowerCase();
+          normalizedConfig.imageSize = savedImageRatioVersion < IMAGE_RATIO_CONFIG_VERSION && (legacyImageSize === '1024x1536' || legacyImageSize === '2:3') ? DEFAULT_IMAGE_RATIO : normalizeImageRatio(normalizedConfig.imageSize);
+          normalizedConfig.imageRatioVersion = IMAGE_RATIO_CONFIG_VERSION;
+          await saveStoredApiConfig(normalizedConfig);
+          if (isActive) {
+            setApiConfig(normalizedConfig);
+            setIsConfigOpen(!normalizedConfig.apiKey?.trim());
+          }
+        } else if (isActive) {
+          setIsConfigOpen(true);
+        }
+        if (isActive) {
+          setLastImageDiagnostic(migrated.diagnostic);
+          setImageUsageLog(migrated.usageLog);
+        }
+        if (!(await hasAnySessionRecords()) && (await shouldSeedDemo())) {
+          await seedDemoHistory();
+        }
+        const storedHistory = await listHistoryIndex(HISTORY_LIMIT);
+        if (isActive) setHistory(storedHistory);
       } catch (error) {
-        if (isActive) setToast({
-          message: `示例记录初始化失败: ${error.message}`,
+        if (!isActive) return;
+        setIsConfigOpen(true);
+        setToast({
+          message: `本地数据初始化失败: ${error.message}`,
           type: 'error',
-          duration: 5000
+          duration: 6000
         });
       }
     };
-    const savedConfig = localStorage.getItem('agent_api_config');
-    if (savedConfig) {
-      let parsedConfig = null;
-      try {
-        parsedConfig = JSON.parse(savedConfig);
-        if (!parsedConfig || typeof parsedConfig !== 'object' || Array.isArray(parsedConfig)) throw new Error('配置格式无效');
-      } catch {
-        localStorage.removeItem('agent_api_config');
-        setIsConfigOpen(true);
-        setToast({
-          message: '本地配置已损坏，请重新填写接口设置',
-          type: 'error',
-          duration: 5000
-        });
-      }
-      if (parsedConfig) {
-        delete parsedConfig.systemPrompt;
-        delete parsedConfig.processingPreferences;
-        parsedConfig.promptVersion = DEFAULT_PROMPT_VERSION;
-        parsedConfig.imageApiUrl = parsedConfig.imageApiUrl || 'https://api.aixoras.com/v1/images/generations';
-        parsedConfig.imageModel = parsedConfig.imageModel || 'gpt-image-2';
-        parsedConfig.imageApiKey = parsedConfig.imageApiKey || '';
-        parsedConfig.imageSize = DEFAULT_IMAGE_RATIO;
-        parsedConfig.imageRatioVersion = IMAGE_RATIO_CONFIG_VERSION;
-        localStorage.setItem('agent_api_config', JSON.stringify(parsedConfig));
-        setApiConfig(parsedConfig);
-        if (parsedConfig.apiKey?.trim()) {
-          setIsConfigOpen(false);
-        }
-      }
-    } else {
-      setIsConfigOpen(true);
-    }
-    loadHistory();
+    initializeStorage();
     return () => {
       isActive = false;
     };
@@ -3866,22 +4058,38 @@ function App() {
     abortAllImageRequests();
     imageObjectUrlsRef.current.forEach(url => URL.revokeObjectURL(url));
   }, []);
-  const handleSaveConfig = () => {
+  const handleSaveConfig = async () => {
     const nextConfig = {
       ...apiConfig,
       promptVersion: DEFAULT_PROMPT_VERSION,
-      imageSize: DEFAULT_IMAGE_RATIO,
       imageRatioVersion: IMAGE_RATIO_CONFIG_VERSION
     };
     delete nextConfig.systemPrompt;
     delete nextConfig.processingPreferences;
-    localStorage.setItem('agent_api_config', JSON.stringify(nextConfig));
-    setApiConfig(nextConfig);
-    setToast({
-      message: 'AI 引擎及技能配置已保存',
-      type: 'success'
-    });
-    closeConfigDialog();
+    const validation = validateApiConfig(nextConfig);
+    if (!validation.valid) {
+      setToast({
+        message: `配置校验失败: ${validation.errors[0]}`,
+        type: 'error',
+        duration: 5000
+      });
+      return;
+    }
+    try {
+      await saveStoredApiConfig(nextConfig);
+      setApiConfig(nextConfig);
+      setToast({
+        message: 'AI 引擎及技能配置已保存',
+        type: 'success'
+      });
+      closeConfigDialog();
+    } catch (error) {
+      setToast({
+        message: `配置保存失败: ${error.message}`,
+        type: 'error',
+        duration: 5000
+      });
+    }
   };
   const handleLoadModels = async kind => {
     const isImage = kind === 'image';
@@ -3889,7 +4097,8 @@ function App() {
     const apiKey = isImage ? apiConfig.imageApiKey.trim() : apiConfig.apiKey.trim();
     const stateKey = isImage ? 'imageModels' : 'textModels';
     const setModels = isImage ? setImageModels : setTextModels;
-    if (!endpoint || !apiKey) {
+    const endpointValidation = validateApiEndpoint(isImage ? apiConfig.imageApiUrl : apiConfig.apiUrl, isImage ? 'image' : 'text');
+    if (!endpointValidation.valid || !endpoint || !apiKey) {
       updateConfigTool(stateKey, {
         status: 'error',
         message: '请先填写接口地址和 API Key。'
@@ -3943,7 +4152,8 @@ function App() {
     const endpoint = resolveApiEndpoint(apiConfig.apiUrl, 'text');
     const model = apiConfig.model.trim();
     const apiKey = apiConfig.apiKey.trim();
-    if (!endpoint || !model || !apiKey) {
+    const endpointValidation = validateApiEndpoint(apiConfig.apiUrl, 'text');
+    if (!endpointValidation.valid || !endpoint || !model || !apiKey) {
       updateConfigTool('textTest', {
         status: 'error',
         message: '请先填写接口地址、模型和 API Key。'
@@ -3990,7 +4200,10 @@ function App() {
       });
       return;
     }
-    if (!apiConfig.imageApiUrl.trim() || !apiConfig.imageModel.trim() || !apiConfig.imageApiKey.trim()) {
+    const imageConfigValidation = validateApiConfig(apiConfig, window.location, {
+      requireImage: true
+    });
+    if (!imageConfigValidation.valid) {
       setToast({
         message: '请先配置图片接口、模型和密钥',
         type: 'error'
@@ -4007,8 +4220,8 @@ function App() {
       sessionId
     });
     const imageModel = apiConfig.imageModel.trim();
-    const requestedSize = normalizeImageSize(DEFAULT_IMAGE_RATIO, imageModel);
-    const requestedRatio = DEFAULT_IMAGE_RATIO;
+    const requestedSize = normalizeImageSize(apiConfig.imageSize, imageModel);
+    const requestedRatio = normalizeImageRatio(apiConfig.imageSize);
     const startedAt = Date.now();
     let generationCompletedAt = 0;
     let requestPhase = 'request';
@@ -4043,7 +4256,7 @@ function App() {
         apiKey: apiConfig.imageApiKey,
         model: imageModel,
         prompt,
-        size: DEFAULT_IMAGE_RATIO,
+        size: apiConfig.imageSize,
         controller: requestController,
         onImageResponse: ({
           remoteUrl,
@@ -4060,7 +4273,27 @@ function App() {
       } = imageRequestResult;
       generationCompletedAt = imageRequestResult.requestMeta.generationCompletedAt;
       requestPhase = imageRequestResult.requestMeta.requestPhase;
-      await saveImageBlob(sessionId, cardTitle, imageBlob, mode, previousFocusY);
+      const imageSaved = await saveImageBlob(sessionId, cardTitle, imageBlob, mode, previousFocusY);
+      if (!imageSaved) {
+        saveLastImageDiagnostic({
+          storageBackend: 'IndexedDB',
+          storageStatus: '会话已删除',
+          restoreStatus: '不适用',
+          failureReason: ''
+        });
+        recordImageUsage({
+          sessionId,
+          cardTitle,
+          mode,
+          model: imageModel,
+          size: isGptImage2Model(imageModel) ? requestedRatio : requestedSize,
+          durationMs: Date.now() - startedAt,
+          outcome: '会话已删除',
+          mayBeBilled: true,
+          detail: '生图完成后会话已被删除，未保留本地图片'
+        });
+        return;
+      }
       saveLastImageDiagnostic({
         storageBackend: 'IndexedDB',
         storageStatus: '成功',
@@ -4279,12 +4512,9 @@ function App() {
     setIsDeletingHistory(true);
     historyLoadTokenRef.current += 1;
     abortSessionImageRequests(id);
-    const previousHistory = history;
     const updatedHistory = history.filter(item => item.id !== id);
     try {
-      localStorage.setItem(HISTORY_INDEX_KEY, JSON.stringify(updatedHistory));
-      await deleteSessionImages(id);
-      await deleteSessionRecord(id);
+      await deleteSessionData(id);
       setHistory(updatedHistory);
       if (activeHistoryId === id) {
         setActiveHistoryId(null);
@@ -4304,9 +4534,6 @@ function App() {
         type: 'success'
       });
     } catch (error) {
-      try {
-        localStorage.setItem(HISTORY_INDEX_KEY, JSON.stringify(previousHistory));
-      } catch {}
       setToast({
         message: `历史记录删除失败: ${error.message}`,
         type: 'error',
@@ -4322,17 +4549,8 @@ function App() {
     demoLoadInFlightRef.current = true;
     historyLoadTokenRef.current += 1;
     try {
-      const demoRecord = await loadDemoHistory();
-      const demoIndex = toHistoryIndex(demoRecord);
-      const updatedHistory = [demoIndex, ...history.filter(item => item.id !== demoIndex.id)].slice(0, HISTORY_LIMIT);
-      const removedHistory = history.filter(historyItem => !updatedHistory.some(item => item.id === historyItem.id));
-      setHistory(updatedHistory);
-      localStorage.setItem(HISTORY_INDEX_KEY, JSON.stringify(updatedHistory));
-      removedHistory.forEach(item => {
-        abortSessionImageRequests(item.id);
-        deleteSessionRecord(item.id).catch(() => {});
-        deleteSessionImages(item.id).catch(() => {});
-      });
+      await loadDemoHistory();
+      setHistory(await listHistoryIndex(HISTORY_LIMIT));
       setToast({
         message: '示例记录已载入，点击即可查看完整流程',
         type: 'success'
@@ -4356,7 +4574,10 @@ function App() {
   };
   const handleStartProcessing = async (overrideText = null) => {
     const textToProcess = (typeof overrideText === 'string' ? overrideText : inputText).trim();
-    if (!apiConfig.apiUrl?.trim() || !apiConfig.model?.trim() || !apiConfig.apiKey?.trim()) {
+    const textConfigValidation = validateApiConfig(apiConfig, window.location, {
+      requireText: true
+    });
+    if (!textConfigValidation.valid) {
       setToast({
         message: '请先完成文本模型配置',
         type: 'error',
@@ -4395,7 +4616,7 @@ function App() {
       warning: ''
     });
     replaceImageResults({});
-    const newSessionId = Date.now().toString();
+    const newSessionId = crypto.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`;
     const processingController = new AbortController();
     processingAbortRef.current = processingController;
     let shouldShowResults = false;
@@ -4433,22 +4654,17 @@ function App() {
         id: newSessionId,
         title: textToProcess.substring(0, 20) + '...',
         date: new Date().toLocaleString(),
+        createdAt: Date.now(),
         sessionData,
         originalInput: textToProcess
       };
       try {
         await saveSessionRecord(newHistoryItem);
-        let historyBeforeSave = history;
-        try {
-          const persistedHistory = JSON.parse(localStorage.getItem(HISTORY_INDEX_KEY) || '[]');
-          if (Array.isArray(persistedHistory)) historyBeforeSave = persistedHistory;
-        } catch {}
-        const updatedHistory = [toHistoryIndex(newHistoryItem), ...historyBeforeSave.filter(item => item.id !== newSessionId)].slice(0, HISTORY_LIMIT);
-        setHistory(updatedHistory);
-        localStorage.setItem(HISTORY_INDEX_KEY, JSON.stringify(updatedHistory));
-        historyBeforeSave.slice(HISTORY_LIMIT - 1).forEach(item => {
-          deleteSessionRecord(item.id).catch(() => {});
-          deleteSessionImages(item.id).catch(() => {});
+        const storedRecords = await listSessionRecords(Infinity);
+        setHistory(storedRecords.slice(0, HISTORY_LIMIT).map(toHistoryIndex));
+        storedRecords.slice(HISTORY_LIMIT).forEach(item => {
+          abortSessionImageRequests(item.id);
+          deleteSessionData(item.id).catch(error => console.error('历史记录清理失败', error));
         });
       } catch (storageError) {
         setToast({
@@ -4606,12 +4822,19 @@ function App() {
     }
   };
   const copyImageUsageLog = () => copyToClipboard(formatImageUsageLogText(imageUsageLog), '生图请求记录');
-  const handleClearImageUsageLog = () => {
-    setImageUsageLog(clearImageUsageLog());
-    setToast({
-      message: '生图请求记录已清空',
-      type: 'neutral'
-    });
+  const handleClearImageUsageLog = async () => {
+    try {
+      setImageUsageLog(await clearImageUsageLog());
+      setToast({
+        message: '生图请求记录已清空',
+        type: 'neutral'
+      });
+    } catch (error) {
+      setToast({
+        message: `生图请求记录清理失败: ${error.message}`,
+        type: 'error'
+      });
+    }
   };
   const resultContent = useResultContent({
     activeStageTab,
