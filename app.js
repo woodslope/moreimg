@@ -1948,8 +1948,8 @@ const requestImageAsset = async ({
   const imageModel = String(model || '').trim();
   const endpointValidation = validateApiEndpoint(apiUrl, 'image');
   if (!endpointValidation.valid) throw new Error(endpointValidation.errors[0]);
-  const requestedSize = normalizeImageSize(size, imageModel);
-  const requestedRatio = normalizeImageRatio(size);
+  const requestedSize = normalizeImageSize(DEFAULT_IMAGE_RATIO, imageModel);
+  const requestedRatio = DEFAULT_IMAGE_RATIO;
   const imageEndpoint = resolveApiEndpoint(apiUrl, 'image');
   const requestController = controller || new AbortController();
   let generationCompletedAt = 0;
@@ -1973,7 +1973,7 @@ const requestImageAsset = async ({
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${String(apiKey || '').trim()}`
       },
-      body: JSON.stringify(buildImageRequestBody(imageModel, prompt, requestedSize)),
+      body: JSON.stringify(buildImageRequestBody(imageModel, prompt, DEFAULT_IMAGE_RATIO)),
       signal: requestController.signal
     });
     const {
@@ -2257,6 +2257,9 @@ const TOAST_TYPE_CONFIG = Object.freeze({
   },
   warning: {
     icon: 'CircleAlert'
+  },
+  info: {
+    icon: 'Info'
   },
   neutral: {
     icon: 'Info'
@@ -2862,8 +2865,6 @@ const SettingsDialog = ({
     text: false,
     image: false
   });
-  const imageSizeWarning = getImageSizeWarning(apiConfig.imageSize, apiConfig.imageModel);
-  const imageRatioValue = imageSizeToRatio(apiConfig.imageSize) || apiConfig.imageSize;
   const usageSummary = summarizeImageUsageLog(imageUsageLog);
   const toggleKeyVisibility = key => setVisibleKeys(previous => ({
     ...previous,
@@ -3074,19 +3075,6 @@ const SettingsDialog = ({
     className: "config-field"
   }, React.createElement("label", {
     className: "config-label"
-  }, "图片比例"), React.createElement("input", {
-    type: "text",
-    value: imageRatioValue,
-    onChange: e => setApiConfig({
-      ...apiConfig,
-      imageSize: e.target.value
-    }),
-    placeholder: "3:4",
-    className: "mi-field config-input"
-  })), React.createElement("div", {
-    className: "config-field config-span-2"
-  }, React.createElement("label", {
-    className: "config-label"
   }, "图片 API Key"), React.createElement("div", {
     className: "config-secret-field"
   }, React.createElement("input", {
@@ -3107,12 +3095,9 @@ const SettingsDialog = ({
   }, React.createElement(Icon, {
     name: visibleKeys.image ? 'EyeOff' : 'Eye',
     className: "h-4 w-4"
-  }))))), imageSizeWarning && React.createElement("div", {
-    className: "mi-feedback mi-feedback-warning config-preference-note"
-  }, React.createElement(Icon, {
-    name: "TriangleAlert",
-    className: "h-4 w-4 shrink-0"
-  }), React.createElement("span", null, imageSizeWarning)), React.createElement(ConfigStatus, {
+  }))))), React.createElement("div", {
+    className: "config-hint"
+  }, "小红书卡片固定输出 3:4（768×1024）。"), React.createElement(ConfigStatus, {
     state: configTools.imageModels
   })), React.createElement("section", {
     className: "config-section"
@@ -3635,7 +3620,8 @@ const useResultContent = ({
           }))), React.createElement("pre", {
             className: "visual-prompt-copy font-mono"
           }, React.createElement("code", null, cleanPromptText)))), React.createElement("details", {
-            className: "visual-disclosure"
+            className: "visual-disclosure",
+            open: true
           }, React.createElement("summary", null, React.createElement("span", null, "AI 整图实际请求"), React.createElement(Icon, {
             name: "ChevronDown",
             className: "visual-disclosure-icon"
@@ -4007,7 +3993,6 @@ function App() {
           storedConfig = null;
         }
         if (storedConfig) {
-          const savedImageRatioVersion = Number(storedConfig.imageRatioVersion || 0);
           const normalizedConfig = {
             ...storedConfig
           };
@@ -4017,8 +4002,7 @@ function App() {
           normalizedConfig.imageApiUrl = normalizedConfig.imageApiUrl || 'https://api.aixoras.com/v1/images/generations';
           normalizedConfig.imageModel = normalizedConfig.imageModel || 'gpt-image-2';
           normalizedConfig.imageApiKey = normalizedConfig.imageApiKey || '';
-          const legacyImageSize = String(normalizedConfig.imageSize || '').trim().toLowerCase();
-          normalizedConfig.imageSize = savedImageRatioVersion < IMAGE_RATIO_CONFIG_VERSION && (legacyImageSize === '1024x1536' || legacyImageSize === '2:3') ? DEFAULT_IMAGE_RATIO : normalizeImageRatio(normalizedConfig.imageSize);
+          normalizedConfig.imageSize = DEFAULT_IMAGE_RATIO;
           normalizedConfig.imageRatioVersion = IMAGE_RATIO_CONFIG_VERSION;
           await saveStoredApiConfig(normalizedConfig);
           if (isActive) {
@@ -4061,6 +4045,7 @@ function App() {
   const handleSaveConfig = async () => {
     const nextConfig = {
       ...apiConfig,
+      imageSize: DEFAULT_IMAGE_RATIO,
       promptVersion: DEFAULT_PROMPT_VERSION,
       imageRatioVersion: IMAGE_RATIO_CONFIG_VERSION
     };
@@ -4220,8 +4205,8 @@ function App() {
       sessionId
     });
     const imageModel = apiConfig.imageModel.trim();
-    const requestedSize = normalizeImageSize(apiConfig.imageSize, imageModel);
-    const requestedRatio = normalizeImageRatio(apiConfig.imageSize);
+    const requestedSize = normalizeImageSize(DEFAULT_IMAGE_RATIO, imageModel);
+    const requestedRatio = DEFAULT_IMAGE_RATIO;
     const startedAt = Date.now();
     let generationCompletedAt = 0;
     let requestPhase = 'request';
@@ -4256,7 +4241,7 @@ function App() {
         apiKey: apiConfig.imageApiKey,
         model: imageModel,
         prompt,
-        size: apiConfig.imageSize,
+        size: DEFAULT_IMAGE_RATIO,
         controller: requestController,
         onImageResponse: ({
           remoteUrl,
@@ -4598,7 +4583,7 @@ function App() {
     if (hasInFlightImageRequests()) {
       setToast({
         message: '仍有生图在后台进行，完成后会保存到原记录，不会因本次加工被取消。',
-        type: 'neutral',
+        type: 'info',
         duration: 5000
       });
     }
@@ -4774,7 +4759,7 @@ function App() {
     }
     setToast({
       message: '将基于原文新建记录，原记录会保留',
-      type: 'neutral',
+      type: 'info',
       duration: 3500
     });
     handleStartProcessing(item.originalInput);
@@ -4827,7 +4812,7 @@ function App() {
       setImageUsageLog(await clearImageUsageLog());
       setToast({
         message: '生图请求记录已清空',
-        type: 'neutral'
+        type: 'success'
       });
     } catch (error) {
       setToast({
