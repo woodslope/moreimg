@@ -209,7 +209,7 @@ const summarizeImageUsageLog = (log = []) => {
     billedFailures: billedFailures.length
   };
 };
-const saveImageBlob = async (sessionId, cardTitle, blob, mode = 'visual-only', focusY) => {
+const saveImageBlob = async (sessionId, cardTitle, blob, mode = 'visual-only') => {
   const database = await openImageDatabase();
   try {
     return await new Promise((resolve, reject) => {
@@ -226,7 +226,6 @@ const saveImageBlob = async (sessionId, cardTitle, blob, mode = 'visual-only', f
           cardTitle,
           mode,
           blob,
-          focusY,
           updatedAt: Date.now()
         });
         saved = true;
@@ -235,28 +234,6 @@ const saveImageBlob = async (sessionId, cardTitle, blob, mode = 'visual-only', f
       transaction.onerror = () => reject(transaction.error || new Error('IndexedDB 图片写入失败'));
       transaction.onabort = () => reject(transaction.error || new Error('IndexedDB 图片写入已中止'));
       transaction.oncomplete = () => resolve(saved);
-    });
-  } finally {
-    database.close();
-  }
-};
-const saveImageFocus = async (sessionId, cardTitle, mode, focusY) => {
-  const database = await openImageDatabase();
-  try {
-    await new Promise((resolve, reject) => {
-      const transaction = database.transaction(IMAGE_STORE_NAME, 'readwrite');
-      const store = transaction.objectStore(IMAGE_STORE_NAME);
-      const request = store.get(`${sessionId}:${mode}:${cardTitle}`);
-      request.onsuccess = () => {
-        if (request.result) store.put({
-          ...request.result,
-          focusY,
-          updatedAt: Date.now()
-        });
-      };
-      request.onerror = () => reject(request.error || new Error('IndexedDB 图片读取失败'));
-      transaction.oncomplete = resolve;
-      transaction.onerror = () => reject(transaction.error || new Error('IndexedDB 图片写入失败'));
     });
   } finally {
     database.close();
@@ -725,7 +702,7 @@ const seedDemoHistory = async () => {
     }
     await saveSessionRecord(record);
     for (const image of images) {
-      await saveImageBlob(DEMO_SESSION_ID, image.title, image.blob, image.mode, 50);
+      await saveImageBlob(DEMO_SESSION_ID, image.title, image.blob, image.mode);
     }
     await writeAppState(APP_STATE_DEMO, true);
     return record;
@@ -2054,7 +2031,7 @@ const HTML_CARD_EXPORT_STYLES = `
       .moreimg-export-card *{box-sizing:border-box}
       /* 背景层用正 z-index 叠放：html2canvas 会丢弃负 z-index 的绝对定位子层，导出成品会缺遮罩与噪点。 */
       .moreimg-card-media{position:absolute;inset:0;z-index:0;background:#15171a;overflow:hidden}
-      .moreimg-card-media img{width:100%;height:100%;object-fit:cover;object-position:center var(--moreimg-card-focus-y,58%);display:block;transform:scale(1.012)}
+      .moreimg-card-media img{width:100%;height:100%;object-fit:cover;object-position:center 58%;display:block;transform:scale(1.012)}
       .moreimg-card-visual-placeholder{position:absolute;inset:0;background:radial-gradient(circle at 62% 66%,rgba(239,232,216,.25),transparent 24%),linear-gradient(155deg,#313842 0%,#15181d 56%,#08090b 100%)}
       .moreimg-card-shade{position:absolute;inset:0;z-index:1;pointer-events:none;background:linear-gradient(180deg,rgba(7,9,12,.84) 0%,rgba(7,9,12,.62) 45%,rgba(7,9,12,.24) 68%,rgba(7,9,12,0) 88%)}
       .moreimg-card-body .moreimg-card-shade{background:linear-gradient(180deg,rgba(5,8,12,.84) 0%,rgba(5,8,12,.62) 45%,rgba(5,8,12,.24) 68%,rgba(5,8,12,0) 88%)}
@@ -2135,7 +2112,6 @@ const getCardTextDensity = card => {
   if (card?.type === 'back' && titleLength + summaryLength > 34) return 'dense';
   return 'standard';
 };
-const getDefaultCardFocus = card => card?.type === 'back' ? 42 : card?.type === 'body' ? 54 : 58;
 const sampleImageTopLuminance = image => {
   if (!image?.naturalWidth || !image?.naturalHeight) return null;
   const canvas = document.createElement('canvas');
@@ -2169,7 +2145,6 @@ const HtmlCard = ({
   imageUrl,
   cardRef,
   styleLock,
-  focusY,
   appearanceOverride = 'auto'
 }) => {
   const imageRef = useRef(null);
@@ -2191,13 +2166,9 @@ const HtmlCard = ({
   const presentation = getCardShellPresentation(styleLock, effectiveAppearance);
   const density = getCardTextDensity(card);
   const hasVisual = Boolean(imageUrl);
-  const resolvedFocusY = Number.isFinite(Number(focusY)) ? Number(focusY) : getDefaultCardFocus(card);
   return React.createElement("div", {
     ref: cardRef,
-    style: {
-      ...presentation.style,
-      '--moreimg-card-focus-y': `${resolvedFocusY}%`
-    },
+    style: presentation.style,
     className: `moreimg-export-card moreimg-card-${card.type} moreimg-card-density-${density} ${presentation.className}${hasVisual ? '' : ' moreimg-card-no-visual'}`
   }, React.createElement("div", {
     className: "moreimg-card-media"
@@ -3414,7 +3385,6 @@ const useResultContent = ({
   hiddenFullImages,
   setHiddenFullImages,
   copyToClipboard,
-  updateImageFocus,
   exportHtmlCard,
   htmlCardRefs,
   htmlCardAppearanceOverride,
@@ -3499,11 +3469,10 @@ const useResultContent = ({
           const fullImageResult = imageResults[`full:${selectedPromptSection.title}`];
           const matchingCard = htmlCards.find(card => card.imageKey === selectedPromptSection.title);
           const selectedHtmlCard = matchingCard || null;
-          const selectedHtmlImageResult = selectedHtmlCard ? imageResults[`visual-only:${selectedHtmlCard.imageKey}`] : null;
+          const selectedHtmlGeneratedImageResult = selectedHtmlCard ? imageResults[`visual-only:${selectedHtmlCard.imageKey}`] : null;
           const selectedHtmlLegacyResult = selectedHtmlCard ? imageResults[`visual:${selectedHtmlCard.imageKey}`] : null;
-          const selectedHtmlResultKey = selectedHtmlCard ? `visual-only:${selectedHtmlCard.imageKey}` : '';
+          const selectedHtmlImageResult = selectedHtmlGeneratedImageResult?.status === 'success' ? selectedHtmlGeneratedImageResult : selectedHtmlLegacyResult?.status === 'success' ? selectedHtmlLegacyResult : selectedHtmlGeneratedImageResult;
           const selectedHtmlCardReady = selectedHtmlImageResult?.status === 'success';
-          const selectedHtmlFocusY = selectedHtmlCard ? selectedHtmlImageResult?.focusY ?? getDefaultCardFocus(selectedHtmlCard) : 50;
           const isSelectedHtmlCardExporting = Boolean(selectedHtmlCard && htmlExportState.cardId === selectedHtmlCard.id && htmlExportState.status === 'pending');
           const visualOnlyPrompt = cleanPromptText;
           const fullImagePrompt = matchingCard ? buildFullImagePrompt(cleanPromptText, matchingCard) : '';
@@ -3564,13 +3533,13 @@ const useResultContent = ({
           }, "生成结果"), React.createElement("div", {
             className: "visual-column-copy"
           }, "固定 3:4 检查框：上方快速确认素材，底部再进行成品对比。"), legacyVisualResult?.status === 'success' && imageResult?.status !== 'success' && React.createElement("div", {
-            className: "mi-feedback mi-feedback-warning visual-notice visual-result-notice",
+            className: "mi-feedback mi-feedback-info visual-notice visual-result-notice",
             role: "status",
             "aria-live": "polite"
           }, React.createElement(Icon, {
-            name: "CircleAlert",
+            name: "Info",
             className: "visual-result-notice-icon"
-          }), React.createElement("span", null, "旧版主视觉不能用于 HTML 成品卡，请重新生成主视觉。")), React.createElement("div", {
+          }), React.createElement("span", null, "已沿用历史主视觉，可直接用于 HTML 成品卡。")), React.createElement("div", {
             className: "visual-result-grid"
           }, imageResult?.status === 'success' ? React.createElement("div", {
             className: "mi-surface mi-surface-card visual-result-item"
@@ -3731,19 +3700,7 @@ const useResultContent = ({
             className: "text-[13px] font-bold text-slate-800"
           }, selectedHtmlCard.label), React.createElement("div", {
             className: "visual-current-output-actions"
-          }, selectedHtmlCardReady && React.createElement("label", {
-            className: "visual-focus-control"
-          }, React.createElement("span", null, "画面焦点"), React.createElement("input", {
-            type: "range",
-            min: "30",
-            max: "75",
-            step: "1",
-            value: selectedHtmlFocusY,
-            onChange: event => updateImageFocus(selectedHtmlResultKey, selectedHtmlCard.imageKey, event.target.value),
-            "aria-label": "调整主视觉纵向焦点"
-          }), React.createElement("span", {
-            className: "visual-focus-value"
-          }, selectedHtmlFocusY, "%")), React.createElement("button", {
+          }, React.createElement("button", {
             onClick: () => exportHtmlCard(selectedHtmlCard),
             disabled: isSelectedHtmlCardExporting,
             "aria-busy": isSelectedHtmlCardExporting,
@@ -3760,7 +3717,7 @@ const useResultContent = ({
             className: "visual-comparison-label-row"
           }, React.createElement("div", {
             className: "visual-comparison-label"
-          }, selectedHtmlCardReady ? 'HTML 成品' : 'HTML 白底降级'), React.createElement("div", {
+          }, "HTML 成品"), React.createElement("div", {
             className: "html-card-appearance-control",
             role: "group",
             "aria-label": "HTML 卡片遮罩模式"
@@ -3786,13 +3743,12 @@ const useResultContent = ({
               if (node) htmlCardRefs.current[selectedHtmlCard.id] = node;
             },
             styleLock: currentSession.packageData?.style_lock,
-            focusY: selectedHtmlFocusY,
             appearanceOverride: htmlCardAppearanceOverride
           })), React.createElement("div", {
             className: "visual-comparison-meta"
           }, React.createElement("span", null, React.createElement("strong", null, "预览框 3:4"), " · ", isBuiltInDemo ? '内置示例占位图' : selectedHtmlCardReady ? 'HTML 成品' : '白底降级'), React.createElement("span", null, isBuiltInDemo ? '本地演示素材' : selectedHtmlCardReady ? '导出 1242×1656' : '白底可导出')), selectedHtmlImageResult?.status !== 'success' && React.createElement("p", {
-            className: `visual-comparison-hint ${selectedHtmlLegacyResult?.status === 'success' ? 'is-stale' : ''}`
-          }, selectedHtmlLegacyResult?.status === 'success' ? '旧版主视觉不再用于 HTML 成品卡，当前使用白底降级。' : '未生成主视觉，当前使用白底降级，仍可直接导出 HTML PNG。')), React.createElement("div", {
+            className: "visual-comparison-hint"
+          }, "未生成主视觉，当前使用白底降级，仍可直接导出 HTML PNG。")), React.createElement("div", {
             className: "mi-surface mi-surface-card visual-comparison-item"
           }, React.createElement("div", {
             className: "visual-comparison-label-row visual-comparison-label-row-ai"
@@ -3997,20 +3953,6 @@ function App() {
     imageObjectUrlsRef.current = Object.values(nextResults).map(item => item.imageUrl).filter(url => url?.startsWith('blob:'));
     setImageResults(nextResults);
   };
-  const updateImageFocus = (resultKey, cardTitle, focusY) => {
-    const normalizedFocus = Math.max(30, Math.min(75, Number(focusY) || 50));
-    setImageResults(prev => ({
-      ...prev,
-      [resultKey]: {
-        ...prev[resultKey],
-        focusY: normalizedFocus
-      }
-    }));
-    saveImageFocus(activeHistoryId || 'current', cardTitle, 'visual-only', normalizedFocus).catch(error => setToast({
-      message: `画面焦点保存失败: ${error.message}`,
-      type: 'error'
-    }));
-  };
   const abortSessionImageRequests = sessionId => {
     imageAbortControllersRef.current.forEach((entry, resultKey) => {
       if (entry.sessionId !== sessionId) return;
@@ -4048,8 +3990,7 @@ function App() {
           status: 'success',
           imageUrl,
           error: '',
-          mode: item.mode || 'visual-only',
-          focusY: item.focusY
+          mode: item.mode || 'visual-only'
         };
       });
       replaceImageResults(nextResults);
@@ -4303,15 +4244,13 @@ function App() {
     let requestPhase = 'request';
     let timedOutPhase = '';
     const imageEndpoint = resolveApiEndpoint(apiConfig.imageApiUrl, 'image');
-    const previousFocusY = imageResults[resultKey]?.focusY;
     setImageResults(prev => ({
       ...prev,
       [resultKey]: {
         status: 'loading',
         imageUrl: '',
         error: '',
-        mode,
-        focusY: prev[resultKey]?.focusY
+        mode
       }
     }));
     saveLastImageDiagnostic({
@@ -4349,7 +4288,7 @@ function App() {
       } = imageRequestResult;
       generationCompletedAt = imageRequestResult.requestMeta.generationCompletedAt;
       requestPhase = imageRequestResult.requestMeta.requestPhase;
-      const imageSaved = await saveImageBlob(sessionId, cardTitle, imageBlob, mode, previousFocusY);
+      const imageSaved = await saveImageBlob(sessionId, cardTitle, imageBlob, mode);
       if (!imageSaved) {
         saveLastImageDiagnostic({
           storageBackend: 'IndexedDB',
@@ -4407,8 +4346,7 @@ function App() {
             imageUrl,
             error: '',
             mode,
-            size: requestedSize,
-            focusY: prev[resultKey]?.focusY
+            size: requestedSize
           }
         };
         imageObjectUrlsRef.current = Object.values(nextResults).map(item => item.imageUrl).filter(url => url?.startsWith('blob:'));
@@ -4926,7 +4864,6 @@ function App() {
     hiddenFullImages,
     setHiddenFullImages,
     copyToClipboard,
-    updateImageFocus,
     exportHtmlCard,
     htmlCardRefs,
     htmlCardAppearanceOverride,

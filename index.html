@@ -260,7 +260,7 @@
     .visual-section-description { margin-top: 4px; color: #64748b; font-size: 12px; line-height: 1.6; }
     .visual-comparison-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px; }
     .visual-comparison-item { display: flex; flex-direction: column; padding: 12px; }
-    .visual-comparison-label-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; min-height: 36px; margin-bottom: 10px; padding-top: 4px; }
+    .visual-comparison-label-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 36px; margin-bottom: 10px; }
     .visual-comparison-label-row-ai { justify-content: flex-start; }
     .visual-comparison-label { margin: 0; color: #475569; font-size: 12px; font-weight: 800; }
     .visual-comparison-preview-frame,
@@ -279,9 +279,6 @@
     .visual-output-panel { padding: 18px; }
     .visual-current-output-header { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
     .visual-current-output-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 12px; }
-    .visual-focus-control { display: grid; min-width: 184px; grid-template-columns: auto minmax(88px, 1fr) 30px; align-items: center; gap: 8px; color: #64748b; font-size: 11px; font-weight: 700; }
-    .visual-focus-control input { width: 100%; accent-color: #4f46e5; }
-    .visual-focus-value { color: #475569; font-variant-numeric: tabular-nums; text-align: right; }
     .visual-output-status { display: inline-flex; min-height: var(--mi-control-action); align-items: center; border: 1px solid var(--mi-border); border-radius: var(--mi-radius-action); padding: 0 12px; background: rgba(248,250,252,.78); color: #64748b; font-size: 12px; font-weight: 700; }
     .visual-export-button { min-width: 190px; }
     .visual-current-output-body { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 400px)); justify-content: center; gap: 20px; }
@@ -438,7 +435,6 @@
       .visual-comparison-label-row { min-height: 36px; }
       .html-card-appearance-control { flex: 0 1 auto; justify-content: space-between; }
       .html-card-appearance-tab { flex: 1 1 0; }
-      .visual-focus-control { width: 100%; }
       .visual-export-button { width: 100%; min-width: 0; }
       .processing-notice { grid-template-columns: 18px minmax(0, 1fr); gap: 9px; padding: 11px 12px; }
       .processing-notice-icon { width: 18px; height: 18px; }
@@ -577,6 +573,6 @@
 </head>
 <body class="antialiased text-slate-800 bg-slate-50">
   <div id="root"></div>
-  <script src="app.js?v=94d2a0eb180f" defer></script>
+  <script src="app.js?v=76cf7e001421" defer></script>
 </body>
 </html>
