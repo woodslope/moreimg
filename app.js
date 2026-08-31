@@ -1842,7 +1842,7 @@ const getCardShellPresentation = (styleLock, appearanceOverride = 'auto') => {
   const defaultOverlay = MOREIMG_OVERLAYS.has(shell.overlay) ? shell.overlay : defaultSurface === 'light' ? 'soft_light' : 'soft_dark';
   const surface = appearanceOverride === 'light' ? 'light' : appearanceOverride === 'dark' ? 'dark' : defaultSurface;
   const overlay = appearanceOverride === 'light' ? 'soft_light' : appearanceOverride === 'dark' ? 'soft_dark' : defaultOverlay;
-  const accentColor = /^#[0-9A-F]{6}$/i.test(shell.accent_color || '') ? shell.accent_color : '#F59E42';
+  const accentColor = appearanceOverride === 'dark' ? '#B7FF00' : appearanceOverride === 'light' ? '#326BFF' : /^#[0-9A-F]{6}$/i.test(shell.accent_color || '') ? shell.accent_color : '#F59E42';
   return {
     className: `moreimg-card-surface-${surface} moreimg-card-overlay-${overlay}`,
     style: {
@@ -2056,9 +2056,9 @@ const HTML_CARD_EXPORT_STYLES = `
       .moreimg-card-media{position:absolute;inset:0;z-index:0;background:#15171a;overflow:hidden}
       .moreimg-card-media img{width:100%;height:100%;object-fit:cover;object-position:center var(--moreimg-card-focus-y,58%);display:block;transform:scale(1.012)}
       .moreimg-card-visual-placeholder{position:absolute;inset:0;background:radial-gradient(circle at 62% 66%,rgba(239,232,216,.25),transparent 24%),linear-gradient(155deg,#313842 0%,#15181d 56%,#08090b 100%)}
-      .moreimg-card-shade{position:absolute;inset:0;z-index:1;pointer-events:none;background:linear-gradient(180deg,rgba(7,9,12,.9) 0%,rgba(7,9,12,.66) 24%,rgba(7,9,12,.08) 58%,rgba(7,9,12,.44) 100%)}
-      .moreimg-card-body .moreimg-card-shade{background:linear-gradient(180deg,rgba(5,8,12,.9) 0%,rgba(5,8,12,.72) 28%,rgba(5,8,12,.38) 48%,rgba(5,8,12,.08) 66%,rgba(5,8,12,.04) 100%)}
-      .moreimg-card-back .moreimg-card-shade{background:linear-gradient(180deg,rgba(7,9,12,.9) 0%,rgba(7,9,12,.68) 30%,rgba(7,9,12,.28) 50%,rgba(7,9,12,.06) 68%,rgba(7,9,12,.03) 100%)}
+      .moreimg-card-shade{position:absolute;inset:0;z-index:1;pointer-events:none;background:linear-gradient(180deg,rgba(7,9,12,.84) 0%,rgba(7,9,12,.62) 45%,rgba(7,9,12,.24) 68%,rgba(7,9,12,0) 88%)}
+      .moreimg-card-body .moreimg-card-shade{background:linear-gradient(180deg,rgba(5,8,12,.84) 0%,rgba(5,8,12,.62) 45%,rgba(5,8,12,.24) 68%,rgba(5,8,12,0) 88%)}
+      .moreimg-card-back .moreimg-card-shade{background:linear-gradient(180deg,rgba(7,9,12,.84) 0%,rgba(7,9,12,.62) 45%,rgba(7,9,12,.24) 68%,rgba(7,9,12,0) 88%)}
       .moreimg-card-noise{position:absolute;inset:0;z-index:2;opacity:.1;background-image:radial-gradient(rgba(255,255,255,.38) .7px,transparent .8px);background-size:8px 8px;mix-blend-mode:soft-light;pointer-events:none}
       .moreimg-card-content{position:relative;z-index:3;width:1080px;height:1440px;padding:78px;display:flex;flex-direction:column;transform:scale(1.15,1.152778);transform-origin:top left}
       .moreimg-card-header{max-width:890px}
@@ -2102,13 +2102,13 @@ const HTML_CARD_EXPORT_STYLES = `
       .moreimg-card-surface-light{background:#f2f5f3;color:#14202b}
       .moreimg-card-surface-light .moreimg-card-media{background:#e8eeec}
       .moreimg-card-surface-light .moreimg-card-visual-placeholder{background:radial-gradient(circle at 62% 66%,rgba(245,158,66,.22),transparent 25%),linear-gradient(155deg,#f8faf9 0%,#e8efec 56%,#dbe5e1 100%)}
-      .moreimg-card-surface-light.moreimg-card-overlay-soft_light .moreimg-card-shade{background:linear-gradient(180deg,rgba(248,250,249,.96) 0%,rgba(248,250,249,.86) 28%,rgba(248,250,249,.34) 55%,rgba(248,250,249,.08) 100%)}
+      .moreimg-card-surface-light.moreimg-card-overlay-soft_light .moreimg-card-shade{background:linear-gradient(180deg,rgba(248,250,249,.82) 0%,rgba(248,250,249,.64) 45%,rgba(248,250,249,.28) 68%,rgba(248,250,249,0) 88%)}
       .moreimg-card-surface-light .moreimg-card-kicker{color:rgba(20,32,43,.68)}
       .moreimg-card-surface-light .moreimg-card-title{color:#14202b;text-shadow:0 1px 8px rgba(255,255,255,.72)}
       .moreimg-card-surface-light .moreimg-card-subtitle{color:rgba(20,32,43,.72);text-shadow:0 1px 6px rgba(255,255,255,.68)}
       .moreimg-card-surface-light .moreimg-card-point{border-bottom-color:rgba(20,32,43,.18);color:#1c2b36;text-shadow:none}
       .moreimg-card-surface-light .moreimg-card-summary{border-top-color:var(--moreimg-card-accent);color:#14202b;text-shadow:none}
-      .moreimg-card-surface-light.moreimg-card-overlay-soft_dark .moreimg-card-shade{background:linear-gradient(180deg,rgba(20,29,36,.82) 0%,rgba(20,29,36,.58) 28%,rgba(20,29,36,.12) 62%,transparent 100%)}
+      .moreimg-card-surface-light.moreimg-card-overlay-soft_dark .moreimg-card-shade{background:linear-gradient(180deg,rgba(20,29,36,.84) 0%,rgba(20,29,36,.64) 45%,rgba(20,29,36,.24) 68%,rgba(20,29,36,0) 88%)}
       .moreimg-card-surface-light.moreimg-card-overlay-soft_dark .moreimg-card-kicker,.moreimg-card-surface-light.moreimg-card-overlay-soft_dark .moreimg-card-title,.moreimg-card-surface-light.moreimg-card-overlay-soft_dark .moreimg-card-subtitle,.moreimg-card-surface-light.moreimg-card-overlay-soft_dark .moreimg-card-point,.moreimg-card-surface-light.moreimg-card-overlay-soft_dark .moreimg-card-summary{color:#f8faf7;text-shadow:0 1px 8px rgba(0,0,0,.3)}
       /* 没有主视觉时仍输出可用卡片：纯白底、移除背景装饰，并固定深色文字。 */
       .moreimg-card-no-visual{background:#fff!important;color:#17202a!important}
@@ -2136,6 +2136,34 @@ const getCardTextDensity = card => {
   return 'standard';
 };
 const getDefaultCardFocus = card => card?.type === 'back' ? 42 : card?.type === 'body' ? 54 : 58;
+const sampleImageTopLuminance = image => {
+  if (!image?.naturalWidth || !image?.naturalHeight) return null;
+  const canvas = document.createElement('canvas');
+  canvas.width = 32;
+  canvas.height = 18;
+  const context = canvas.getContext('2d', {
+    willReadFrequently: true
+  });
+  if (!context) return null;
+  try {
+    context.drawImage(image, 0, 0, canvas.width, canvas.height);
+    const pixels = context.getImageData(0, 0, canvas.width, canvas.height).data;
+    let luminanceTotal = 0;
+    for (let index = 0; index < pixels.length; index += 4) {
+      luminanceTotal += (0.2126 * pixels[index] + 0.7152 * pixels[index + 1] + 0.0722 * pixels[index + 2]) / 255;
+    }
+    return luminanceTotal / (pixels.length / 4);
+  } catch (error) {
+    return null;
+  } finally {
+    canvas.width = 1;
+    canvas.height = 1;
+  }
+};
+const getAutoAppearanceFromLuminance = luminance => {
+  if (!Number.isFinite(luminance)) return 'auto';
+  return luminance >= 0.52 ? 'light' : 'dark';
+};
 const HtmlCard = ({
   card,
   imageUrl,
@@ -2144,7 +2172,23 @@ const HtmlCard = ({
   focusY,
   appearanceOverride = 'auto'
 }) => {
-  const presentation = getCardShellPresentation(styleLock, appearanceOverride);
+  const imageRef = useRef(null);
+  const [imageLoadVersion, setImageLoadVersion] = useState(0);
+  const [autoAppearance, setAutoAppearance] = useState('auto');
+  useEffect(() => {
+    let cancelled = false;
+    if (appearanceOverride !== 'auto' || !imageUrl || !imageRef.current) {
+      setAutoAppearance('auto');
+      return undefined;
+    }
+    const luminance = sampleImageTopLuminance(imageRef.current);
+    if (!cancelled) setAutoAppearance(getAutoAppearanceFromLuminance(luminance));
+    return () => {
+      cancelled = true;
+    };
+  }, [appearanceOverride, imageLoadVersion, imageUrl]);
+  const effectiveAppearance = appearanceOverride === 'auto' ? autoAppearance : appearanceOverride;
+  const presentation = getCardShellPresentation(styleLock, effectiveAppearance);
   const density = getCardTextDensity(card);
   const hasVisual = Boolean(imageUrl);
   const resolvedFocusY = Number.isFinite(Number(focusY)) ? Number(focusY) : getDefaultCardFocus(card);
@@ -2158,9 +2202,11 @@ const HtmlCard = ({
   }, React.createElement("div", {
     className: "moreimg-card-media"
   }, imageUrl ? React.createElement("img", {
+    ref: imageRef,
     src: imageUrl,
     alt: "",
-    decoding: "async"
+    decoding: "async",
+    onLoad: () => setImageLoadVersion(version => version + 1)
   }) : React.createElement("div", {
     className: "moreimg-card-visual-placeholder"
   })), React.createElement("div", {
@@ -3749,8 +3795,10 @@ const useResultContent = ({
           }, selectedHtmlLegacyResult?.status === 'success' ? '旧版主视觉不再用于 HTML 成品卡，当前使用白底降级。' : '未生成主视觉，当前使用白底降级，仍可直接导出 HTML PNG。')), React.createElement("div", {
             className: "mi-surface mi-surface-card visual-comparison-item"
           }, React.createElement("div", {
+            className: "visual-comparison-label-row visual-comparison-label-row-ai"
+          }, React.createElement("div", {
             className: "visual-comparison-label"
-          }, isBuiltInDemo ? '内置示例占位图' : 'AI 整图'), fullImageResult?.status === 'success' && !hiddenFullImages[selectedPromptSection.title] ? React.createElement(React.Fragment, null, React.createElement("div", {
+          }, isBuiltInDemo ? '内置示例占位图' : 'AI 整图')), fullImageResult?.status === 'success' && !hiddenFullImages[selectedPromptSection.title] ? React.createElement(React.Fragment, null, React.createElement("div", {
             className: "visual-comparison-preview-frame"
           }, React.createElement("img", {
             src: fullImageResult.imageUrl,

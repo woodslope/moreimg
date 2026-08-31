@@ -260,7 +260,8 @@
     .visual-section-description { margin-top: 4px; color: #64748b; font-size: 12px; line-height: 1.6; }
     .visual-comparison-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px; }
     .visual-comparison-item { display: flex; flex-direction: column; padding: 12px; }
-    .visual-comparison-label-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 32px; margin-bottom: 10px; }
+    .visual-comparison-label-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; min-height: 36px; margin-bottom: 10px; padding-top: 4px; }
+    .visual-comparison-label-row-ai { justify-content: flex-start; }
     .visual-comparison-label { margin: 0; color: #475569; font-size: 12px; font-weight: 800; }
     .visual-comparison-preview-frame,
     .html-card-preview-frame { position: relative; width: 400px; aspect-ratio: 3 / 4; max-width: 100%; margin: 0 auto; overflow: hidden; border: 0; border-radius: 12px; background: #eef2f7; box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08); }
@@ -434,6 +435,7 @@
       .visual-current-output-body { grid-template-columns: 1fr; }
       .visual-current-output-header { align-items: stretch; flex-direction: column; }
       .visual-current-output-actions { align-items: stretch; flex-direction: column; }
+      .visual-comparison-label-row { min-height: 36px; }
       .html-card-appearance-control { flex: 0 1 auto; justify-content: space-between; }
       .html-card-appearance-tab { flex: 1 1 0; }
       .visual-focus-control { width: 100%; }
@@ -575,6 +577,6 @@
 </head>
 <body class="antialiased text-slate-800 bg-slate-50">
   <div id="root"></div>
-  <script src="app.js?v=ac751274a577" defer></script>
+  <script src="app.js?v=94d2a0eb180f" defer></script>
 </body>
 </html>
