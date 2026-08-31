@@ -1825,15 +1825,29 @@ const getPackageStageText = (packageData, stageId) => {
   if (stageId === 5) return 'JSON 视觉页面';
   return '';
 };
-const getCardShellPresentation = styleLock => {
+const blendHexColor = (hex, target, amount) => {
+  const source = hex.match(/^#([0-9A-F]{6})$/i)?.[1];
+  const destination = target.match(/^#([0-9A-F]{6})$/i)?.[1];
+  if (!source || !destination) return hex;
+  const channels = [0, 2, 4].map(offset => {
+    const from = Number.parseInt(source.slice(offset, offset + 2), 16);
+    const to = Number.parseInt(destination.slice(offset, offset + 2), 16);
+    return Math.round(from + (to - from) * amount).toString(16).padStart(2, '0');
+  });
+  return `#${channels.join('')}`;
+};
+const getCardShellPresentation = (styleLock, appearanceOverride = 'auto') => {
   const shell = styleLock?.card_shell || {};
-  const surface = shell.surface === 'light' ? 'light' : 'dark';
-  const overlay = MOREIMG_OVERLAYS.has(shell.overlay) ? shell.overlay : surface === 'light' ? 'soft_light' : 'soft_dark';
+  const defaultSurface = shell.surface === 'light' ? 'light' : 'dark';
+  const defaultOverlay = MOREIMG_OVERLAYS.has(shell.overlay) ? shell.overlay : defaultSurface === 'light' ? 'soft_light' : 'soft_dark';
+  const surface = appearanceOverride === 'light' ? 'light' : appearanceOverride === 'dark' ? 'dark' : defaultSurface;
+  const overlay = appearanceOverride === 'light' ? 'soft_light' : appearanceOverride === 'dark' ? 'soft_dark' : defaultOverlay;
   const accentColor = /^#[0-9A-F]{6}$/i.test(shell.accent_color || '') ? shell.accent_color : '#F59E42';
   return {
     className: `moreimg-card-surface-${surface} moreimg-card-overlay-${overlay}`,
     style: {
-      '--moreimg-card-accent': accentColor
+      '--moreimg-card-accent': accentColor,
+      '--moreimg-card-accent-readable': overlay === 'soft_dark' ? blendHexColor(accentColor, '#FFFFFF', 0.42) : accentColor
     }
   };
 };
@@ -2057,7 +2071,7 @@ const HTML_CARD_EXPORT_STYLES = `
       .moreimg-card-points{margin-top:34px;padding:0 6px;background:transparent}
       .moreimg-card-point{min-height:88px;padding:22px 0;display:flex;align-items:baseline;border-bottom:0;font-size:36px;line-height:1.34;font-weight:740;color:#f7f6f1;text-shadow:0 1px 8px rgba(0,0,0,.3)}
       .moreimg-card-point:last-child{border-bottom:0}
-      .moreimg-card-point-index{width:62px;margin-right:20px;flex:none;color:var(--moreimg-card-accent);font-size:23px;transform:translateY(-.08em);font-variant-numeric:tabular-nums;letter-spacing:.08em}
+      .moreimg-card-point-index{width:62px;margin-right:20px;flex:none;color:var(--moreimg-card-accent-readable,var(--moreimg-card-accent));font-size:23px;transform:translateY(-.08em);font-variant-numeric:tabular-nums;letter-spacing:.08em;text-shadow:0 1px 4px rgba(0,0,0,.42)}
       .moreimg-card-summary{margin-top:20px;padding:24px 6px 0;border-top:2px solid rgba(255,255,255,.4);font-size:37px;line-height:1.36;font-weight:840;color:#fbfaf5;text-shadow:0 1px 8px rgba(0,0,0,.3)}
       .moreimg-card-cover .moreimg-card-summary,.moreimg-card-back .moreimg-card-summary{border-top:0;padding-top:0}
       .moreimg-card-cover .moreimg-card-summary{margin-top:26px}
@@ -2127,9 +2141,10 @@ const HtmlCard = ({
   imageUrl,
   cardRef,
   styleLock,
-  focusY
+  focusY,
+  appearanceOverride = 'auto'
 }) => {
-  const presentation = getCardShellPresentation(styleLock);
+  const presentation = getCardShellPresentation(styleLock, appearanceOverride);
   const density = getCardTextDensity(card);
   const hasVisual = Boolean(imageUrl);
   const resolvedFocusY = Number.isFinite(Number(focusY)) ? Number(focusY) : getDefaultCardFocus(card);
@@ -3356,6 +3371,8 @@ const useResultContent = ({
   updateImageFocus,
   exportHtmlCard,
   htmlCardRefs,
+  htmlCardAppearanceOverride,
+  setHtmlCardAppearanceOverride,
   showResults
 }) => {
   const renderStageContent = () => {
@@ -3694,15 +3711,37 @@ const useResultContent = ({
           }, React.createElement("div", {
             className: "mi-surface mi-surface-card visual-comparison-item"
           }, React.createElement("div", {
+            className: "visual-comparison-label-row"
+          }, React.createElement("div", {
             className: "visual-comparison-label"
-          }, selectedHtmlCardReady ? 'HTML 成品' : 'HTML 白底降级'), React.createElement(HtmlCardPreview, null, React.createElement(HtmlCard, {
+          }, selectedHtmlCardReady ? 'HTML 成品' : 'HTML 白底降级'), React.createElement("div", {
+            className: "html-card-appearance-control",
+            role: "group",
+            "aria-label": "HTML 卡片遮罩模式"
+          }, [{
+            value: 'auto',
+            label: '自动'
+          }, {
+            value: 'dark',
+            label: '深色'
+          }, {
+            value: 'light',
+            label: '浅色'
+          }].map(option => React.createElement("button", {
+            key: option.value,
+            type: "button",
+            className: `mi-tab html-card-appearance-tab ${htmlCardAppearanceOverride === option.value ? 'html-card-appearance-tab-active' : ''}`,
+            "aria-pressed": htmlCardAppearanceOverride === option.value,
+            onClick: () => setHtmlCardAppearanceOverride(option.value)
+          }, option.label)))), React.createElement(HtmlCardPreview, null, React.createElement(HtmlCard, {
             card: selectedHtmlCard,
             imageUrl: selectedHtmlCardReady ? selectedHtmlImageResult.imageUrl : '',
             cardRef: node => {
               if (node) htmlCardRefs.current[selectedHtmlCard.id] = node;
             },
             styleLock: currentSession.packageData?.style_lock,
-            focusY: selectedHtmlFocusY
+            focusY: selectedHtmlFocusY,
+            appearanceOverride: htmlCardAppearanceOverride
           })), React.createElement("div", {
             className: "visual-comparison-meta"
           }, React.createElement("span", null, React.createElement("strong", null, "预览框 3:4"), " · ", isBuiltInDemo ? '内置示例占位图' : selectedHtmlCardReady ? 'HTML 成品' : '白底降级'), React.createElement("span", null, isBuiltInDemo ? '本地演示素材' : selectedHtmlCardReady ? '导出 1242×1656' : '白底可导出')), selectedHtmlImageResult?.status !== 'success' && React.createElement("p", {
@@ -3765,7 +3804,7 @@ const useResultContent = ({
     }, "需要重试")), React.createElement("p", {
       className: "processing-notice-message"
     }, currentSession.stopReason || '缺少必要阶段，请检查模型输出限制后重试。'))), renderStageContent());
-  }, [showResults, currentSession, activeStageTab, activeVisualPage, imageResults, hiddenFullImages, apiConfig, htmlExportState]);
+  }, [showResults, currentSession, activeStageTab, activeVisualPage, imageResults, hiddenFullImages, apiConfig, htmlExportState, htmlCardAppearanceOverride]);
   return resultContent;
 };
 function App() {
@@ -3802,6 +3841,7 @@ function App() {
     status: 'idle',
     error: ''
   });
+  const [htmlCardAppearanceOverride, setHtmlCardAppearanceOverride] = useState('auto');
   const [hiddenFullImages, setHiddenFullImages] = useState({});
   const [textModels, setTextModels] = useState([]);
   const [imageModels, setImageModels] = useState([]);
@@ -3872,6 +3912,9 @@ function App() {
   };
   useEffect(() => {
     activeHistoryIdRef.current = activeHistoryId;
+  }, [activeHistoryId]);
+  useEffect(() => {
+    setHtmlCardAppearanceOverride('auto');
   }, [activeHistoryId]);
   const recordImageUsage = entry => {
     appendImageUsageLog(entry).then(setImageUsageLog).catch(error => setToast({
@@ -4838,6 +4881,8 @@ function App() {
     updateImageFocus,
     exportHtmlCard,
     htmlCardRefs,
+    htmlCardAppearanceOverride,
+    setHtmlCardAppearanceOverride,
     showResults
   });
   const hasTextConfig = Boolean(apiConfig.apiUrl?.trim() && apiConfig.model?.trim() && apiConfig.apiKey?.trim());
